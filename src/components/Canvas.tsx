@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useModal } from './Modal';
+import { useActivity } from '../contexts/ActivityContext';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
@@ -176,7 +177,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { closeTab, updateTabTitle } = useTabs();
   const { confirm, prompt } = useModal();
   const node = getNodeById(tab.filePath);
-  const [content, setContent] = useState(node?.type === 'file' ? node.content : '');
+   const [content, setContent] = useState(node?.type === 'file' ? (node as any).content : '');
   const [titleValue, setTitleValue] = useState(node?.name || tab.title);
   const [isPreview, setIsPreview] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -184,7 +185,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const editorViewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const isNewFile = useRef(node?.content === `# ${node?.name}\n\n`);
+   const isNewFile = useRef((node as any)?.content === `# ${node?.name}\n\n`);
 
   // Auto-select title on brand new file
   useEffect(() => {
@@ -206,7 +207,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
   useEffect(() => {
     if (node?.type === 'file') {
-      setContent(node.content);
+      setContent((node as any).content);
       setTitleValue(node.name);
     }
   }, [node]);
@@ -455,39 +456,137 @@ const DrawTab: React.FC<{ tab: any }> = () => {
 const TerminalTab: React.FC<{ tab: any }> = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const { theme } = useActivity();
+  const [cols, setCols] = useState(80);
+  const [rows, setRows] = useState(24);
+
+  const xtermTheme = {
+    light: { background: '#ffffff', foreground: '#2e3338', cursor: '#7c3aed' },
+    dark: { background: '#1e1e1e', foreground: '#dcddde', cursor: '#7c3aed' },
+  };
 
   useEffect(() => {
     if (terminalRef.current && !xtermRef.current) {
       const term = new XTerm({
-        theme: { background: '#1a1a1a', foreground: '#ffffff', cursor: '#7c3aed' },
+        theme: xtermTheme[theme],
         fontFamily: 'JetBrains Mono, Fira Code, monospace',
         fontSize: 13,
         cursorBlink: true,
+        cols,
+        rows,
       });
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.open(terminalRef.current);
       fitAddon.fit();
+      
+      // Update size from actual terminal
+      const { cols: actualCols, rows: actualRows } = term.cols ? { cols: term.cols, rows: term.rows } : { cols, rows };
+      setCols(actualCols);
+      setRows(actualRows);
+      
       term.writeln('\x1b[1;35mIbsidian Terminal\x1b[0m');
-      term.writeln('Type something to begin...');
-      term.write('\r\n$ ');
+      term.writeln('Connecting to backend...');
+      
+      // Connect to backend WebSocket
+      const ws = new WebSocket(`ws://${window.location.hostname}:3001`);
+      wsRef.current = ws;
+      
+      ws.onopen = () => {
+        term.writeln('\x1b[1;32mConnected to Ibsidian backend\x1b[0m');
+        term.write('\r\n$ ');
+        
+        // Initialize terminal session
+        ws.send(JSON.stringify({ type: 'init' }));
+        
+        // Send initial size
+        ws.send(JSON.stringify({ 
+          type: 'resize', 
+          cols: term.cols, 
+          rows: term.rows 
+        }));
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          switch (data.type) {
+            case 'output':
+              term.write(data.data);
+              break;
+            case 'welcome':
+              // Ignore welcome message
+              break;
+            case 'error':
+              term.write(`\x1b[1;31mError: ${data.message}\x1b[0m\r\n`);
+              term.write('\r\n$ ');
+              break;
+            case 'exit':
+              term.write(`\x1b[1;33mProcess exited with code ${data.code}\x1b[0m\r\n`);
+              term.write('\r\n$ ');
+              break;
+          }
+        } catch (e) {
+          // If not JSON, treat as raw data
+          term.write(event.data);
+        }
+      };
+      
+      ws.onclose = () => {
+        term.write('\x1b[1;31mDisconnected from backend\x1b[0m\r\n');
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        term.write('\x1b[1;31mWebSocket error\x1b[0m\r\n');
+      };
+      
       term.onData(data => {
-        if (data === '\r') { term.write('\r\n$ '); }
-        else if (data === '\u007f') { term.write('\b \b'); }
-        else { term.write(data); }
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ 
+            type: 'input', 
+            data 
+          }));
+        }
       });
+      
+      term.onResize(({ cols, rows }) => {
+        setCols(cols);
+        setRows(rows);
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ 
+            type: 'resize', 
+            cols, 
+            rows 
+          }));
+        }
+      });
+      
       xtermRef.current = term;
       const handleResize = () => fitAddon.fit();
       window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        if (wsRef.current) {
+          wsRef.current.close();
+        }
+      };
     }
   }, []);
 
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = xtermTheme[theme];
+    }
+  }, [theme]);
+
   return (
-    <div className="flex-1 flex flex-col bg-[#1a1a1a]">
-      <div className="h-8 bg-[#2a2a2a] border-b border-[#3a3a3a] flex items-center px-3 gap-2 text-[11px] text-gray-400">
+    <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
+      <div className="h-8 bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center px-3 gap-2 text-[11px] text-[var(--text-muted)]">
         <SquareTerminal size={12} />
-        <span>bash — 80×24</span>
+        <span>bash — {cols}×{rows}</span>
       </div>
       <div ref={terminalRef} className="flex-1 p-2" />
     </div>

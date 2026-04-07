@@ -5,13 +5,16 @@ import { SidePanel } from './SidePanel';
 import { TabBar } from './TabBar';
 import { Canvas } from './Canvas';
 import { CommandPalette } from './CommandPalette';
+import { VaultSetup } from './VaultSetup';
 import { useActivity } from '../contexts/ActivityContext';
+import { useVault } from '../contexts/VaultContext';
 
 const SIDEBAR_KEY = 'ibsidian-sidebar-width';
 const DEFAULT_WIDTH = 240;
 
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
+  const { vault } = useVault();
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_KEY);
     return saved ? Math.max(160, Math.min(Number(saved), 600)) : DEFAULT_WIDTH;
@@ -40,27 +43,33 @@ export const Layout: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--bg-primary)]">
-      <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <ActivityBar />
-        {!isSidebarCollapsed && (
-          <>
-            <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600 }} className="shrink-0">
-              <SidePanel />
+      {!vault ? (
+        <VaultSetup />
+      ) : (
+        <>
+          <TopBar />
+          <div className="flex flex-1 overflow-hidden">
+            <ActivityBar />
+            {!isSidebarCollapsed && (
+              <>
+                <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600 }} className="shrink-0">
+                  <SidePanel />
+                </div>
+                <div
+                  onMouseDown={startResize}
+                  style={{ width: 4, cursor: 'col-resize', flexShrink: 0, background: 'transparent', transition: 'background 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                />
+              </>
+            )}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <TabBar />
+              <Canvas />
             </div>
-            <div
-              onMouseDown={startResize}
-              style={{ width: 4, cursor: 'col-resize', flexShrink: 0, background: 'transparent', transition: 'background 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            />
-          </>
-        )}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <TabBar />
-          <Canvas />
-        </div>
-      </div>
+          </div>
+        </>
+      )}
       <CommandPalette />
     </div>
   );

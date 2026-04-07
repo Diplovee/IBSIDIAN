@@ -1,9 +1,11 @@
 import React from 'react';
-import { Sidebar, Settings, MoreHorizontal } from 'lucide-react';
+import { Sidebar, Settings, MoreHorizontal, FolderOpen } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
+import { useVault } from '../contexts/VaultContext';
 
 export const TopBar: React.FC = () => {
   const { isSidebarCollapsed, setSidebarCollapsed } = useActivity();
+  const { vault } = useVault();
 
   return (
     <div className="h-[44px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-between px-3 z-40 shrink-0">
@@ -12,6 +14,15 @@ export const TopBar: React.FC = () => {
           I
         </div>
         <span className="font-semibold text-[14px] text-[var(--text-primary)] tracking-tight">Ibsidian</span>
+        {vault && (
+          <>
+            <span className="text-[var(--text-muted)]">/</span>
+            <span className="text-[13px] text-[var(--text-secondary)] flex items-center gap-1">
+              <FolderOpen size={12} />
+              {vault.name}
+            </span>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-1">
