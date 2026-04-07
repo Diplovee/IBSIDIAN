@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tree } from 'react-arborist';
-import { Folder, FileText, PenLine, ChevronRight, ChevronDown, Plus, FolderPlus, Search as SearchIcon } from 'lucide-react';
+import { Folder, FileText, PenLine, ChevronRight, ChevronDown, Plus, FolderPlus, Search as SearchIcon, Sun, Moon } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useActivity } from '../contexts/ActivityContext';
@@ -23,6 +23,7 @@ const FileTreeView: React.FC = () => {
   const { openTab } = useTabs();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState<{ width: number; height: number } | null>(null);
+  const [headerHeight] = React.useState(40);
 
   React.useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -57,33 +58,38 @@ const FileTreeView: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full w-full" ref={containerRef}>
-      <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)] shrink-0">
-        <span className="text-[var(--text-xs)] font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Vault</span>
-        <div className="flex gap-1">
-          <button 
-            onClick={() => createFile(null, 'Untitled', 'md')}
-            className="p-1 hover:bg-[var(--bg-hover)] rounded-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+      <div className="px-3 py-2 flex items-center justify-between border-b border-[var(--border)] shrink-0" style={{ height: headerHeight }}>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">Files</span>
+        <div className="flex gap-0.5">
+          <button
+            onClick={() => {
+              const id = createFile(null, 'Untitled', 'md');
+              openTab({ type: 'note', title: 'Untitled', filePath: id });
+            }}
+            title="New note"
+            className="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
             <Plus size={14} />
           </button>
-          <button 
+          <button
             onClick={() => createFolder(null, 'New Folder')}
-            className="p-1 hover:bg-[var(--bg-hover)] rounded-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            title="New folder"
+            className="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
             <FolderPlus size={14} />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden py-2">
+      <div className="flex-1 overflow-hidden py-1">
         {dimensions && (
           <Tree
-            initialData={nodes}
+            data={nodes}
             openByDefault={true}
             width={dimensions.width}
-            height={dimensions.height - 48} // Subtracting header height
-            indent={24}
-            rowHeight={34}
+            height={dimensions.height - headerHeight}
+            indent={16}
+            rowHeight={28}
             onSelect={(nodes) => {
               if (nodes.length > 0) handleSelect(nodes[0]);
             }}
@@ -97,26 +103,34 @@ const FileTreeView: React.FC = () => {
 };
 
 const Node = ({ node, style, dragHandle }: any) => {
-  const Icon = node.data.type === 'folder' 
-    ? Folder 
-    : node.data.ext === 'excalidraw' 
-      ? PenLine 
-      : FileText;
+  const [hovered, setHovered] = React.useState(false);
+  const Icon = node.data.type === 'folder' ? Folder : node.data.ext === 'excalidraw' ? PenLine : FileText;
 
   return (
-    <div 
-      style={style} 
+    <div
+      style={{
+        ...style,
+        display: 'flex', alignItems: 'center', gap: 6,
+        paddingLeft: 12, paddingRight: 8,
+        cursor: 'pointer',
+        background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent',
+        color: node.isSelected ? 'var(--accent)' : 'var(--text-secondary)',
+        fontWeight: node.isSelected ? 500 : 400,
+        fontSize: 13,
+        transition: 'background 0.1s',
+      }}
       ref={dragHandle}
-      className={`flex items-center gap-1.5 px-4 cursor-pointer group hover:bg-[var(--bg-hover)] transition-colors ${node.isSelected ? 'bg-[var(--bg-active)] text-[var(--accent)] font-medium' : 'text-[var(--text-secondary)]'}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={() => node.isInternal && node.toggle()}
     >
       {node.data.type === 'folder' && (
-        <span className="text-[var(--text-muted)]">
-          {node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+          {node.isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
       )}
-      <Icon size={14} className={node.isSelected ? 'text-[var(--accent)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-primary)]'} />
-      <span className="text-[var(--text-sm)] truncate flex-1">{node.data.name}</span>
+      <Icon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name}</span>
     </div>
   );
 };
@@ -144,15 +158,35 @@ const SearchView: React.FC = () => {
 };
 
 const SettingsView: React.FC = () => {
+  const { theme, setTheme } = useActivity();
+
   return (
     <div className="flex flex-col h-full p-4">
-      <h3 className="text-[var(--text-sm)] font-semibold mb-4">Settings</h3>
+      <h3 className="text-[13px] font-semibold mb-4 text-[var(--text-primary)]">Settings</h3>
       <div className="space-y-4">
         <div>
-          <label className="text-[var(--text-xs)] text-[var(--text-muted)] block mb-1 uppercase tracking-wider">Theme</label>
+          <label className="text-[11px] text-[var(--text-muted)] block mb-2 uppercase tracking-wider">Appearance</label>
           <div className="flex gap-2">
-            <button className="px-3 py-1.5 bg-[var(--bg-active)] border border-[var(--accent)] text-[var(--accent)] rounded-md text-[var(--text-xs)] font-medium">Light</button>
-            <button className="px-3 py-1.5 bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-secondary)] rounded-md text-[var(--text-xs)] font-medium">Dark (Soon)</button>
+            <button
+              onClick={() => setTheme('light')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors ${
+                theme === 'light'
+                  ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
+                  : 'bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              <Sun size={13} /> Light
+            </button>
+            <button
+              onClick={() => setTheme('dark')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors ${
+                theme === 'dark'
+                  ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
+                  : 'bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              <Moon size={13} /> Dark
+            </button>
           </div>
         </div>
       </div>

@@ -6,28 +6,26 @@ export const TopBar: React.FC = () => {
   const { isSidebarCollapsed, setSidebarCollapsed } = useActivity();
 
   return (
-    <div className="h-[48px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-between px-4 shadow-sm z-40">
-      <div className="flex items-center gap-3 pl-2">
-        {/* Icon */}
-        <svg className="w-6 h-6 shrink-0" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <rect x="0" y="0" width="32" height="32" rx="4" fill="#705dcf"/>
-          <text x="16" y="23" fontFamily="Plus Jakarta Sans, system-ui, sans-serif" fontSize="20" fontWeight="700" fill="white" textAnchor="middle">I</text>
-        </svg>
-        <span className="font-bold text-[var(--text-lg)] tracking-tight">Ibsidian</span>
+    <div className="h-[44px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-between px-3 z-40 shrink-0">
+      <div className="flex items-center gap-2 pl-1">
+        <div className="w-5 h-5 rounded-[4px] flex items-center justify-center text-white text-[13px] font-bold shrink-0 select-none" style={{ backgroundColor: '#7c3aed' }}>
+          I
+        </div>
+        <span className="font-semibold text-[14px] text-[var(--text-primary)] tracking-tight">Ibsidian</span>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button 
+      <div className="flex items-center gap-1">
+        <button
           onClick={() => setSidebarCollapsed(!isSidebarCollapsed)}
-          className="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors"
+          className="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
-          <Sidebar size={18} />
+          <Sidebar size={16} />
         </button>
-        <button className="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors">
-          <Settings size={18} />
+        <button className="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+          <Settings size={16} />
         </button>
-        <button className="w-8 h-8 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors">
-          <MoreHorizontal size={18} />
+        <button className="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+          <MoreHorizontal size={16} />
         </button>
       </div>
     </div>

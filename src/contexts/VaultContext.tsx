@@ -3,9 +3,10 @@ import { VaultNode } from '../types';
 
 interface VaultContextType {
   nodes: VaultNode[];
-  createFile: (parentId: string | null, name: string, ext: 'md' | 'excalidraw') => void;
-  createFolder: (parentId: string | null, name: string) => void;
+  createFile: (parentId: string | null, name: string, ext: 'md' | 'excalidraw') => string;
+  createFolder: (parentId: string | null, name: string) => string;
   deleteNode: (id: string) => void;
+  renameNode: (id: string, newName: string) => void;
   updateFileContent: (id: string, content: string) => void;
   getNodeById: (id: string) => VaultNode | undefined;
 }
@@ -53,54 +54,44 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return find(nodes);
   }, [nodes]);
 
-  const createFile = useCallback((parentId: string | null, name: string, ext: 'md' | 'excalidraw') => {
-    const newNode: VaultNode = {
-      id: Math.random().toString(36).substr(2, 9),
-      type: 'file',
-      name,
-      ext,
-      content: '',
-    };
-
+  const createFile = useCallback((parentId: string | null, name: string, ext: 'md' | 'excalidraw'): string => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const content = ext === 'md' ? `# ${name}\n\n` : '{"elements":[]}';
+    const newNode: VaultNode = { id, type: 'file', name, ext, content };
     setNodes(prev => {
       if (!parentId) return [...prev, newNode];
-      const update = (list: VaultNode[]): VaultNode[] => {
-        return list.map(node => {
-          if (node.id === parentId && node.type === 'folder') {
-            return { ...node, children: [...node.children, newNode] };
-          }
-          if (node.type === 'folder') {
-            return { ...node, children: update(node.children) };
-          }
-          return node;
-        });
-      };
+      const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
+        if (node.id === parentId && node.type === 'folder') return { ...node, children: [...node.children, newNode] };
+        if (node.type === 'folder') return { ...node, children: update(node.children) };
+        return node;
+      });
       return update(prev);
     });
+    return id;
   }, []);
 
-  const createFolder = useCallback((parentId: string | null, name: string) => {
-    const newNode: VaultNode = {
-      id: Math.random().toString(36).substr(2, 9),
-      type: 'folder',
-      name,
-      children: [],
-      isOpen: true,
-    };
-
+  const createFolder = useCallback((parentId: string | null, name: string): string => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newNode: VaultNode = { id, type: 'folder', name, children: [], isOpen: true };
     setNodes(prev => {
       if (!parentId) return [...prev, newNode];
-      const update = (list: VaultNode[]): VaultNode[] => {
-        return list.map(node => {
-          if (node.id === parentId && node.type === 'folder') {
-            return { ...node, children: [...node.children, newNode] };
-          }
-          if (node.type === 'folder') {
-            return { ...node, children: update(node.children) };
-          }
-          return node;
-        });
-      };
+      const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
+        if (node.id === parentId && node.type === 'folder') return { ...node, children: [...node.children, newNode] };
+        if (node.type === 'folder') return { ...node, children: update(node.children) };
+        return node;
+      });
+      return update(prev);
+    });
+    return id;
+  }, []);
+
+  const renameNode = useCallback((id: string, newName: string) => {
+    setNodes(prev => {
+      const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
+        if (node.id === id) return { ...node, name: newName };
+        if (node.type === 'folder') return { ...node, children: update(node.children) };
+        return node;
+      });
       return update(prev);
     });
   }, []);
@@ -137,7 +128,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <VaultContext.Provider value={{ nodes, createFile, createFolder, deleteNode, updateFileContent, getNodeById }}>
+    <VaultContext.Provider value={{ nodes, createFile, createFolder, deleteNode, renameNode, updateFileContent, getNodeById }}>
       {children}
     </VaultContext.Provider>
   );

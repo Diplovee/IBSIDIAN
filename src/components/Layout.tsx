@@ -47,11 +47,9 @@ export const Layout: React.FC = () => {
             />
           </>
         )}
-        <div className="flex-1 overflow-hidden">
-          <div className="flex flex-col h-full overflow-hidden">
-            <TabBar />
-            <Canvas />
-          </div>
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <TabBar />
+          <Canvas />
         </div>
       </div>
       <CommandPalette />
