@@ -82,8 +82,8 @@ const FileTreeView: React.FC = () => {
             openByDefault={true}
             width={dimensions.width}
             height={dimensions.height - 48} // Subtracting header height
-            indent={16}
-            rowHeight={28}
+            indent={24}
+            rowHeight={34}
             onSelect={(nodes) => {
               if (nodes.length > 0) handleSelect(nodes[0]);
             }}
