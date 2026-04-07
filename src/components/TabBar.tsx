@@ -14,7 +14,7 @@ const NewTabButton: React.FC<{ openTab: any }> = ({ openTab }) => {
   const [pressed, setPressed] = React.useState(false);
   return (
     <button
-      onClick={() => openTab({ type: 'note', title: 'Untitled', filePath: `untitled-${Date.now()}.md` })}
+      onClick={() => openTab({ type: 'new-tab', title: 'New tab' })}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setPressed(false); }}
       onMouseDown={() => setPressed(true)}
@@ -45,6 +45,7 @@ export const TabBar: React.FC = () => {
       case 'browser': return <Globe size={14} />;
       case 'draw': return <PenLine size={14} />;
       case 'terminal': return <SquareTerminal size={14} />;
+      case 'new-tab': return <Plus size={14} />;
       default: return <FileText size={14} />;
     }
   };

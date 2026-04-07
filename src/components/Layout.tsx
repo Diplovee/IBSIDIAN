@@ -7,13 +7,20 @@ import { Canvas } from './Canvas';
 import { CommandPalette } from './CommandPalette';
 import { useActivity } from '../contexts/ActivityContext';
 
+const SIDEBAR_KEY = 'ibsidian-sidebar-width';
+const DEFAULT_WIDTH = 240;
+
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
-  const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    return saved ? Math.max(160, Math.min(Number(saved), 600)) : DEFAULT_WIDTH;
+  });
 
   const handleResize = useCallback((e: MouseEvent) => {
-    const newWidth = e.clientX - 48; // Account for ActivityBar width
-    setSidebarWidth(Math.max(200, Math.min(newWidth, 600)));
+    const newWidth = Math.max(160, Math.min(e.clientX - 44, 600));
+    setSidebarWidth(newWidth);
+    localStorage.setItem(SIDEBAR_KEY, String(newWidth));
   }, []);
 
   const startResize = useCallback((e: React.MouseEvent) => {
@@ -43,7 +50,9 @@ export const Layout: React.FC = () => {
             </div>
             <div
               onMouseDown={startResize}
-              className="w-1 cursor-col-resize hover:bg-[var(--accent)] transition-colors shrink-0"
+              style={{ width: 4, cursor: 'col-resize', flexShrink: 0, background: 'transparent', transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             />
           </>
         )}

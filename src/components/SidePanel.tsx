@@ -114,7 +114,7 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
 
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
-  const { nodes, createFile, createFolder, moveNode } = useVault();
+  const { nodes, createFile, createFolder, moveNode, nextUntitledName } = useVault();
   const { openTab } = useTabs();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -140,7 +140,7 @@ const FileTreeView: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const id = createFile(null, 'Untitled', 'md'); openTab({ type: 'note', title: 'Untitled', filePath: id }); }} />
+          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'md'); openTab({ type: 'note', title: name, filePath: id }); }} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolder(null, 'New Folder')} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title="Sort" onClick={() => {}} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />

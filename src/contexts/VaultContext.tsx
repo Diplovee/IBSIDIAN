@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { VaultNode } from '../types';
 
 interface VaultContextType {
@@ -11,6 +11,7 @@ interface VaultContextType {
   copyNode: (id: string) => string;
   updateFileContent: (id: string, content: string) => void;
   getNodeById: (id: string) => VaultNode | undefined;
+  nextUntitledName: () => string;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -41,6 +42,12 @@ const initialNodes: VaultNode[] = [
 
 export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [nodes, setNodes] = useState<VaultNode[]>(initialNodes);
+  const untitledCounter = useRef(0);
+
+  const nextUntitledName = useCallback((): string => {
+    untitledCounter.current += 1;
+    return `Untitled ${untitledCounter.current}`;
+  }, []);
 
   const getNodeById = useCallback((id: string): VaultNode | undefined => {
     const find = (list: VaultNode[]): VaultNode | undefined => {
@@ -188,7 +195,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <VaultContext.Provider value={{ nodes, createFile, createFolder, deleteNode, renameNode, moveNode, copyNode, updateFileContent, getNodeById }}>
+    <VaultContext.Provider value={{ nodes, createFile, createFolder, deleteNode, renameNode, moveNode, copyNode, updateFileContent, getNodeById, nextUntitledName }}>
       {children}
     </VaultContext.Provider>
   );

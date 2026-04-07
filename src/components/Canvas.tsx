@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
@@ -18,17 +18,32 @@ import {
   Trash2, ChevronRight,
 } from 'lucide-react';
 
-// Transparent editor theme — inherits app styles
+// Clean Obsidian-style editor theme
 const editorTheme = EditorView.theme({
-  '&': { backgroundColor: 'transparent', height: '100%' },
-  '.cm-content': { caretColor: 'var(--text-primary)', padding: '0', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '1.7' },
-  '.cm-cursor': { borderLeftColor: 'var(--text-primary)', borderLeftWidth: '2px' },
-  '.cm-focused': { outline: 'none' },
+  // Root — no border, no outline, transparent bg, full width
+  '&': { backgroundColor: 'transparent', border: 'none', outline: 'none', width: '100%' },
+  '&.cm-focused': { outline: 'none !important', border: 'none' },
+  // Editor element itself
+  '.cm-editor': { border: 'none', outline: 'none' },
+  // Content area
+  '.cm-content': {
+    caretColor: 'var(--text-primary)',
+    padding: '0',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '16px',
+    lineHeight: '1.75',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+  },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--text-primary)', borderLeftWidth: '2px' },
   '.cm-activeLine': { backgroundColor: 'transparent' },
-  '.cm-selectionBackground': { backgroundColor: 'rgba(124,58,237,0.12)' },
-  '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(124,58,237,0.15)' },
+  '.cm-selectionBackground': { backgroundColor: 'rgba(124,58,237,0.12) !important' },
+  '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(124,58,237,0.15) !important' },
   '.cm-gutters': { display: 'none' },
-  '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-sans)' },
+  // Scroller fills available space
+  '.cm-scroller': { fontFamily: 'var(--font-sans)', overflow: 'visible' },
+  // Line wrapper
+  '.cm-line': { padding: '0' },
 });
 
 export const Canvas: React.FC = () => {
@@ -61,8 +76,66 @@ export const Canvas: React.FC = () => {
     case 'browser': return <BrowserTab tab={activeTab} />;
     case 'draw': return <DrawTab tab={activeTab} />;
     case 'terminal': return <TerminalTab tab={activeTab} />;
+    case 'new-tab': return <NewTabScreen tab={activeTab} />;
     default: return <div className="flex-1 bg-[var(--bg-primary)]" />;
   }
+};
+
+// ── New tab screen ───────────────────────────────────────────────────
+
+const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
+  const { closeTab, openTab } = useTabs();
+  const { createFile, nextUntitledName } = useVault();
+
+  const handleNewNote = useCallback(() => {
+    const name = nextUntitledName();
+    const id = createFile(null, name, 'md');
+    // Replace current new-tab with the note tab
+    closeTab(tab.id);
+    openTab({ type: 'note', title: name, filePath: id });
+  }, [tab.id, closeTab, openTab, createFile, nextUntitledName]);
+
+  const LinkBtn: React.FC<{ label: string; shortcut?: string; onClick: () => void }> = ({ label, shortcut, onClick }) => {
+    const [h, setH] = useState(false);
+    return (
+      <button
+        onClick={onClick}
+        onMouseEnter={() => setH(true)}
+        onMouseLeave={() => setH(false)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+          background: h ? 'var(--accent-soft)' : 'transparent',
+          color: 'var(--accent)', fontSize: 14, fontWeight: 500,
+          transition: 'background 0.1s', width: '100%', maxWidth: 320,
+        }}
+      >
+        <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
+        {shortcut && (
+          <kbd style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, fontFamily: 'var(--font-mono, monospace)' }}>
+            {shortcut}
+          </kbd>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginBottom: 32 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <span style={{ color: '#fff', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-sans)' }}>I</span>
+        </div>
+        <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>New tab</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%', maxWidth: 320 }}>
+        <LinkBtn label="Create new note" shortcut="Ctrl+N" onClick={handleNewNote} />
+        <LinkBtn label="Go to file" shortcut="Ctrl+O" onClick={() => {}} />
+        <div style={{ height: 8 }} />
+        <LinkBtn label="Close tab" onClick={() => closeTab(tab.id)} />
+      </div>
+    </div>
+  );
 };
 
 // ── Menu helpers ────────────────────────────────────────────────────
@@ -104,9 +177,22 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { confirm, prompt } = useModal();
   const node = getNodeById(tab.filePath);
   const [content, setContent] = useState(node?.type === 'file' ? node.content : '');
+  const [titleValue, setTitleValue] = useState(node?.name || tab.title);
   const [isPreview, setIsPreview] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const editorViewRef = useRef<EditorView | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const isNewFile = useRef(node?.content === `# ${node?.name}\n\n`);
+
+  // Auto-select title on brand new file
+  useEffect(() => {
+    if (isNewFile.current && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -119,12 +205,37 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   }, [menuOpen]);
 
   useEffect(() => {
-    if (node?.type === 'file') setContent(node.content);
+    if (node?.type === 'file') {
+      setContent(node.content);
+      setTitleValue(node.name);
+    }
   }, [node]);
 
   const handleChange = (value: string) => {
     setContent(value);
     if (node?.id) updateFileContent(node.id, value);
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitleValue(e.target.value);
+  };
+
+  const handleTitleBlur = () => {
+    const newName = titleValue.trim();
+    if (newName && newName !== (node?.name || tab.title)) {
+      if (node?.id) renameNode(node.id, newName);
+      updateTabTitle(tab.id, newName);
+    } else if (!newName) {
+      setTitleValue(node?.name || tab.title);
+    }
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
+      // Move focus to editor
+      if (editorViewRef.current) editorViewRef.current.focus();
+    }
   };
 
   const wordCount = content.trim() === '' ? 0 : content.trim().split(/\s+/).length;
@@ -134,7 +245,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const handleRename = () => {
     setMenuOpen(false);
     prompt({ title: 'Rename file', defaultValue: title, placeholder: 'File name', confirmLabel: 'Rename' }).then(n => {
-      if (n && node?.id) { renameNode(node.id, n); updateTabTitle(tab.id, n); }
+      if (n && node?.id) { renameNode(node.id, n); updateTabTitle(tab.id, n); setTitleValue(n); }
     });
   };
 
@@ -148,6 +259,13 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const handleCopyPath = () => {
     setMenuOpen(false);
     navigator.clipboard.writeText(tab.filePath || title).catch(() => {});
+  };
+
+  // Click on scroll area outside editor → focus editor
+  const handleScrollAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === scrollAreaRef.current || (e.target as HTMLElement).closest('.editor-content-inner') === null) {
+      if (editorViewRef.current) editorViewRef.current.focus();
+    }
   };
 
   return (
@@ -166,7 +284,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
         {/* Title */}
         <div className="flex-1 flex items-center justify-center pointer-events-none">
-          <span className="text-[13px] text-[var(--text-secondary)]">{title}</span>
+          <span className="text-[13px] text-[var(--text-secondary)]">{titleValue}</span>
         </div>
 
         {/* Right controls */}
@@ -192,7 +310,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
             <MoreHorizontal size={14} />
           </button>
 
-          {/* Dropdown menu — matches Image #5 exactly */}
+          {/* Dropdown menu */}
           {menuOpen && (
             <div className="absolute top-full right-0 mt-1 w-[264px] bg-[var(--bg-primary)] border border-[var(--border)] rounded shadow-[var(--shadow-md)] z-50 py-1">
               <MenuItem icon={<Link size={14} />} label="Backlinks in document" disabled />
@@ -228,9 +346,28 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         </div>
       </div>
 
-      {/* Editor / Preview */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-[720px] mx-auto py-16 px-12">
+      {/* Editor / Preview — click outside CodeMirror to still focus it */}
+      <div ref={scrollAreaRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }} onClick={handleScrollAreaClick}>
+        <div className="editor-content-inner" style={{ maxWidth: 720, margin: '0 auto', padding: '48px 48px 80px' }}>
+          {/* Inline title */}
+          {!isPreview && (
+            <input
+              ref={titleInputRef}
+              value={titleValue}
+              onChange={handleTitleChange}
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+              spellCheck={false}
+              style={{
+                display: 'block', width: '100%', border: 'none', outline: 'none',
+                background: 'transparent', padding: 0, marginBottom: 24,
+                fontSize: 32, fontWeight: 700, lineHeight: 1.25,
+                color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
+                caretColor: 'var(--text-primary)',
+              }}
+              placeholder="Untitled"
+            />
+          )}
           {isPreview ? (
             <div className="markdown-body">
               <ReactMarkdown>{content}</ReactMarkdown>
@@ -239,16 +376,21 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
             <CodeMirror
               value={content}
               theme={editorTheme}
-              extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]}
+              extensions={[
+                markdown({ base: markdownLanguage, codeLanguages: languages }),
+                EditorView.lineWrapping,
+              ]}
               onChange={handleChange}
+              onCreateEditor={(view) => { editorViewRef.current = view; }}
               basicSetup={{
                 lineNumbers: false,
                 foldGutter: false,
                 highlightActiveLine: false,
                 highlightActiveLineGutter: false,
                 dropCursor: false,
+                rectangularSelection: false,
               }}
-              style={{ fontFamily: 'var(--font-sans)', fontSize: '16px' }}
+              style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
             />
           )}
         </div>
