@@ -1,8 +1,10 @@
 # Ibsidian
 
-<img src="public/favicon.svg" alt="Ibsidian Logo" width="64" height="64" align="left" />
+<p align="center">
+  <img src="public/favicon.svg" alt="Ibsidian Logo" width="64" height="64" />
+</p>
 
-A modern, lightweight note-taking and knowledge management application with an Obsidian-inspired interface.
+<p align="center">A modern, lightweight note-taking and knowledge management application with an Obsidian-inspired interface.</p>
 
 ## Features
 
