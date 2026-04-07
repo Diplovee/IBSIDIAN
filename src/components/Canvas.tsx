@@ -17,10 +17,12 @@ export const Canvas: React.FC = () => {
   if (!activeTab) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
-        <div className="w-16 h-16 bg-[var(--bg-secondary)] rounded-full flex items-center justify-center mb-4">
-          <div className="w-8 h-8 bg-[var(--accent)] rounded-sm opacity-20" />
+        <div className="w-24 h-24 bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center mb-6">
+          <div className="w-12 h-12 bg-[var(--accent)] rounded-sm flex items-center justify-center text-white text-2xl font-bold">
+            I
+          </div>
         </div>
-        <h2 className="text-[var(--text-lg)] font-bold text-[var(--text-primary)] mb-1">Welcome to Ibsidian</h2>
+        <h2 className="text-[var(--text-xl)] font-bold text-[var(--text-primary)] mb-2">Welcome to Ibsidian</h2>
         <p className="text-[var(--text-sm)]">Open a file from the sidebar or create a new one.</p>
         <div className="mt-6 flex gap-4 text-[var(--text-xs)]">
           <div className="flex items-center gap-1.5">
