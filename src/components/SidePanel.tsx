@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Tree } from 'react-arborist';
 import {
-  Folder, FileText, PenLine, ChevronRight, ChevronDown, FolderPlus,
+  Folder, FileText, ChevronRight, ChevronDown, FolderPlus,
   Search as SearchIcon, Sun, Moon, FilePen, ArrowUpNarrowWide, LayoutList,
   ChevronsUpDown, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
   Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow,
@@ -10,6 +10,7 @@ import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useActivity } from '../contexts/ActivityContext';
 import { useModal } from './Modal';
+import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { VaultNode } from '../types';
 
 // ── Shared context so Node (outside FileTreeView) can trigger actions ─────
@@ -141,7 +142,7 @@ const FileTreeView: React.FC = () => {
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'md'); openTab({ type: 'note', title: name, filePath: id }); }} />
-          <SidebarBtn icon={<PenLine size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'excalidraw'); openTab({ type: 'draw', title: name, filePath: id }); }} />
+          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'excalidraw'); openTab({ type: 'draw', title: name, filePath: id }); }} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolder(null, 'New Folder')} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title="Sort" onClick={() => {}} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
@@ -181,7 +182,8 @@ const FileTreeView: React.FC = () => {
 const TreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
   const { openContextMenu, openTab } = React.useContext(TreeContext);
-  const Icon = node.data.type === 'folder' ? Folder : node.data.ext === 'excalidraw' ? PenLine : FileText;
+  const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
+  const Icon = node.data.type === 'folder' ? Folder : isExcalidraw ? null : FileText;
 
   return (
     <div
@@ -197,7 +199,10 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
           {node.isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
       )}
-      <Icon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+      {isExcalidraw
+        ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+        : Icon && <Icon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+      }
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name}</span>
     </div>
   );

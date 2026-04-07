@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  X, Plus, FileText, Globe, PenLine, SquareTerminal,
+  X, Plus, FileText, Globe, SquareTerminal,
   Pin, Link2, Link, BookOpen, Code, ExternalLink, PanelRight,
   PanelBottom, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, ArrowUpRight, FolderOpen, Trash2,
@@ -10,6 +10,7 @@ import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useModal } from './Modal';
 import { Tab, TabType } from '../types';
+import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -187,7 +188,7 @@ export const TabBar: React.FC = () => {
     switch (type) {
       case 'note': return <FileText size={14} />;
       case 'browser': return <Globe size={14} />;
-      case 'draw': return <PenLine size={14} />;
+      case 'draw': return <ExcalidrawIcon size={14} />;
       case 'terminal': return <SquareTerminal size={14} />;
       case 'new-tab': return <Plus size={14} />;
       default: return <FileText size={14} />;

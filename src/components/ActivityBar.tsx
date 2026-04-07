@@ -1,5 +1,6 @@
 import React from 'react';
-import { FolderOpen, Search, Globe, PenLine, SquareTerminal, Settings } from 'lucide-react';
+import { FolderOpen, Search, Globe, SquareTerminal, Settings } from 'lucide-react';
+import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { useActivity } from '../contexts/ActivityContext';
 import { useTabs } from '../contexts/TabsContext';
 
@@ -18,7 +19,7 @@ export const ActivityBar: React.FC = () => {
         <ActivityButton icon={<Search size={18} />} active={activeActivity === 'search'} onClick={() => toggleActivity('search')} />
         <div style={{ width: 24, height: 1, background: 'var(--border)', margin: '4px 0' }} />
         <ActivityButton icon={<Globe size={18} />} onClick={handleOpenBrowser} />
-        <ActivityButton icon={<PenLine size={18} />} onClick={handleOpenDraw} />
+        <ActivityButton icon={<ExcalidrawIcon size={18} />} onClick={handleOpenDraw} />
         <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
       </div>
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>

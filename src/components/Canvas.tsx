@@ -11,7 +11,7 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import {
-  Globe, PenLine, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
+  Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
   BookOpen, MoreHorizontal, Link, Code, PanelRight, PanelBottom,
   ExternalLink, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
