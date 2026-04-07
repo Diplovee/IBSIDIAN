@@ -7,11 +7,13 @@ export const TopBar: React.FC = () => {
 
   return (
     <div className="h-[48px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-between px-4 shadow-sm z-40">
-      <div className="flex items-center gap-3">
-        <div className="w-6 h-6 bg-[var(--accent)] rounded-sm flex items-center justify-center text-white text-[12px] font-bold">
-          I
-        </div>
-        <span className="font-bold text-[var(--text-lg)] tracking-tight">Ibsidian</span>
+      <div className="flex items-center gap-3 select-none">
+        {/* Icon */}
+        <svg className="w-6 h-6 shrink-0" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="4" fill="#705dcf"/>
+          <text x="16" y="23" fontFamily="Plus Jakarta Sans, system-ui, sans-serif" fontSize="20" fontWeight="700" fill="white" textAnchor="middle">I</text>
+        </svg>
+        <span className="font-bold text-[var(--text-lg)] tracking-tight select-none">Ibsidian</span>
       </div>
 
       <div className="flex items-center gap-2">
