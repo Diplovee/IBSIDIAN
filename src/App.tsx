@@ -7,6 +7,7 @@ import React from 'react';
 import { VaultProvider } from './contexts/VaultContext';
 import { TabsProvider } from './contexts/TabsContext';
 import { ActivityProvider } from './contexts/ActivityContext';
+import { ModalProvider } from './components/Modal';
 import { Layout } from './components/Layout';
 
 export default function App() {
@@ -14,7 +15,9 @@ export default function App() {
     <VaultProvider>
       <TabsProvider>
         <ActivityProvider>
-          <Layout />
+          <ModalProvider>
+            <Layout />
+          </ModalProvider>
         </ActivityProvider>
       </TabsProvider>
     </VaultProvider>

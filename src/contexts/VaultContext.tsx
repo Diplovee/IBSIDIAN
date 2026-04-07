@@ -7,6 +7,8 @@ interface VaultContextType {
   createFolder: (parentId: string | null, name: string) => string;
   deleteNode: (id: string) => void;
   renameNode: (id: string, newName: string) => void;
+  moveNode: (ids: string[], newParentId: string | null, index: number) => void;
+  copyNode: (id: string) => string;
   updateFileContent: (id: string, content: string) => void;
   getNodeById: (id: string) => VaultNode | undefined;
 }
@@ -85,6 +87,64 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return id;
   }, []);
 
+  const moveNode = useCallback((ids: string[], newParentId: string | null, index: number) => {
+    setNodes(prev => {
+      // Extract all moved nodes first
+      const extracted: VaultNode[] = [];
+      const extract = (list: VaultNode[]): VaultNode[] =>
+        list.filter(n => {
+          if (ids.includes(n.id)) { extracted.push(n); return false; }
+          return true;
+        }).map(n => n.type === 'folder' ? { ...n, children: extract(n.children) } : n);
+
+      const stripped = extract(prev);
+
+      // Insert at new location
+      const insert = (list: VaultNode[]): VaultNode[] => {
+        if (newParentId === null) {
+          const r = [...list]; r.splice(index, 0, ...extracted); return r;
+        }
+        return list.map(n => {
+          if (n.id === newParentId && n.type === 'folder') {
+            const c = [...n.children]; c.splice(index, 0, ...extracted);
+            return { ...n, children: c };
+          }
+          if (n.type === 'folder') return { ...n, children: insert(n.children) };
+          return n;
+        });
+      };
+      return insert(stripped);
+    });
+  }, []);
+
+  const copyNode = useCallback((id: string): string => {
+    const deepCopy = (node: VaultNode, newId: () => string): VaultNode => {
+      if (node.type === 'file') return { ...node, id: newId(), name: node.name + ' copy' };
+      return { ...node, id: newId(), children: node.children.map(c => deepCopy(c, newId)) };
+    };
+    const gen = () => Math.random().toString(36).substr(2, 9);
+    let newRootId = '';
+    setNodes(prev => {
+      const find = (list: VaultNode[]): VaultNode | undefined => {
+        for (const n of list) {
+          if (n.id === id) return n;
+          if (n.type === 'folder') { const f = find(n.children); if (f) return f; }
+        }
+      };
+      const original = find(prev);
+      if (!original) return prev;
+      const copied = deepCopy(original, gen);
+      newRootId = copied.id;
+      const insertAfter = (list: VaultNode[]): VaultNode[] => {
+        const idx = list.findIndex(n => n.id === id);
+        if (idx !== -1) { const r = [...list]; r.splice(idx + 1, 0, copied); return r; }
+        return list.map(n => n.type === 'folder' ? { ...n, children: insertAfter(n.children) } : n);
+      };
+      return insertAfter(prev);
+    });
+    return newRootId;
+  }, []);
+
   const renameNode = useCallback((id: string, newName: string) => {
     setNodes(prev => {
       const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
@@ -128,7 +188,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <VaultContext.Provider value={{ nodes, createFile, createFolder, deleteNode, renameNode, updateFileContent, getNodeById }}>
+    <VaultContext.Provider value={{ nodes, createFile, createFolder, deleteNode, renameNode, moveNode, copyNode, updateFileContent, getNodeById }}>
       {children}
     </VaultContext.Provider>
   );

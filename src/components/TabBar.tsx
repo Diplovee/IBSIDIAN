@@ -9,6 +9,33 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const NewTabButton: React.FC<{ openTab: any }> = ({ openTab }) => {
+  const [hovered, setHovered] = React.useState(false);
+  const [pressed, setPressed] = React.useState(false);
+  return (
+    <button
+      onClick={() => openTab({ type: 'note', title: 'Untitled', filePath: `untitled-${Date.now()}.md` })}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      title="New tab"
+      style={{
+        marginLeft: 8, marginRight: 8, marginTop: 5, marginBottom: 5,
+        padding: '0 8px', height: 'calc(100% - 10px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6, border: 'none', cursor: 'pointer',
+        background: pressed ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent',
+        color: hovered ? 'var(--text-secondary)' : 'var(--text-muted)',
+        transition: 'background 0.1s, color 0.1s',
+        flexShrink: 0,
+      }}
+    >
+      <Plus size={15} />
+    </button>
+  );
+};
+
 export const TabBar: React.FC = () => {
   const { tabs, activeTabId, setActiveTabId, closeTab, openTab } = useTabs();
 
@@ -55,13 +82,7 @@ export const TabBar: React.FC = () => {
         ))}
       </div>
 
-      <button
-        onClick={() => openTab({ type: 'note', title: 'Untitled', filePath: 'untitled.md' })}
-        className="ml-auto mr-2 my-1 px-2 flex items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] active:bg-[var(--bg-active)] transition-colors"
-        style={{ height: 'calc(100% - 8px)' }}
-      >
-        <Plus size={16} />
-      </button>
+      <NewTabButton openTab={openTab} />
     </div>
   );
 };

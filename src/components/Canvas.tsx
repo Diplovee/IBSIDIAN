@@ -6,6 +6,7 @@ import { EditorView } from '@codemirror/view';
 import ReactMarkdown from 'react-markdown';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
+import { useModal } from './Modal';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
@@ -100,6 +101,7 @@ const MenuSep: React.FC = () => <div className="my-1 border-t border-[var(--bord
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { getNodeById, updateFileContent, deleteNode, renameNode } = useVault();
   const { closeTab, updateTabTitle } = useTabs();
+  const { confirm, prompt } = useModal();
   const node = getNodeById(tab.filePath);
   const [content, setContent] = useState(node?.type === 'file' ? node.content : '');
   const [isPreview, setIsPreview] = useState(false);
@@ -131,19 +133,16 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
   const handleRename = () => {
     setMenuOpen(false);
-    const newName = window.prompt('Rename file:', title);
-    if (newName?.trim() && node?.id) {
-      renameNode(node.id, newName.trim());
-      updateTabTitle(tab.id, newName.trim());
-    }
+    prompt({ title: 'Rename file', defaultValue: title, placeholder: 'File name', confirmLabel: 'Rename' }).then(n => {
+      if (n && node?.id) { renameNode(node.id, n); updateTabTitle(tab.id, n); }
+    });
   };
 
   const handleDelete = () => {
     setMenuOpen(false);
-    if (window.confirm(`Delete "${title}"? This cannot be undone.`)) {
-      if (node?.id) deleteNode(node.id);
-      closeTab(tab.id);
-    }
+    confirm({ title: `Delete "${title}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => {
+      if (ok) { if (node?.id) deleteNode(node.id); closeTab(tab.id); }
+    });
   };
 
   const handleCopyPath = () => {

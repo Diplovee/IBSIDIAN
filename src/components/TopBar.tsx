@@ -7,7 +7,7 @@ export const TopBar: React.FC = () => {
 
   return (
     <div className="h-[44px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-between px-3 z-40 shrink-0">
-      <div className="flex items-center gap-2 pl-1">
+      <div className="flex items-center gap-2" style={{ paddingLeft: 6 }}>
         <div className="w-5 h-5 rounded-[4px] flex items-center justify-center text-white text-[13px] font-bold shrink-0 select-none" style={{ backgroundColor: '#7c3aed' }}>
           I
         </div>

@@ -1,0 +1,190 @@
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+interface ConfirmOptions {
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+}
+
+interface PromptOptions {
+  title: string;
+  message?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+}
+
+interface ModalContextType {
+  confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  prompt: (opts: PromptOptions) => Promise<string | null>;
+}
+
+// ── Context ───────────────────────────────────────────────────────────────
+
+const ModalContext = createContext<ModalContextType>({
+  confirm: async () => false,
+  prompt: async () => null,
+});
+
+export const useModal = () => useContext(ModalContext);
+
+// ── Internal state ────────────────────────────────────────────────────────
+
+type ModalState =
+  | { type: 'confirm'; opts: ConfirmOptions; resolve: (v: boolean) => void }
+  | { type: 'prompt';  opts: PromptOptions;  resolve: (v: string | null) => void }
+  | null;
+
+// ── Provider ──────────────────────────────────────────────────────────────
+
+export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [modal, setModal] = useState<ModalState>(null);
+
+  const confirm = useCallback((opts: ConfirmOptions): Promise<boolean> =>
+    new Promise(resolve => setModal({ type: 'confirm', opts, resolve })), []);
+
+  const prompt = useCallback((opts: PromptOptions): Promise<string | null> =>
+    new Promise(resolve => setModal({ type: 'prompt', opts, resolve })), []);
+
+  const close = () => setModal(null);
+
+  return (
+    <ModalContext.Provider value={{ confirm, prompt }}>
+      {children}
+      <AnimatePresence>
+        {modal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9000, backdropFilter: 'blur(1px)' }}
+              onClick={() => { if (modal.type === 'confirm') modal.resolve(false); else modal.resolve(null); close(); }}
+            />
+            {/* Modal */}
+            <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001, pointerEvents: 'none' }}>
+              <motion.div
+                key="modal"
+                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                style={{ pointerEvents: 'auto', width: 380, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 16px 48px rgba(0,0,0,0.18)', padding: '20px 20px 16px' }}
+              >
+                {modal.type === 'confirm'
+                  ? <ConfirmModal modal={modal} onClose={close} />
+                  : <PromptModal modal={modal} onClose={close} />}
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+    </ModalContext.Provider>
+  );
+};
+
+// ── Confirm modal ─────────────────────────────────────────────────────────
+
+const ConfirmModal: React.FC<{ modal: Extract<ModalState, { type: 'confirm' }>; onClose: () => void }> = ({ modal, onClose }) => {
+  const { opts, resolve } = modal;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { resolve(true); onClose(); }
+      if (e.key === 'Escape') { resolve(false); onClose(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [resolve, onClose]);
+
+  return (
+    <>
+      <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: opts.message ? 8 : 20 }}>
+        {opts.title}
+      </p>
+      {opts.message && (
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.5 }}>
+          {opts.message}
+        </p>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <ModalBtn label={opts.cancelLabel ?? 'Cancel'} onClick={() => { resolve(false); onClose(); }} />
+        <ModalBtn label={opts.confirmLabel ?? 'Confirm'} primary danger={opts.danger} onClick={() => { resolve(true); onClose(); }} autoFocus />
+      </div>
+    </>
+  );
+};
+
+// ── Prompt modal ──────────────────────────────────────────────────────────
+
+const PromptModal: React.FC<{ modal: Extract<ModalState, { type: 'prompt' }>; onClose: () => void }> = ({ modal, onClose }) => {
+  const { opts, resolve } = modal;
+  const [value, setValue] = useState(opts.defaultValue ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.select(); }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { resolve(null); onClose(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [resolve, onClose]);
+
+  const submit = () => { if (value.trim()) { resolve(value.trim()); onClose(); } };
+
+  return (
+    <>
+      <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: opts.message ? 6 : 12 }}>
+        {opts.title}
+      </p>
+      {opts.message && (
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>{opts.message}</p>
+      )}
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+        placeholder={opts.placeholder}
+        style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, outline: 'none', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginBottom: 16, boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+        onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+        onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <ModalBtn label="Cancel" onClick={() => { resolve(null); onClose(); }} />
+        <ModalBtn label={opts.confirmLabel ?? 'OK'} primary onClick={submit} disabled={!value.trim()} />
+      </div>
+    </>
+  );
+};
+
+// ── Button ────────────────────────────────────────────────────────────────
+
+const ModalBtn: React.FC<{ label: string; onClick: () => void; primary?: boolean; danger?: boolean; disabled?: boolean; autoFocus?: boolean }> =
+  ({ label, onClick, primary, danger, disabled, autoFocus }) => {
+    const [h, setH] = useState(false);
+    const bg = primary
+      ? danger ? (h ? '#dc2626' : '#ef4444') : (h ? 'var(--accent-hover)' : 'var(--accent)')
+      : h ? 'var(--bg-hover)' : 'var(--bg-secondary)';
+
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        onMouseEnter={() => setH(true)}
+        onMouseLeave={() => setH(false)}
+        style={{ padding: '7px 16px', fontSize: 13, fontWeight: 500, borderRadius: 6, border: primary ? 'none' : '1px solid var(--border)', cursor: disabled ? 'not-allowed' : 'pointer', background: bg, color: primary ? '#fff' : 'var(--text-primary)', opacity: disabled ? 0.5 : 1, transition: 'background 0.1s', outline: 'none' }}
+      >
+        {label}
+      </button>
+    );
+  };
