@@ -8,9 +8,24 @@ import {
 } from 'lucide-react';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
+import { ExcalidrawIcon } from './ExcalidrawIcon';
+
+// ── Markdown icon (custom SVG) ───────────────────────────────────────────────
+const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = 'var(--text-muted)' }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      fill={color}
+      d="M22.27 19.385H1.73A1.73 1.73 0 0 1 0 17.655V6.345a1.73 1.73 0 0 1 1.73-1.73h20.54A1.73 1.73 0 0 1 24 6.345v11.308a1.73 1.73 0 0 1-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885l2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885l-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/>
+  </svg>
+);
 import { useModal } from './Modal';
 import { Tab, TabType } from '../types';
-import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -186,12 +201,12 @@ export const TabBar: React.FC = () => {
 
   const getIcon = (type: TabType) => {
     switch (type) {
-      case 'note': return <FileText size={14} />;
+      case 'note': return <MarkdownIcon size={14} />;
       case 'browser': return <Globe size={14} />;
       case 'draw': return <ExcalidrawIcon size={14} />;
       case 'terminal': return <SquareTerminal size={14} />;
       case 'new-tab': return <Plus size={14} />;
-      default: return <FileText size={14} />;
+      default: return <MarkdownIcon size={14} />;
     }
   };
 

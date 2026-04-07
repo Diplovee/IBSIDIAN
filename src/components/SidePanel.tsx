@@ -160,12 +160,6 @@ const FileTreeView: React.FC = () => {
               indent={16}
               rowHeight={28}
               onMove={handleMove}
-              onSelect={(nodes) => {
-                if (nodes.length > 0) {
-                  const n = nodes[0];
-                  if (n.data.type === 'file') openTab({ type: n.data.ext === 'md' ? 'note' : 'draw', title: n.data.name, filePath: n.data.id });
-                }
-              }}
             >
               {TreeNode}
             </Tree>
@@ -178,12 +172,29 @@ const FileTreeView: React.FC = () => {
   );
 };
 
+// ── Markdown icon (custom SVG) ───────────────────────────────────────────────
+const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 13, color = 'var(--text-muted)' }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      fill={color}
+      d="M22.27 19.385H1.73A1.73 1.73 0 0 1 0 17.655V6.345a1.73 1.73 0 0 1 1.73-1.73h20.54A1.73 1.73 0 0 1 24 6.345v11.308a1.73 1.73 0 0 1-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885l2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885l-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/>
+  </svg>
+);
+
 // ── Tree node row ─────────────────────────────────────────────────────────
 const TreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
   const { openContextMenu, openTab } = React.useContext(TreeContext);
+  const isMd = node.data.type === 'file' && node.data.ext === 'md';
   const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
-  const Icon = node.data.type === 'folder' ? Folder : isExcalidraw ? null : FileText;
+  const isFile = node.data.type === 'file';
+  const Icon = node.data.type === 'folder' ? Folder : isMd ? MarkdownIcon : isExcalidraw ? null : FileText;
 
   return (
     <div
@@ -199,9 +210,13 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
           {node.isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
       )}
-      {isExcalidraw
-        ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
-        : Icon && <Icon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+      {isFile
+        ? isExcalidraw
+          ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+          : isMd
+            ? <MarkdownIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} />
+            : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+        : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
       }
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name}</span>
     </div>
