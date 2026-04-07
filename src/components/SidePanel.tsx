@@ -141,6 +141,7 @@ const FileTreeView: React.FC = () => {
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'md'); openTab({ type: 'note', title: name, filePath: id }); }} />
+          <SidebarBtn icon={<PenLine size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'excalidraw'); openTab({ type: 'draw', title: name, filePath: id }); }} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolder(null, 'New Folder')} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title="Sort" onClick={() => {}} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
