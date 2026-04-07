@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
@@ -16,7 +16,7 @@ import {
   BookOpen, MoreHorizontal, Link, Code, PanelRight, PanelBottom,
   ExternalLink, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight, WifiOff,
+  Trash2, ChevronRight,
 } from 'lucide-react';
 
 // Clean Obsidian-style editor theme
@@ -453,190 +453,82 @@ const DrawTab: React.FC<{ tab: any }> = () => {
 const TerminalTab: React.FC<{ tab: any }> = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const { theme } = useActivity();
   const [cols, setCols] = useState(80);
   const [rows, setRows] = useState(24);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
   const xtermTheme = {
     light: { background: '#ffffff', foreground: '#2e3338', cursor: '#7c3aed' },
-    dark: { background: '#1e1e1e', foreground: '#dcddde', cursor: '#7c3aed' },
+    dark:  { background: '#1e1e1e', foreground: '#dcddde', cursor: '#7c3aed' },
   };
 
-  const cleanup = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (wsRef.current) {
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      if (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close();
-      }
-      wsRef.current = null;
-    }
-  }, []);
-
-  const connect = useCallback((term: XTerm, initial = false) => {
-    const ws = new WebSocket(`ws://${window.location.hostname}:3001`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setConnectionStatus('connected');
-      if (initial) {
-        term.writeln('\x1b[1;32mConnected to Ibsidian backend\x1b[0m');
-        term.write('\r\n$ ');
-      } else {
-        term.writeln('\x1b[1;32mReconnected to Ibsidian backend\x1b[0m');
-        term.write('\r\n$ ');
-      }
-
-      ws.send(JSON.stringify({ type: 'init' }));
-      ws.send(JSON.stringify({
-        type: 'resize',
-        cols: term.cols,
-        rows: term.rows
-      }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-          case 'output':
-            term.write(data.data);
-            break;
-          case 'welcome':
-            break;
-          case 'error':
-            term.write(`\x1b[1;31mError: ${data.message}\x1b[0m\r\n`);
-            term.write('\r\n$ ');
-            break;
-          case 'exit':
-            term.write(`\x1b[1;33mProcess exited with code ${data.code}\x1b[0m\r\n`);
-            term.write('\r\n$ ');
-            break;
-        }
-      } catch (e) {
-        term.write(event.data);
-      }
-    };
-
-    ws.onclose = () => {
-      setConnectionStatus('disconnected');
-    };
-
-    ws.onerror = () => {
-      setConnectionStatus('disconnected');
-    };
-
-    return ws;
-  }, []);
-
-  const handleRetry = useCallback(() => {
-    if (!terminalRef.current || !xtermRef.current) return;
-    const term = xtermRef.current;
-    cleanup();
-    term.writeln('\r\n\x1b[1;35mIbsidian Terminal\x1b[0m');
-    term.writeln('Connecting to backend...');
-    setConnectionStatus('connecting');
-    connect(term, true);
-  }, [cleanup, connect]);
-
   useEffect(() => {
-    if (terminalRef.current && !xtermRef.current) {
-      const term = new XTerm({
-        theme: xtermTheme[theme],
-        fontFamily: 'JetBrains Mono, Fira Code, monospace',
-        fontSize: 13,
-        cursorBlink: true,
-        cols,
-        rows,
-      });
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      term.open(terminalRef.current);
-      fitAddon.fit();
+    if (!terminalRef.current || xtermRef.current) return;
 
-      const { cols: actualCols, rows: actualRows } = term.cols ? { cols: term.cols, rows: term.rows } : { cols, rows };
-      setCols(actualCols);
-      setRows(actualRows);
+    const term = new XTerm({
+      theme: xtermTheme[theme],
+      fontFamily: 'JetBrains Mono, Fira Code, monospace',
+      fontSize: 13,
+      cursorBlink: true,
+    });
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    fitAddon.fit();
+    xtermRef.current = term;
 
-      term.writeln('\x1b[1;35mIbsidian Terminal\x1b[0m');
-      term.writeln('Connecting to backend...');
+    setCols(term.cols);
+    setRows(term.rows);
 
-      connect(term, true);
+    // Create PTY session via IPC
+    window.api.terminal.create(term.cols, term.rows).then(sessionId => {
+      sessionIdRef.current = sessionId;
+    });
 
-      term.onData(data => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'input',
-            data
-          }));
-        }
-      });
+    // Forward output from main process to xterm
+    const offData = window.api.terminal.onData((sid, data) => {
+      if (sid === sessionIdRef.current) term.write(data);
+    });
 
-      term.onResize(({ cols, rows }) => {
-        setCols(cols);
-        setRows(rows);
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'resize',
-            cols,
-            rows
-          }));
-        }
-      });
+    const offExit = window.api.terminal.onExit(sid => {
+      if (sid === sessionIdRef.current) {
+        term.writeln('\r\n\x1b[2mProcess exited\x1b[0m');
+        sessionIdRef.current = null;
+      }
+    });
 
-      xtermRef.current = term;
-      const handleResize = () => fitAddon.fit();
-      window.addEventListener('resize', handleResize);
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        cleanup();
-      };
-    }
+    // Forward keystrokes to PTY
+    term.onData(data => {
+      if (sessionIdRef.current) window.api.terminal.input(sessionIdRef.current, data);
+    });
+
+    // Resize PTY when xterm resizes
+    term.onResize(({ cols, rows }) => {
+      setCols(cols);
+      setRows(rows);
+      if (sessionIdRef.current) window.api.terminal.resize(sessionIdRef.current, cols, rows);
+    });
+
+    const handleResize = () => fitAddon.fit();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      offData();
+      offExit();
+      if (sessionIdRef.current) {
+        window.api.terminal.close(sessionIdRef.current);
+        sessionIdRef.current = null;
+      }
+      term.dispose();
+      xtermRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
-    if (xtermRef.current) {
-      xtermRef.current.options.theme = xtermTheme[theme];
-    }
+    if (xtermRef.current) xtermRef.current.options.theme = xtermTheme[theme];
   }, [theme]);
-
-  if (connectionStatus === 'disconnected') {
-    return (
-      <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
-        <div className="h-8 bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center px-3 gap-2 text-[11px] text-[var(--text-muted)]">
-          <SquareTerminal size={12} />
-          <span>bash — disconnected</span>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
-          <WifiOff size={48} className="text-[var(--text-muted)] opacity-50" />
-          <div className="text-center">
-            <h3 className="text-lg font-medium text-[var(--text-primary)] mb-1">
-              Backend Unavailable
-            </h3>
-            <p className="text-sm text-[var(--text-muted)] max-w-sm">
-              The terminal requires the backend server to be running on port 3001.
-              Run <code className="px-1.5 py-0.5 bg-[var(--bg-secondary)] rounded text-xs">bun run dev</code> to start both frontend and backend.
-            </p>
-          </div>
-          <button
-            onClick={handleRetry}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-white rounded-md hover:bg-[var(--accent-hover)] transition-colors text-sm"
-          >
-            <RefreshCw size={14} />
-            Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">

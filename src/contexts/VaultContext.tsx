@@ -114,17 +114,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       setError(null);
-
-      // Re-register the vault with the backend in case it restarted
-      await fetch('/api/vault/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(activeVault)
-      });
-
-      const response = await fetch('/api/files');
-      if (!response.ok) throw new Error(`Failed to load vault files (HTTP ${response.status})`);
-      const data = await response.json();
+      await window.api.vault.open(activeVault);
+      const data = await window.api.files.tree();
       const root = convertToVaultNodes(data);
       setNodes(root.children || []);
     } catch (err) {
@@ -300,154 +291,48 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Remote async methods
   const getFileTree = useCallback(async (): Promise<FileNode | null> => {
     if (!vault) return null;
-    
     try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`/api/files`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
+      return await window.api.files.tree();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load file tree');
       return null;
-    } finally {
-      setIsLoading(false);
     }
   }, [vault]);
-  
+
   const readFile = useCallback(async (filePath: string): Promise<string> => {
     if (!vault) throw new Error('No vault selected');
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`/api/files/${encodeURIComponent(filePath)}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      return data.content;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to read file');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
+    return window.api.files.read(filePath);
   }, [vault]);
-  
+
   const writeFile = useCallback(async (filePath: string, content: string): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`/api/files/${encodeURIComponent(filePath)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to write file');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
+    await window.api.files.write(filePath, content);
   }, [vault]);
-  
+
   const createFileRemote = useCallback(async (folderPath: string, name: string, ext: 'md' | 'excalidraw'): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const content = ext === 'md' ? `# ${name}\n\n` : '{"elements":[]}';
-      const filePath = `${folderPath}/${name}.${ext}`.replace(/\/+/g, '/');
-      const response = await fetch(`/api/files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          path: filePath,
-          type: 'file',
-          name: `${name}.${ext}`,
-          content
-        })
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create file');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
+    const content = ext === 'md' ? `# ${name}\n\n` : '{"elements":[]}';
+    const filePath = `${folderPath}/${name}.${ext}`.replace(/\/+/g, '/');
+    await window.api.files.create(filePath, 'file', content);
   }, [vault]);
-  
+
   const createFolderRemote = useCallback(async (folderPath: string, name: string): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const folderPathFinal = `${folderPath}/${name}`.replace(/\/+/g, '/');
-      const response = await fetch(`/api/files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          path: folderPathFinal,
-          type: 'directory',
-          name
-        })
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create folder');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
+    const folderPathFinal = `${folderPath}/${name}`.replace(/\/+/g, '/');
+    await window.api.files.create(folderPathFinal, 'directory');
   }, [vault]);
-  
+
   const deleteItem = useCallback(async (itemPath: string): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(`/api/files/${encodeURIComponent(itemPath)}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete item');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
+    await window.api.files.delete(itemPath);
   }, [vault]);
-  
+
   const renameItem = useCallback(async (oldPath: string, newName: string): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      const dirPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
-      const newPath = `${dirPath}/${newName}`.replace(/\/+/g, '/');
-      
-      const isDirectory = !oldPath.includes('.') || oldPath.endsWith('/');
-      
-      if (isDirectory) {
-        throw new Error('Directory rename not implemented');
-      } else {
-        const content = await readFile(oldPath);
-        await writeFile(newPath, content);
-        await deleteItem(oldPath);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to rename item');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [vault, readFile, writeFile, deleteItem]);
+    const dirPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
+    const newPath = `${dirPath}/${newName}`.replace(/\/+/g, '/');
+    await window.api.files.rename(oldPath, newPath);
+  }, [vault]);
   
   const value: VaultContextType = {
     nodes,

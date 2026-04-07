@@ -1,15 +1,15 @@
 {
   "name": "ibsidian",
   "private": true,
-  "version": "2026.4.1",
+  "version": "2026.5.0",
   "type": "module",
+  "main": "out/main/index.js",
   "scripts": {
-    "dev": "concurrently \"bun run dev:frontend\" \"bun run dev:backend\"",
-    "dev:frontend": "vite --port=3000 --host=0.0.0.0",
-    "dev:backend": "bun --watch backend/server.ts",
-    "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "rebuild": "electron-rebuild -f -w node-pty",
+    "clean": "rm -rf out dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "node-pty": "^1.1.0",
     "react": "^19.0.0",
     "react-arborist": "^3.4.3",
     "react-dom": "^19.0.0",
@@ -39,6 +40,8 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
+    "electron": "^41.1.1",
+    "electron-vite": "^5.0.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2"

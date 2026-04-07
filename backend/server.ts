@@ -1,7 +1,7 @@
 import { readFile, stat, mkdir, readdir, writeFile, rm } from 'fs/promises';
-import { join, dirname, isAbsolute, relative, sep } from 'path';
-import { spawn } from 'child_process';
+import { join, relative, sep } from 'path';
 import { randomBytes } from 'crypto';
+import * as pty from 'node-pty';
 import type { ServerWebSocket } from 'bun';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
@@ -64,62 +64,62 @@ const server = Bun.serve({
         
         switch (data.type) {
           case 'init': {
-            ensureVaultSelected();
-            const vault = vaults.find(v => v.id === activeVaultId)!;
-            
-            const pty = spawn(process.env.SHELL || '/bin/bash', [], {
-              cwd: vault.path,
-              env: { ...process.env, TERM: 'xterm-256color' }
+            // Kill any existing pty for this connection
+            const existing = (ws as any).pty;
+            if (existing) { existing.kill(); delete (ws as any).pty; }
+
+            const cols = data.cols ?? 80;
+            const rows = data.rows ?? 24;
+            const cwd = activeVaultId
+              ? vaults.find(v => v.id === activeVaultId)?.path
+              : process.env.HOME;
+
+            const term = pty.spawn(process.env.SHELL || '/bin/bash', [], {
+              name: 'xterm-256color',
+              cols,
+              rows,
+              cwd,
+              env: process.env as Record<string, string>,
             });
-            
-            (ws as any).pty = pty;
-            
-            pty.stdout.on('data', (data) => {
-              ws.send(JSON.stringify({ 
-                type: 'output', 
-                data: data.toString() 
-              }));
+
+            (ws as any).pty = term;
+
+            term.onData((data: string) => {
+              try {
+                ws.send(JSON.stringify({ type: 'output', data }));
+              } catch {}
             });
-            
-            pty.stderr.on('data', (data) => {
-              ws.send(JSON.stringify({ 
-                type: 'output', 
-                data: data.toString() 
-              }));
+
+            term.onExit(({ exitCode }: { exitCode: number }) => {
+              try {
+                ws.send(JSON.stringify({ type: 'exit', code: exitCode }));
+              } catch {}
+              delete (ws as any).pty;
             });
-            
-            pty.on('exit', (code) => {
-              ws.send(JSON.stringify({ 
-                type: 'exit', 
-                code 
-              }));
-              const p = (ws as any).pty;
-              if (p) delete (ws as any).pty;
-            });
-            
+
             break;
           }
-          
+
           case 'input': {
-            const pty = (ws as any).pty;
-            if (pty && typeof data.data === 'string') {
-              pty.stdin.write(data.data);
+            const term = (ws as any).pty;
+            if (term && typeof data.data === 'string') {
+              term.write(data.data);
             }
             break;
           }
-          
+
           case 'resize': {
-            const pty = (ws as any).pty;
-            if (pty && data.cols !== undefined && data.rows !== undefined) {
-              console.log(`Resize request: ${data.cols}x${data.rows}`);
+            const term = (ws as any).pty;
+            if (term && data.cols && data.rows) {
+              term.resize(data.cols, data.rows);
             }
             break;
           }
-          
+
           case 'close': {
-            const pty = (ws as any).pty;
-            if (pty) {
-              pty.kill();
+            const term = (ws as any).pty;
+            if (term) {
+              term.kill();
               delete (ws as any).pty;
             }
             ws.close();
@@ -137,9 +137,9 @@ const server = Bun.serve({
     
     close(ws: ServerWebSocket<unknown>) {
       console.log('WebSocket client disconnected');
-      const pty = (ws as any).pty;
-      if (pty) {
-        pty.kill();
+      const term = (ws as any).pty;
+      if (term) {
+        term.kill();
         delete (ws as any).pty;
       }
     }

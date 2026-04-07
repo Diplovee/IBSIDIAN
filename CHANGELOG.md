@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.0] - 2026-04-08
+
+### Changed — Electron rewrite
+- **Electron app** — Ibsidian is now a native desktop application powered by Electron. No more browser + backend server architecture.
+- **No more Bun backend** — `backend/server.ts` is replaced by the Electron main process (`electron/main.ts`)
+- **Native folder dialog** — Vault location is selected via the OS file picker instead of hardcoded paths
+- **IPC replaces HTTP + WebSocket** — All file operations and terminal communication go through Electron IPC (`contextBridge`)
+- **node-pty in main process** — Terminal now uses a real PTY via IPC; zero WebSocket, zero ports
+- **`electron-vite`** — Build system replaces `vite` standalone; handles main, preload, and renderer in one config
+- **Single command dev** — `bun run dev` launches the Electron app with HMR
+
+### Added
+- `electron/main.ts` — Main process: window, file system, vault management, PTY terminal sessions
+- `electron/preload.ts` — Secure `contextBridge` API exposing vault, files, and terminal to renderer
+- `src/types/electron.d.ts` — TypeScript declarations for `window.api`
+- `electron.vite.config.ts` — Unified build config for main + preload + renderer
+- `package.json` `"main"` field pointing to compiled main process
+- `rebuild` npm script for rebuilding native modules against Electron headers
+
+### Fixed
+- Terminal completely rewritten — no more WebSocket, no more `pty.write` errors, direct IPC
+- VaultSetup no longer has hardcoded `/home/diplov/...` paths
+
 ## [2026.4.1] - 2026-04-08
 
 ### Added
