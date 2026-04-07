@@ -16,7 +16,7 @@ import {
   BookOpen, MoreHorizontal, Link, Code, PanelRight, PanelBottom,
   ExternalLink, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight,
+  Trash2, ChevronRight, WifiOff,
 } from 'lucide-react';
 
 // Clean Obsidian-style editor theme
@@ -173,11 +173,11 @@ const MenuSep: React.FC = () => <div className="my-1 border-t border-[var(--bord
 // ── Editor tab ───────────────────────────────────────────────────────
 
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
-  const { getNodeById, updateFileContent, deleteNode, renameNode } = useVault();
+  const { getNodeById, updateFileContent, deleteNode, renameNode, readFile, writeFile, vault } = useVault();
   const { closeTab, updateTabTitle } = useTabs();
   const { confirm, prompt } = useModal();
   const node = getNodeById(tab.filePath);
-   const [content, setContent] = useState(node?.type === 'file' ? (node as any).content : '');
+  const [content, setContent] = useState<string>('');
   const [titleValue, setTitleValue] = useState(node?.name || tab.title);
   const [isPreview, setIsPreview] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -185,15 +185,18 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const editorViewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-   const isNewFile = useRef((node as any)?.content === `# ${node?.name}\n\n`);
 
-  // Auto-select title on brand new file
+  // Load content from backend when tab opens
   useEffect(() => {
-    if (isNewFile.current && titleInputRef.current) {
-      titleInputRef.current.focus();
-      titleInputRef.current.select();
+    const nodeContent = (node as any)?.content;
+    if (typeof nodeContent === 'string') {
+      setContent(nodeContent);
+    } else if (vault && tab.filePath) {
+      readFile(tab.filePath)
+        .then(text => setContent(text ?? ''))
+        .catch(() => {});
     }
-  }, []);
+  }, [tab.filePath, vault]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -205,16 +208,10 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
-  useEffect(() => {
-    if (node?.type === 'file') {
-      setContent((node as any).content);
-      setTitleValue(node.name);
-    }
-  }, [node]);
-
   const handleChange = (value: string) => {
     setContent(value);
     if (node?.id) updateFileContent(node.id, value);
+    if (vault && tab.filePath) writeFile(tab.filePath, value).catch(() => {});
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,14 +454,98 @@ const TerminalTab: React.FC<{ tab: any }> = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { theme } = useActivity();
   const [cols, setCols] = useState(80);
   const [rows, setRows] = useState(24);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
   const xtermTheme = {
     light: { background: '#ffffff', foreground: '#2e3338', cursor: '#7c3aed' },
     dark: { background: '#1e1e1e', foreground: '#dcddde', cursor: '#7c3aed' },
   };
+
+  const cleanup = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      if (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+    }
+  }, []);
+
+  const connect = useCallback((term: XTerm, initial = false) => {
+    const ws = new WebSocket(`ws://${window.location.hostname}:3001`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnectionStatus('connected');
+      if (initial) {
+        term.writeln('\x1b[1;32mConnected to Ibsidian backend\x1b[0m');
+        term.write('\r\n$ ');
+      } else {
+        term.writeln('\x1b[1;32mReconnected to Ibsidian backend\x1b[0m');
+        term.write('\r\n$ ');
+      }
+
+      ws.send(JSON.stringify({ type: 'init' }));
+      ws.send(JSON.stringify({
+        type: 'resize',
+        cols: term.cols,
+        rows: term.rows
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case 'output':
+            term.write(data.data);
+            break;
+          case 'welcome':
+            break;
+          case 'error':
+            term.write(`\x1b[1;31mError: ${data.message}\x1b[0m\r\n`);
+            term.write('\r\n$ ');
+            break;
+          case 'exit':
+            term.write(`\x1b[1;33mProcess exited with code ${data.code}\x1b[0m\r\n`);
+            term.write('\r\n$ ');
+            break;
+        }
+      } catch (e) {
+        term.write(event.data);
+      }
+    };
+
+    ws.onclose = () => {
+      setConnectionStatus('disconnected');
+    };
+
+    ws.onerror = () => {
+      setConnectionStatus('disconnected');
+    };
+
+    return ws;
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    if (!terminalRef.current || !xtermRef.current) return;
+    const term = xtermRef.current;
+    cleanup();
+    term.writeln('\r\n\x1b[1;35mIbsidian Terminal\x1b[0m');
+    term.writeln('Connecting to backend...');
+    setConnectionStatus('connecting');
+    connect(term, true);
+  }, [cleanup, connect]);
 
   useEffect(() => {
     if (terminalRef.current && !xtermRef.current) {
@@ -480,98 +561,43 @@ const TerminalTab: React.FC<{ tab: any }> = () => {
       term.loadAddon(fitAddon);
       term.open(terminalRef.current);
       fitAddon.fit();
-      
-      // Update size from actual terminal
+
       const { cols: actualCols, rows: actualRows } = term.cols ? { cols: term.cols, rows: term.rows } : { cols, rows };
       setCols(actualCols);
       setRows(actualRows);
-      
+
       term.writeln('\x1b[1;35mIbsidian Terminal\x1b[0m');
       term.writeln('Connecting to backend...');
-      
-      // Connect to backend WebSocket
-      const ws = new WebSocket(`ws://${window.location.hostname}:3001`);
-      wsRef.current = ws;
-      
-      ws.onopen = () => {
-        term.writeln('\x1b[1;32mConnected to Ibsidian backend\x1b[0m');
-        term.write('\r\n$ ');
-        
-        // Initialize terminal session
-        ws.send(JSON.stringify({ type: 'init' }));
-        
-        // Send initial size
-        ws.send(JSON.stringify({ 
-          type: 'resize', 
-          cols: term.cols, 
-          rows: term.rows 
-        }));
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          switch (data.type) {
-            case 'output':
-              term.write(data.data);
-              break;
-            case 'welcome':
-              // Ignore welcome message
-              break;
-            case 'error':
-              term.write(`\x1b[1;31mError: ${data.message}\x1b[0m\r\n`);
-              term.write('\r\n$ ');
-              break;
-            case 'exit':
-              term.write(`\x1b[1;33mProcess exited with code ${data.code}\x1b[0m\r\n`);
-              term.write('\r\n$ ');
-              break;
-          }
-        } catch (e) {
-          // If not JSON, treat as raw data
-          term.write(event.data);
-        }
-      };
-      
-      ws.onclose = () => {
-        term.write('\x1b[1;31mDisconnected from backend\x1b[0m\r\n');
-      };
-      
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        term.write('\x1b[1;31mWebSocket error\x1b[0m\r\n');
-      };
-      
+
+      connect(term, true);
+
       term.onData(data => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ 
-            type: 'input', 
-            data 
+          wsRef.current.send(JSON.stringify({
+            type: 'input',
+            data
           }));
         }
       });
-      
+
       term.onResize(({ cols, rows }) => {
         setCols(cols);
         setRows(rows);
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ 
-            type: 'resize', 
-            cols, 
-            rows 
+          wsRef.current.send(JSON.stringify({
+            type: 'resize',
+            cols,
+            rows
           }));
         }
       });
-      
+
       xtermRef.current = term;
       const handleResize = () => fitAddon.fit();
       window.addEventListener('resize', handleResize);
       return () => {
         window.removeEventListener('resize', handleResize);
-        if (wsRef.current) {
-          wsRef.current.close();
-        }
+        cleanup();
       };
     }
   }, []);
@@ -581,6 +607,36 @@ const TerminalTab: React.FC<{ tab: any }> = () => {
       xtermRef.current.options.theme = xtermTheme[theme];
     }
   }, [theme]);
+
+  if (connectionStatus === 'disconnected') {
+    return (
+      <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
+        <div className="h-8 bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center px-3 gap-2 text-[11px] text-[var(--text-muted)]">
+          <SquareTerminal size={12} />
+          <span>bash — disconnected</span>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+          <WifiOff size={48} className="text-[var(--text-muted)] opacity-50" />
+          <div className="text-center">
+            <h3 className="text-lg font-medium text-[var(--text-primary)] mb-1">
+              Backend Unavailable
+            </h3>
+            <p className="text-sm text-[var(--text-muted)] max-w-sm">
+              The terminal requires the backend server to be running on port 3001.
+              Run <code className="px-1.5 py-0.5 bg-[var(--bg-secondary)] rounded text-xs">bun run dev</code> to start both frontend and backend.
+            </p>
+          </div>
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-white rounded-md hover:bg-[var(--accent-hover)] transition-colors text-sm"
+          >
+            <RefreshCw size={14} />
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">

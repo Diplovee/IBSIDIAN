@@ -106,7 +106,7 @@ export const VaultSetup: React.FC = () => {
               Ibsidian
             </h1>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              Version 2026.2.4
+              Version 2026.4.1
             </p>
           </div>
         </div>

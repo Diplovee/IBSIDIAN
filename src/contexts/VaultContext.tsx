@@ -44,7 +44,7 @@ interface VaultContextType {
   // Vault management
   setActiveVault: (vault: Vault) => void;
   clearActiveVault: () => void;
-  refreshFileTree: () => Promise<void>;
+  refreshFileTree: (vaultOverride?: Vault) => Promise<void>;
   
   // File operations
   getFileTree: () => Promise<FileNode | null>;
@@ -61,33 +61,9 @@ interface VaultContextType {
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
 
-// In-memory fallback nodes (when no vault is open)
-const defaultNodes: VaultNode[] = [
-  {
-    id: '1',
-    type: 'folder',
-    name: 'Personal',
-    children: [
-      { id: '2', type: 'file', name: 'Ideas', ext: 'md', content: '# Ideas\n\n- Build Ibsidian\n- Learn Rust\n- Go for a run' },
-      { id: '3', type: 'file', name: 'Journal', ext: 'md', content: '# Journal - April 7, 2026\n\nToday was a productive day. I started building Ibsidian.' },
-    ],
-    isOpen: true,
-  },
-  {
-    id: '4',
-    type: 'folder',
-    name: 'Projects',
-    children: [
-      { id: '5', type: 'file', name: 'Ibsidian Design', ext: 'md', content: '# Ibsidian Design\n\nMinimalist knowledge vault.' },
-      { id: '6', type: 'file', name: 'Architecture', ext: 'excalidraw', content: '{"elements": []}' },
-    ],
-    isOpen: false,
-  },
-  { id: '7', type: 'file', name: 'README', ext: 'md', content: '# Welcome to Ibsidian\n\nYour personal knowledge vault.' },
-];
 
 export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [nodes, setNodes] = useState<VaultNode[]>(defaultNodes);
+  const [nodes, setNodes] = useState<VaultNode[]>([]);
   const [vault, setVault] = useState<Vault | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -111,45 +87,59 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setActiveVault = useCallback((vaultData: Vault) => {
     setVault(vaultData);
     localStorage.setItem('ibsidian-vault', JSON.stringify(vaultData));
-    // Load file tree from backend
-    refreshFileTree();
   }, []);
-  
+
   const clearActiveVault = useCallback(() => {
     setVault(null);
-    setNodes(defaultNodes);
+    setNodes([]);
     localStorage.removeItem('ibsidian-vault');
   }, []);
-  
-  const refreshFileTree = useCallback(async () => {
-    if (!vault) return;
-    
+
+  const convertToVaultNodes = useCallback((fileNode: FileNode): VaultNode => {
+    const ext = fileNode.name.endsWith('.md') ? 'md' : fileNode.name.endsWith('.excalidraw') ? 'excalidraw' : undefined;
+    return {
+      id: fileNode.path || fileNode.name,
+      type: fileNode.isDirectory ? 'folder' : 'file',
+      name: fileNode.name,
+      ext,
+      children: fileNode.children?.map(convertToVaultNodes),
+      isOpen: false,
+    };
+  }, []);
+
+  const refreshFileTree = useCallback(async (vaultOverride?: Vault) => {
+    const activeVault = vaultOverride ?? vault;
+    if (!activeVault) return;
+
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`/api/files`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      // Re-register the vault with the backend in case it restarted
+      await fetch('/api/vault/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activeVault)
+      });
+
+      const response = await fetch('/api/files');
+      if (!response.ok) throw new Error(`Failed to load vault files (HTTP ${response.status})`);
       const data = await response.json();
-      
-      // Convert FileNode tree to VaultNode tree
-      const convertToVaultNodes = (fileNode: FileNode): VaultNode => {
-        const ext = fileNode.name.endsWith('.md') ? 'md' : fileNode.name.endsWith('.excalidraw') ? 'excalidraw' : undefined;
-        return {
-          id: fileNode.path || fileNode.name,
-          type: fileNode.isDirectory ? 'folder' : 'file',
-          name: fileNode.name,
-          ext,
-          children: fileNode.children?.map(convertToVaultNodes),
-          isOpen: false,
-        };
-      };
-      
-      setNodes([convertToVaultNodes(data)]);
+      const root = convertToVaultNodes(data);
+      setNodes(root.children || []);
     } catch (err) {
-      console.error('Failed to load file tree:', err);
-      // Keep default nodes on error
+      const message = err instanceof Error ? err.message : 'Failed to load file tree';
+      console.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
+    }
+  }, [vault, convertToVaultNodes]);
+
+  // Refresh file tree whenever the active vault changes
+  useEffect(() => {
+    if (vault) {
+      refreshFileTree(vault);
     }
   }, [vault]);
   

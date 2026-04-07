@@ -1,7 +1,7 @@
 {
   "name": "ibsidian",
   "private": true,
-  "version": "2026.3.1",
+  "version": "2026.4.1",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"bun run dev:frontend\" \"bun run dev:backend\"",

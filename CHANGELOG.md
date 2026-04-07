@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.4.1] - 2026-04-08
+
+### Added
+- **Error display in file tree** — Shows error message with Retry button when vault file tree fails to load
+- **Loading state in sidebar** — "Loading…" indicator while fetching file tree from backend
+
+### Fixed
+- **Folders not expanding** — Fixed empty folders being treated as files (used `node.data.type` instead of `node.isInternal`)
+- **Folders opening as Excalidraw** — Folders without children no longer fall through to `openTab`
+- **File content crash** — `EditorTab` no longer crashes when content is undefined (backend nodes don't preload content)
+- **File content loading** — Files now load content from backend via `readFile` on tab open; editor renders instantly with content filling in async
+- **Terminal input broken** — Fixed `pty.write` → `pty.stdin.write` (child_process.spawn uses stdin, not pty.write)
+- **File tree only one level deep** — Backend now reads vault directories recursively, all subfolders expand correctly
+- **Vault 404 on backend restart** — Added `POST /api/vault/open` endpoint; frontend re-registers vault before every file tree fetch so HMR/server restarts don't break the session
+- **`/api/files` path parsing** — Fixed regex to handle `/api/files` without trailing slash (was resolving to wrong path)
+- **Hardcoded fake file tree** — Removed `defaultNodes` (Personal, Projects, etc.); sidebar now shows only real vault files
+- **React StrictMode + xterm.js** — Removed `StrictMode` which caused WebSocket to close before connecting and xterm.js internal timer crashes
+- **WebSocket 404** — Backend `fetch` handler now calls `server.upgrade(req)` for WebSocket connections at `/` and `/ws`
+- **File saves on edit** — `EditorTab` now calls `writeFile` on every change, persisting edits to disk
+
+### Technical Details
+- `backend/server.ts`: Added recursive `readDirRecursive` for full tree, `POST /api/vault/open`, fixed `server.upgrade`, fixed path regex
+- `src/contexts/VaultContext.tsx`: Removed defaultNodes, added vault re-registration in `refreshFileTree`, fixed stale closure in `setActiveVault`
+- `src/components/SidePanel.tsx`: Error/loading states in FileTreeView, fixed folder click handler
+- `src/components/Canvas.tsx`: EditorTab loads content from backend asynchronously, instant render
+- `src/main.tsx`: Removed React StrictMode
+
 ## [2026.3.1] - 2026-04-07
 
 ### Added

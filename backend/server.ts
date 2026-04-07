@@ -2,6 +2,7 @@ import { readFile, stat, mkdir, readdir, writeFile, rm } from 'fs/promises';
 import { join, dirname, isAbsolute, relative, sep } from 'path';
 import { spawn } from 'child_process';
 import { randomBytes } from 'crypto';
+import type { ServerWebSocket } from 'bun';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 
@@ -53,10 +54,11 @@ const server = Bun.serve({
   websocket: {
     open(ws) {
       console.log('WebSocket client connected');
+      (ws as any).pty = null;
       ws.send(JSON.stringify({ type: 'welcome', message: 'Terminal connected' }));
     },
     
-    async message(ws, message) {
+    async message(ws: ServerWebSocket<unknown>, message) {
       try {
         const data = JSON.parse(message.toString());
         
@@ -65,13 +67,11 @@ const server = Bun.serve({
             ensureVaultSelected();
             const vault = vaults.find(v => v.id === activeVaultId)!;
             
-            // Create PTY with vault as working directory
             const pty = spawn(process.env.SHELL || '/bin/bash', [], {
               cwd: vault.path,
               env: { ...process.env, TERM: 'xterm-256color' }
             });
             
-            // Store PTY on ws for cleanup
             (ws as any).pty = pty;
             
             pty.stdout.on('data', (data) => {
@@ -93,8 +93,8 @@ const server = Bun.serve({
                 type: 'exit', 
                 code 
               }));
-              // Clean up
-              delete (ws as any).pty;
+              const p = (ws as any).pty;
+              if (p) delete (ws as any).pty;
             });
             
             break;
@@ -103,7 +103,7 @@ const server = Bun.serve({
           case 'input': {
             const pty = (ws as any).pty;
             if (pty && typeof data.data === 'string') {
-              pty.write(data.data);
+              pty.stdin.write(data.data);
             }
             break;
           }
@@ -111,8 +111,6 @@ const server = Bun.serve({
           case 'resize': {
             const pty = (ws as any).pty;
             if (pty && data.cols !== undefined && data.rows !== undefined) {
-              // Note: Bun's spawn doesn't have direct resize API
-              // We'll need to handle this differently or use node-pty if needed
               console.log(`Resize request: ${data.cols}x${data.rows}`);
             }
             break;
@@ -137,7 +135,7 @@ const server = Bun.serve({
       }
     },
     
-    close(ws) {
+    close(ws: ServerWebSocket<unknown>) {
       console.log('WebSocket client disconnected');
       const pty = (ws as any).pty;
       if (pty) {
@@ -146,11 +144,17 @@ const server = Bun.serve({
       }
     }
   },
-  fetch(req) {
-    // Handle HTTP requests for file operations
+  async fetch(req, server): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
-    
+
+    if (path === '/' || path === '/ws') {
+      if (server.upgrade(req)) {
+        return undefined as any;
+      }
+      return new Response('WebSocket upgrade required', { status: 426 });
+    }
+
     return handleRequest(req, path).catch(err => {
       console.error('HTTP error:', err);
       return new Response(JSON.stringify({ 
@@ -182,6 +186,27 @@ async function handleRequest(req: Request, path: string): Promise<Response> {
       });
     }
     
+    if (path === '/api/vault/open' && req.method === 'POST') {
+      const body = await req.json() as { id: string; name: string; path: string };
+      try {
+        const s = await stat(body.path);
+        if (!s.isDirectory()) throw new Error('Not a directory');
+      } catch {
+        return new Response(JSON.stringify({ error: 'Vault folder not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      const existing = vaults.find(v => v.id === body.id);
+      if (!existing) {
+        vaults.push({ id: body.id, name: body.name, path: normalizePath(body.path) });
+      }
+      activeVaultId = body.id;
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     if (path === '/api/vault' && req.method === 'POST') {
       // Parse JSON body
       const body = await req.json() as { name: string; path: string };
@@ -465,7 +490,8 @@ energy:
     // File operations (require active vault)
     if (path.startsWith('/api/files') && activeVaultId) {
       const vault = vaults.find(v => v.id === activeVaultId)!;
-      const filePath = join(vault.path, decodeURIComponent(path.replace('/api/files/', '')));
+      const subPath = decodeURIComponent(path.replace(/^\/api\/files\/?/, ''));
+      const filePath = subPath ? join(vault.path, subPath) : vault.path;
       
       // Security check
       if (!isPathInVault(vault.path, filePath)) {
@@ -479,25 +505,30 @@ energy:
         // Get file/directory info or list directory
         try {
           const stats = await stat(filePath);
-          
+
           if (stats.isDirectory()) {
-            const entries = await readdir(filePath, { withFileTypes: true });
-            const childrenPromises = entries.map(async entry => {
-              const fullPath = join(filePath, entry.name);
-              const entryStats = await stat(fullPath);
-              return {
-                name: entry.name,
-                path: normalizePath(relative(vault.path, fullPath)),
-                isDirectory: entry.isDirectory()
-              };
-            });
-            const children = await Promise.all(childrenPromises);
-            
-            return new Response(JSON.stringify({ 
+            const readDirRecursive = async (dirPath: string): Promise<any[]> => {
+              const entries = await readdir(dirPath, { withFileTypes: true });
+              return Promise.all(entries.map(async entry => {
+                const fullPath = join(dirPath, entry.name);
+                const node: any = {
+                  name: entry.name,
+                  path: normalizePath(relative(vault.path, fullPath)),
+                  isDirectory: entry.isDirectory(),
+                };
+                if (entry.isDirectory()) {
+                  node.children = await readDirRecursive(fullPath);
+                }
+                return node;
+              }));
+            };
+
+            const children = await readDirRecursive(filePath);
+            return new Response(JSON.stringify({
               name: vault.name,
               path: '',
               isDirectory: true,
-              children 
+              children
             }), {
               headers: { 'Content-Type': 'application/json' }
             });

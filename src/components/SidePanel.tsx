@@ -115,7 +115,7 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
 
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
-  const { nodes, createFile, createFolder, moveNode, nextUntitledName } = useVault();
+  const { nodes, createFile, createFolder, moveNode, nextUntitledName, isLoading, error, refreshFileTree } = useVault();
   const { openTab } = useTabs();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -149,9 +149,21 @@ const FileTreeView: React.FC = () => {
           <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => {}} />
         </div>
 
-        {/* Tree */}
+        {/* Tree / states */}
         <div style={{ flex: 1, overflow: 'hidden', paddingTop: 4 }}>
-          {dimensions && (
+          {error ? (
+            <div style={{ padding: '20px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12, lineHeight: 1.5 }}>{error}</p>
+              <button
+                onClick={() => refreshFileTree()}
+                style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: '1px solid var(--accent)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : isLoading ? (
+            <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>Loading…</p>
+          ) : dimensions ? (
             <Tree
               data={nodes}
               openByDefault={true}
@@ -163,7 +175,7 @@ const FileTreeView: React.FC = () => {
             >
               {TreeNode}
             </Tree>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -202,7 +214,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
       style={{ ...style, display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 8, cursor: 'pointer', background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: 13, transition: 'background 0.1s', userSelect: 'none' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => { if (node.isInternal) node.toggle(); else openTab({ type: node.data.ext === 'md' ? 'note' : 'draw', title: node.data.name, filePath: node.data.id }); }}
+      onClick={() => { if (node.data.type === 'folder') node.toggle(); else openTab({ type: node.data.ext === 'md' ? 'note' : 'draw', title: node.data.name, filePath: node.data.id }); }}
       onContextMenu={(e) => openContextMenu(e, node.data)}
     >
       {node.data.type === 'folder' && (

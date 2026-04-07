@@ -111,8 +111,9 @@ The backend runs on port 3001 (proxied through Vite on port 3000):
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/vault` | Create a new vault |
+| POST | `/api/vault/open` | Re-register an existing vault (used on reload) |
 | GET | `/api/vaults` | List all vaults |
-| GET | `/api/files` | Get file tree of active vault |
+| GET | `/api/files` | Get full recursive file tree of active vault |
 | GET | `/api/files/:path` | Read a file |
 | PUT | `/api/files/:path` | Write a file |
 | POST | `/api/files` | Create file or folder |

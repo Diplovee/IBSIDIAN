@@ -61,6 +61,17 @@ Bun.serve({
       // handle close
     }
   },
+  // IMPORTANT: fetch must explicitly upgrade WebSocket requests.
+  // `server` is the second argument to fetch — use it to call server.upgrade(req).
+  // Without this, WebSocket connections get a 404 response.
+  fetch(req, server) {
+    const url = new URL(req.url);
+    if (url.pathname === "/ws") {
+      if (server.upgrade(req)) return undefined as any;
+      return new Response("WebSocket upgrade required", { status: 426 });
+    }
+    return new Response("Hello!");
+  },
   development: {
     hmr: true,
     console: true,
