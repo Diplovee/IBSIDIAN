@@ -244,6 +244,208 @@ async function handleRequest(req: Request, path: string): Promise<Response> {
         });
       }
       
+      // Create welcome files inside the vault
+      const welcomeFiles = [
+        {
+          name: 'README.md',
+          content: `# Welcome to ${name}
+
+Your personal knowledge vault is ready! 🎉
+
+## Getting Started
+
+- **Create a note**: Press \`Ctrl+K\` and type "New Note"
+- **Create a folder**: Press \`Ctrl+K\` and type "New Folder"
+- **Open terminal**: Press \`Ctrl+K\` and type "Open Terminal"
+- **Browse files**: Click the folder icon in the sidebar
+
+## Features
+
+- 📝 Markdown editor with live preview
+- 🎨 Drawing canvas with Excalidraw
+- 🌐 Built-in browser tab
+- 💻 Terminal connected to your vault
+- 🔍 Full-text search
+- 🌙 Light / Dark theme
+
+## Structure
+
+- \`Daily Notes/\` - Your daily notes
+- \`Templates/\` - Reusable note templates
+
+Happy note-taking! ✨
+`
+        },
+        {
+          name: 'Getting Started.md',
+          content: `# Getting Started with Ibsidian
+
+## First Steps
+
+1. **Create your first note** - Click the + button or use \`Ctrl+N\`
+2. **Organize with folders** - Right-click in the sidebar to create folders
+3. **Use templates** - Check the \`Templates/\` folder for starting points
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| \`Ctrl+K\` | Open command palette |
+| \`Ctrl+N\` | Create new note |
+| \`Ctrl+S\` | Save current note |
+| \`Ctrl+Shift+P\` | Toggle preview mode |
+
+## Tips
+
+- Use \`[[wikilinks]]\` to link between notes
+- Add \`tags: [tag1, tag2]\` in YAML frontmatter for tagging
+- Use \`!\[\]\(image.png\)\` to embed images
+
+---
+
+*Built with 💜 using React + TypeScript*
+`
+        },
+        {
+          name: 'Ideas.md',
+          content: `# Ideas
+
+A place to capture your ideas and brainstorm.
+
+## Brainstorming
+
+- [ ] Idea 1
+- [ ] Idea 2
+- [ ] Idea 3
+
+## Notes
+
+---
+
+*Add your ideas here!*
+`
+        }
+      ];
+      
+      // Write welcome files
+      for (const file of welcomeFiles) {
+        try {
+          await writeFile(join(fullVaultPath, file.name), file.content, 'utf8');
+        } catch (err) {
+          console.error(`Failed to create ${file.name}:`, err);
+        }
+      }
+      
+      // Create folders with sample content
+      const dailyNotesPath = join(fullVaultPath, 'Daily Notes');
+      const templatesPath = join(fullVaultPath, 'Templates');
+      
+      try {
+        await mkdir(dailyNotesPath, { recursive: true });
+        await mkdir(templatesPath, { recursive: true });
+        
+        // Sample daily note template
+        const today = new Date().toISOString().split('T')[0];
+        await writeFile(
+          join(dailyNotesPath, `${today}.md`),
+          `# ${today}
+
+## Tasks
+
+- [ ] 
+
+## Notes
+
+- 
+
+## Highlights
+
+- 
+
+---
+
+*Created with Ibsidian*
+`,
+          'utf8'
+        );
+        
+        // Meeting notes template
+        await writeFile(
+          join(templatesPath, 'Meeting Notes.md'),
+          `---
+tags: [meeting]
+date: {{date}}
+participants: []
+---
+
+# Meeting Notes - {{title}}
+
+## Attendees
+
+- 
+
+## Agenda
+
+1. 
+
+## Discussion
+
+-
+
+## Action Items
+
+- [ ] 
+
+## Next Steps
+
+- 
+
+---
+
+*Template: Copy this to create new meeting notes*
+`,
+          'utf8'
+        );
+        
+        // Daily note template
+        await writeFile(
+          join(templatesPath, 'Daily Note.md'),
+          `---
+tags: [daily]
+date: {{date}}
+mood: 
+energy: 
+---
+
+# {{date}}
+
+## Tasks
+
+- [ ] 
+
+## Gratitude
+
+- 
+
+## Highlights
+
+- 
+
+## Tomorrow
+
+- 
+
+---
+
+*Use this template for daily notes*
+`,
+          'utf8'
+        );
+        
+      } catch (err) {
+        console.error('Failed to create sample folders:', err);
+      }
+      
       // Create vault entry
       const vault: Vault = {
         id: generateId(),
