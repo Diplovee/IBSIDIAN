@@ -1,0 +1,5 @@
+{
+  "name": "Ibsidian",
+  "description": "A minimal, personal knowledge vault browser app with a collapsible file tree and tab-based canvas supporting markdown, browser, drawings, and terminal.",
+  "requestFramePermissions": []
+}
