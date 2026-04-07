@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.3.1] - 2026-04-07
+
+### Added
+- **Welcome Files** — Automatic creation of README.md, Getting Started.md, and Ideas.md when creating a new vault
+- **Sample Templates** — Daily Notes/ and Templates/ folders with sample templates (Meeting Notes, Daily Note)
+- **Loading Screen** — Branded loading animation while checking localStorage on app reload
+- **Custom Markdown Icon** — SVG icon for .md files in sidebar and tabs
+
+### Fixed
+- **Duplicate Tab Bug** — Removed redundant onSelect handler in file tree that was causing files to open twice
+
+### Technical Details
+- Modified backend/server.ts to create welcome files and folders inside the vault
+- Added LoadingScreen component with Ibsidian branding and loading animation
+- Added isReady state to VaultContext to track initial load
+- Created custom MarkdownIcon component for sidebar and tabs
+- Removed duplicate Tree onSelect handler in SidePanel.tsx
+
 ## [2026.3.0] - 2026-04-07
 
 ### Added
