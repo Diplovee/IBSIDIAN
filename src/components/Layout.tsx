@@ -6,6 +6,7 @@ import { TabBar } from './TabBar';
 import { Canvas } from './Canvas';
 import { CommandPalette } from './CommandPalette';
 import { VaultSetup } from './VaultSetup';
+import { LoadingScreen } from './LoadingScreen';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
 
@@ -14,7 +15,7 @@ const DEFAULT_WIDTH = 240;
 
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
-  const { vault } = useVault();
+  const { vault, isReady } = useVault();
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_KEY);
     return saved ? Math.max(160, Math.min(Number(saved), 600)) : DEFAULT_WIDTH;
@@ -43,7 +44,9 @@ export const Layout: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--bg-primary)]">
-      {!vault ? (
+      {!isReady ? (
+        <LoadingScreen />
+      ) : !vault ? (
         <VaultSetup />
       ) : (
         <>

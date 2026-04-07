@@ -27,6 +27,7 @@ interface VaultContextType {
   nodes: VaultNode[];
   vault: Vault | null;
   isLoading: boolean;
+  isReady: boolean;
   error: string | null;
   
   // Legacy sync methods (for compatibility with existing components)
@@ -89,6 +90,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [nodes, setNodes] = useState<VaultNode[]>(defaultNodes);
   const [vault, setVault] = useState<Vault | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const untitledCounter = useRef(0);
   
@@ -102,6 +104,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // Ignore parse errors
       }
     }
+    // Mark as ready after checking localStorage
+    setIsReady(true);
   }, []);
   
   const setActiveVault = useCallback((vaultData: Vault) => {
@@ -459,6 +463,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     nodes,
     vault,
     isLoading,
+    isReady,
     error,
     createFile,
     createFolder,
