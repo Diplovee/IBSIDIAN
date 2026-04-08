@@ -40,7 +40,7 @@ export const VaultSetup: React.FC = () => {
       {/* Icon + branding */}
       <img src="/favicon.svg" alt="Ibsidian" style={{ width: 96, height: 96, marginBottom: 24, borderRadius: 16 }} />
       <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px', margin: 0 }}>Ibsidian</h1>
-      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, marginBottom: 48 }}>Version 2026.5.1</p>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, marginBottom: 48 }}>Version 2026.5.2</p>
 
       {/* Form */}
       <div style={{ width: '100%', maxWidth: 420 }}>

@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.2] - 2026-04-08
+
+### Added
+- File read/write/rename errors now show a human-readable modal instead of silently failing; ENOENT errors also check if the vault itself is gone and trigger the vault-not-found screen
+- Alert modal type added to the modal system
+- Vault-not-found screen with Retry (spinner, 1.5s minimum) and Create new vault options
+- Default vault location is now the user's home directory
+- Vault creation shows a loading state (1.2s minimum) before opening the app
+
+### Changed
+- Vault setup screen redesigned — Obsidian-style centered icon, name, and version; no glow or animation
+- Command palette redesigned — Obsidian-style layout, no backdrop blur or animations
+- Inline note title renames the file on disk when edited; extension hidden in editor and rename dialogs
+- .md and .excalidraw extensions hidden throughout the UI (file tree, rename dialogs, editor title)
+- Context menus trimmed to only functional items and clamped to viewport — no more cutoff
+
+### Fixed
+- Files created via command palette and new-tab screen now written to disk with correct name and extension
+- Retry no longer flashes the editor in the background while checking the vault
+- Switching or creating a vault clears any previous error state immediately
+- Opening multiple terminal tabs now works
+- New tab button no longer blanks the screen (missing useCallback import in Canvas)
+- Vault state persists across restarts via JSON file in userData instead of localStorage
+
+## [2026.5.1] - 2026-04-08
+
+### Fixed
+- Electron startup crash on Linux — added --no-zygote flag to fix Chromium shared memory loop
+- README rewritten in Linux kernel plain-text style
+
 ## [2026.5.0] - 2026-04-08
 
 ### Changed — Electron rewrite
