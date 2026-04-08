@@ -24,14 +24,12 @@ export const Layout: React.FC = () => {
   const handleRetry = useCallback(async () => {
     setRetrying(true);
     setRetryFailed(false);
-    try {
-      await refreshFileTree();
-      // If refreshFileTree throws or error stays, we detect below
-    } catch {
-      setRetryFailed(true);
-    } finally {
-      setRetrying(false);
-    }
+    const [result] = await Promise.allSettled([
+      refreshFileTree(),
+      new Promise(r => setTimeout(r, 1500)),
+    ]);
+    if (result.status === 'rejected') setRetryFailed(true);
+    setRetrying(false);
   }, [refreshFileTree]);
 
   const [sidebarWidth, setSidebarWidth] = useState(() => {
