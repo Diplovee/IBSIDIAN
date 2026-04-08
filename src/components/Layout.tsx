@@ -68,13 +68,20 @@ export const Layout: React.FC = () => {
         <VaultSetup />
       ) : vaultMissing || retrying ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: 'var(--bg-primary)', padding: 40 }}>
-          <FolderX size={48} color="var(--text-muted)" strokeWidth={1.5} />
+          <style>{`@keyframes _spin{to{transform:rotate(360deg)}}`}</style>
+          {retrying ? (
+            <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', animation: '_spin 0.8s linear infinite' }} />
+          ) : (
+            <FolderX size={48} color="var(--text-muted)" strokeWidth={1.5} />
+          )}
           <div style={{ textAlign: 'center' }}>
             <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
-              {retrying ? 'Looking for vault…' : 'Vault folder not found'}
+              {retrying ? 'Checking vault…' : 'Vault folder not found'}
             </h2>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>
-              The folder <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{vault.path}</code> {retrying ? 'is being checked.' : 'no longer exists.'}
+              {retrying
+                ? 'Trying to reach the vault folder, please wait.'
+                : <>The folder <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>{vault.path}</code> no longer exists.</>}
             </p>
             {retryFailed && (
               <p style={{ fontSize: 13, color: '#ef4444', marginTop: 10 }}>Still can't find the folder. It may have been moved or deleted.</p>
