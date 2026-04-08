@@ -23,6 +23,27 @@ const vaults: Vault[] = []
 let activeVaultId: string | null = null
 const generateId = () => randomBytes(8).toString('hex')
 
+// ── Persistent vault config ────────────────────────────────────────────────
+function vaultConfigPath() {
+  return join(app.getPath('userData'), 'vault.json')
+}
+
+async function saveVaultConfig(vault: Vault) {
+  try {
+    await mkdir(app.getPath('userData'), { recursive: true })
+    await writeFile(vaultConfigPath(), JSON.stringify(vault), 'utf8')
+  } catch { /* ignore */ }
+}
+
+async function loadVaultConfig(): Promise<Vault | null> {
+  try {
+    const raw = await readFile(vaultConfigPath(), 'utf8')
+    return JSON.parse(raw) as Vault
+  } catch {
+    return null
+  }
+}
+
 // ── PTY sessions ───────────────────────────────────────────────────────────
 const ptySessions = new Map<string, nodePty.IPty>()
 let mainWindow: BrowserWindow | null = null
@@ -99,6 +120,7 @@ ipcMain.handle('vault:create', async (_, { name, path: vaultPath }: { name: stri
   const vault: Vault = { id: generateId(), name, path: fullPath }
   vaults.push(vault)
   activeVaultId = vault.id
+  await saveVaultConfig(vault)
   return vault
 })
 
@@ -111,7 +133,12 @@ ipcMain.handle('vault:open', async (_, vault: Vault) => {
   }
   if (!vaults.find(v => v.id === vault.id)) vaults.push(vault)
   activeVaultId = vault.id
+  await saveVaultConfig(vault)
   return true
+})
+
+ipcMain.handle('vault:load-saved', async () => {
+  return loadVaultConfig()
 })
 
 // ── File IPC ───────────────────────────────────────────────────────────────

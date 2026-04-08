@@ -70,29 +70,20 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [error, setError] = useState<string | null>(null);
   const untitledCounter = useRef(0);
   
-  // Load last opened vault from localStorage
+  // Load last opened vault from main-process config file
   useEffect(() => {
-    const savedVault = localStorage.getItem('ibsidian-vault');
-    if (savedVault) {
-      try {
-        setVault(JSON.parse(savedVault));
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-    // Mark as ready after checking localStorage
-    setIsReady(true);
+    window.api.vault.loadSaved().then(saved => {
+      if (saved) setVault(saved);
+    }).catch(() => {}).finally(() => setIsReady(true));
   }, []);
   
   const setActiveVault = useCallback((vaultData: Vault) => {
     setVault(vaultData);
-    localStorage.setItem('ibsidian-vault', JSON.stringify(vaultData));
   }, []);
 
   const clearActiveVault = useCallback(() => {
     setVault(null);
     setNodes([]);
-    localStorage.removeItem('ibsidian-vault');
   }, []);
 
   const convertToVaultNodes = useCallback((fileNode: FileNode): VaultNode => {

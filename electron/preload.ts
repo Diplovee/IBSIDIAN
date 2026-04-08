@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('vault:create', { name, path }),
     open: (vault: { id: string; name: string; path: string }) =>
       ipcRenderer.invoke('vault:open', vault),
+    loadSaved: () =>
+      ipcRenderer.invoke('vault:load-saved'),
   },
 
   files: {
