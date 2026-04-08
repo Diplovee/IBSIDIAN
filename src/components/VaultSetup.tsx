@@ -23,11 +23,13 @@ export const VaultSetup: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const vault = await window.api.vault.create(vaultName.trim(), selectedPath);
-      setActiveVault(vault);
+      const [vault] = await Promise.all([
+        window.api.vault.create(vaultName.trim(), selectedPath),
+        new Promise(r => setTimeout(r, 1200)),
+      ]);
+      setActiveVault(vault as any);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create vault.');
-    } finally {
       setIsLoading(false);
     }
   };

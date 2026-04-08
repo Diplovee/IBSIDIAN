@@ -78,10 +78,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
   
   const setActiveVault = useCallback((vaultData: Vault) => {
+    setError(null);
     setVault(vaultData);
   }, []);
 
   const clearActiveVault = useCallback(() => {
+    setError(null);
     setVault(null);
     setNodes([]);
   }, []);
