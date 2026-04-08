@@ -19,9 +19,15 @@ interface PromptOptions {
   confirmLabel?: string;
 }
 
+interface AlertOptions {
+  title: string;
+  message?: string;
+}
+
 interface ModalContextType {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
   prompt: (opts: PromptOptions) => Promise<string | null>;
+  alert: (opts: AlertOptions) => Promise<void>;
 }
 
 // ── Context ───────────────────────────────────────────────────────────────
@@ -29,6 +35,7 @@ interface ModalContextType {
 const ModalContext = createContext<ModalContextType>({
   confirm: async () => false,
   prompt: async () => null,
+  alert: async () => {},
 });
 
 export const useModal = () => useContext(ModalContext);
@@ -38,6 +45,7 @@ export const useModal = () => useContext(ModalContext);
 type ModalState =
   | { type: 'confirm'; opts: ConfirmOptions; resolve: (v: boolean) => void }
   | { type: 'prompt';  opts: PromptOptions;  resolve: (v: string | null) => void }
+  | { type: 'alert';   opts: AlertOptions;   resolve: () => void }
   | null;
 
 // ── Provider ──────────────────────────────────────────────────────────────
@@ -51,10 +59,13 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const prompt = useCallback((opts: PromptOptions): Promise<string | null> =>
     new Promise(resolve => setModal({ type: 'prompt', opts, resolve })), []);
 
+  const alert = useCallback((opts: AlertOptions): Promise<void> =>
+    new Promise(resolve => setModal({ type: 'alert', opts, resolve })), []);
+
   const close = () => setModal(null);
 
   return (
-    <ModalContext.Provider value={{ confirm, prompt }}>
+    <ModalContext.Provider value={{ confirm, prompt, alert }}>
       {children}
       <AnimatePresence>
         {modal && (
@@ -79,7 +90,9 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               >
                 {modal.type === 'confirm'
                   ? <ConfirmModal modal={modal} onClose={close} />
-                  : <PromptModal modal={modal} onClose={close} />}
+                  : modal.type === 'prompt'
+                  ? <PromptModal modal={modal} onClose={close} />
+                  : <AlertModal modal={modal} onClose={close} />}
               </motion.div>
             </div>
           </>
@@ -161,6 +174,36 @@ const PromptModal: React.FC<{ modal: Extract<ModalState, { type: 'prompt' }>; on
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <ModalBtn label="Cancel" onClick={() => { resolve(null); onClose(); }} />
         <ModalBtn label={opts.confirmLabel ?? 'OK'} primary onClick={submit} disabled={!value.trim()} />
+      </div>
+    </>
+  );
+};
+
+// ── Alert modal ───────────────────────────────────────────────────────────
+
+const AlertModal: React.FC<{ modal: Extract<ModalState, { type: 'alert' }>; onClose: () => void }> = ({ modal, onClose }) => {
+  const { opts, resolve } = modal;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === 'Escape') { resolve(); onClose(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [resolve, onClose]);
+
+  return (
+    <>
+      <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: opts.message ? 8 : 20 }}>
+        {opts.title}
+      </p>
+      {opts.message && (
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.5 }}>
+          {opts.message}
+        </p>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <ModalBtn label="OK" primary onClick={() => { resolve(); onClose(); }} autoFocus />
       </div>
     </>
   );

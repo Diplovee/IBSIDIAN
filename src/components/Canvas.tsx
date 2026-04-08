@@ -207,7 +207,19 @@ const MenuSep: React.FC = () => <div className="my-1 border-t border-[var(--bord
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { getNodeById, updateFileContent, deleteNode, renameNode, renameItem, refreshFileTree, readFile, writeFile, vault } = useVault();
   const { closeTab, updateTabTitle } = useTabs();
-  const { confirm, prompt } = useModal();
+  const { confirm, prompt, alert } = useModal();
+
+  const handleError = useCallback((err: unknown, action: string) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isNotFound = msg.includes('ENOENT') || msg.includes('not found');
+    alert({
+      title: `Failed to ${action}`,
+      message: isNotFound
+        ? `The file or folder could not be found. It may have been moved or deleted.\n\n${msg}`
+        : msg,
+    });
+    if (isNotFound) refreshFileTree().catch(() => {});
+  }, [alert, refreshFileTree]);
   const node = getNodeById(tab.filePath);
 
   const stripExt = (name: string) =>
@@ -242,7 +254,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     } else if (vault && tab.filePath) {
       readFile(tab.filePath)
         .then(text => setContent(text ?? ''))
-        .catch(() => {});
+        .catch(err => handleError(err, 'read file'));
     }
   }, [tab.filePath, vault]);
 
@@ -259,7 +271,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const handleChange = (value: string) => {
     setContent(value);
     if (node?.id) updateFileContent(node.id, value);
-    if (vault && tab.filePath) writeFile(tab.filePath, value).catch(() => {});
+    if (vault && tab.filePath) writeFile(tab.filePath, value).catch(err => handleError(err, 'save file'));
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -274,7 +286,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     if (newName !== originalName) {
       if (node?.id) renameNode(node.id, newName);
       updateTabTitle(tab.id, newDisplay);
-      if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(() => {});
+      if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(err => handleError(err, 'rename file'));
     }
   };
 
@@ -299,7 +311,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         if (node?.id) renameNode(node.id, newName);
         updateTabTitle(tab.id, n);
         setTitleValue(n);
-        if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(() => {});
+        if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(err => handleError(err, 'rename file'));
       }
     });
   };
