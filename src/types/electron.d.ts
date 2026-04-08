@@ -9,6 +9,9 @@ declare global {
         open: (vault: { id: string; name: string; path: string }) => Promise<boolean>
         loadSaved: () => Promise<{ id: string; name: string; path: string } | null>
       }
+      app: {
+        homeDir: () => Promise<string>
+      }
       files: {
         tree: () => Promise<FileNode>
         read: (path: string) => Promise<string>

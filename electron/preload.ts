@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('api', {
     loadSaved: () =>
       ipcRenderer.invoke('vault:load-saved'),
   },
+  app: {
+    homeDir: () => ipcRenderer.invoke('app:home-dir'),
+  },
 
   files: {
     tree: () =>

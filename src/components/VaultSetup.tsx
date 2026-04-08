@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 
 export const VaultSetup: React.FC = () => {
   const { setActiveVault } = useVault();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.api.app.homeDir().then(setSelectedPath).catch(() => {});
+  }, []);
   const [vaultName, setVaultName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

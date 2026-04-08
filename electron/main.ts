@@ -141,6 +141,8 @@ ipcMain.handle('vault:load-saved', async () => {
   return loadVaultConfig()
 })
 
+ipcMain.handle('app:home-dir', () => app.getPath('home'))
+
 // ── File IPC ───────────────────────────────────────────────────────────────
 function getVault(): Vault {
   if (!activeVaultId) throw new Error('No vault selected')
