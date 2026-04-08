@@ -205,18 +205,34 @@ const MenuSep: React.FC = () => <div className="my-1 border-t border-[var(--bord
 // ── Editor tab ───────────────────────────────────────────────────────
 
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
-  const { getNodeById, updateFileContent, deleteNode, renameNode, readFile, writeFile, vault } = useVault();
+  const { getNodeById, updateFileContent, deleteNode, renameNode, renameItem, refreshFileTree, readFile, writeFile, vault } = useVault();
   const { closeTab, updateTabTitle } = useTabs();
   const { confirm, prompt } = useModal();
   const node = getNodeById(tab.filePath);
+
+  const stripExt = (name: string) =>
+    name.endsWith('.md') ? name.slice(0, -3)
+    : name.endsWith('.excalidraw') ? name.slice(0, -11)
+    : name;
+  const addExt = (name: string, original: string) => {
+    if (original.endsWith('.md') && !name.endsWith('.md')) return `${name}.md`;
+    if (original.endsWith('.excalidraw') && !name.endsWith('.excalidraw')) return `${name}.excalidraw`;
+    return name;
+  };
+
   const [content, setContent] = useState<string>('');
-  const [titleValue, setTitleValue] = useState(node?.name || tab.title);
+  const [titleValue, setTitleValue] = useState(stripExt(node?.name || tab.title));
   const [isPreview, setIsPreview] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Sync title if node name changes externally
+  useEffect(() => {
+    if (node?.name) setTitleValue(stripExt(node.name));
+  }, [node?.name]);
 
   // Load content from backend when tab opens
   useEffect(() => {
@@ -251,12 +267,14 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   };
 
   const handleTitleBlur = () => {
-    const newName = titleValue.trim();
-    if (newName && newName !== (node?.name || tab.title)) {
+    const newDisplay = titleValue.trim();
+    const originalName = node?.name || tab.title;
+    if (!newDisplay) { setTitleValue(stripExt(originalName)); return; }
+    const newName = addExt(newDisplay, originalName);
+    if (newName !== originalName) {
       if (node?.id) renameNode(node.id, newName);
-      updateTabTitle(tab.id, newName);
-    } else if (!newName) {
-      setTitleValue(node?.name || tab.title);
+      updateTabTitle(tab.id, newDisplay);
+      if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(() => {});
     }
   };
 
@@ -270,12 +288,19 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
   const wordCount = content.trim() === '' ? 0 : content.trim().split(/\s+/).length;
   const charCount = content.length;
-  const title = node?.name || tab.title;
+  const rawTitle = node?.name || tab.title;
+  const title = stripExt(rawTitle);
 
   const handleRename = () => {
     setMenuOpen(false);
     prompt({ title: 'Rename file', defaultValue: title, placeholder: 'File name', confirmLabel: 'Rename' }).then(n => {
-      if (n && node?.id) { renameNode(node.id, n); updateTabTitle(tab.id, n); setTitleValue(n); }
+      if (n) {
+        const newName = addExt(n, rawTitle);
+        if (node?.id) renameNode(node.id, newName);
+        updateTabTitle(tab.id, n);
+        setTitleValue(n);
+        if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(() => {});
+      }
     });
   };
 
