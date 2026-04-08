@@ -117,6 +117,13 @@ textarea, input, [contenteditable], .ProseMirror, .cm-content {
   -webkit-user-select: text;
 }
 
+/* Obsidian-style selection highlight */
+textarea::selection, input::selection, [contenteditable]::selection,
+.ProseMirror::selection, .cm-content ::selection, ::selection {
+  background: rgba(124, 58, 237, 0.2);
+  color: inherit;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-primary);

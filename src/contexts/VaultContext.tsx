@@ -153,7 +153,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   
   const createFile = useCallback((parentId: string | null, name: string, ext: 'md' | 'excalidraw'): string => {
     const id = Math.random().toString(36).substr(2, 9);
-    const content = ext === 'md' ? `# ${name}\n\n` : '{"elements":[]}';
+    const content = ext === 'md' ? '' : '{"elements":[]}';
     const newNode: VaultNode = { id, type: 'file', name, ext, content };
     
     setNodes(prev => {
@@ -304,7 +304,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const createFileRemote = useCallback(async (folderPath: string, name: string, ext: 'md' | 'excalidraw'): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    const content = ext === 'md' ? `# ${name}\n\n` : '{"elements":[]}';
+    const content = ext === 'md' ? '' : '{"elements":[]}';
     const filePath = `${folderPath}/${name}.${ext}`.replace(/\/+/g, '/');
     await window.api.files.create(filePath, 'file', content);
   }, [vault]);

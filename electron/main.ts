@@ -66,6 +66,7 @@ function createWindow() {
   })
 
   if (isDev) {
+    mainWindow.webContents.openDevTools()
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] ?? 'http://localhost:5173')
   } else {
     mainWindow.loadFile(join(__dirname, '../../out/renderer/index.html'))

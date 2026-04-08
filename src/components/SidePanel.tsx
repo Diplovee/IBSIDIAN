@@ -4,7 +4,7 @@ import {
   Folder, FileText, ChevronRight, ChevronDown, FolderPlus,
   Search as SearchIcon, Sun, Moon, FilePen, ArrowUpNarrowWide, LayoutList,
   ChevronsUpDown, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
-  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow,
+  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, SlidersHorizontal,
 } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
@@ -228,15 +228,37 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
 // ── Search ────────────────────────────────────────────────────────────────
 const SearchView: React.FC = () => {
   const [query, setQuery] = useState('');
+  const [caseSensitive, setCaseSensitive] = useState(false);
   return (
-    <div className="flex flex-col h-full p-4">
-      <div className="relative mb-4">
-        <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-        <input type="text" placeholder="Search vault..." value={query} onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-md py-1.5 pl-9 pr-3 text-[var(--text-sm)] focus:outline-none focus:border-[var(--accent)] transition-colors" autoFocus />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden', padding: '8px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', boxSizing: 'border-box' }}>
+          <SearchIcon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <input
+            type="text"
+            placeholder="Search..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--text-primary)' }}
+            autoFocus
+          />
+          <button
+            onClick={() => setCaseSensitive(v => !v)}
+            title="Match case"
+            style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '0 4px', borderRadius: 4, border: 'none', cursor: 'pointer', background: caseSensitive ? 'var(--accent-soft)' : 'transparent', color: caseSensitive ? 'var(--accent)' : 'var(--text-muted)' }}
+          >
+            Aa
+          </button>
+        </div>
+        <button
+          title="Search filters"
+          style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+        >
+          <SlidersHorizontal size={16} />
+        </button>
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)] text-[var(--text-xs)]">
-        <p>No results found</p>
+      <div style={{ flex: 1, color: 'var(--text-muted)', fontSize: 13, paddingTop: 8, paddingLeft: 4 }}>
+        <p>No matches found.</p>
       </div>
     </div>
   );

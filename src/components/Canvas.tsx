@@ -13,8 +13,8 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import {
   Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
-  BookOpen, MoreHorizontal, Link, Code, PanelRight, PanelBottom,
-  ExternalLink, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
+  BookOpen, MoreHorizontal, Code, PanelRight, PanelBottom,
+  ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
   Trash2, ChevronRight,
 } from 'lucide-react';
@@ -200,6 +200,33 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, onClick, disabled, dan
 
 const MenuSep: React.FC = () => <div className="my-1 border-t border-[var(--border)]" />;
 
+interface SubMenuProps {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}
+
+const SubMenu: React.FC<SubMenuProps> = ({ icon, label, children }) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button
+        style={{ paddingLeft: 20, paddingRight: 16, paddingTop: 6, paddingBottom: 6, gap: 12 }}
+        className="w-full flex items-center text-[13px] transition-colors text-left text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+      >
+        <span style={{ flexShrink: 0 }} className="text-[var(--text-muted)]">{icon}</span>
+        <span style={{ flex: 1 }}>{label}</span>
+        <ChevronRight size={12} className="text-[var(--text-muted)]" style={{ flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div className="absolute right-full top-0 mr-1 w-[220px] bg-[var(--bg-primary)] border border-[var(--border)] rounded shadow-[var(--shadow-md)] z-50 py-1">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Editor tab ───────────────────────────────────────────────────────
 
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
@@ -243,6 +270,14 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   useEffect(() => {
     if (node?.name) setTitleValue(stripExt(node.name));
   }, [node?.name]);
+
+  // Auto-select title on new empty note
+  useEffect(() => {
+    if (content === '' && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [tab.filePath]);
 
   // Load content from backend when tab opens
   useEffect(() => {
@@ -357,14 +392,10 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           {/* Reading view toggle */}
           <button
             onClick={() => setIsPreview(v => !v)}
-            title={isPreview ? 'Switch to editing (Super+Alt+,)' : 'Reading view'}
-            className={`w-[26px] h-[26px] flex items-center justify-center rounded-sm transition-colors ${
-              isPreview
-                ? 'bg-[var(--bg-active)] text-[var(--accent)]'
-                : 'hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-            }`}
+            title={isPreview ? 'Switch to editing' : 'Reading view'}
+            className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
-            <BookOpen size={14} />
+            {isPreview ? <Pencil size={14} /> : <BookOpen size={14} />}
           </button>
 
           {/* More options */}
@@ -377,20 +408,13 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
           {/* Dropdown menu */}
           {menuOpen && (
-            <div className="absolute top-full right-0 mt-1 w-[264px] bg-[var(--bg-primary)] border border-[var(--border)] rounded shadow-[var(--shadow-md)] z-50 py-1">
-              <MenuItem icon={<Link size={14} />} label="Backlinks in document" disabled />
+            <div className="absolute top-full right-8 mt-1 w-[264px] bg-[var(--bg-primary)] border border-[var(--border)] rounded shadow-[var(--shadow-md)] z-50 py-1">
               <MenuItem icon={<BookOpen size={14} />} label="Reading view" onClick={() => { setIsPreview(true); setMenuOpen(false); }} />
               <MenuItem icon={<Code size={14} />} label="Source mode" onClick={() => { setIsPreview(false); setMenuOpen(false); }} />
-              <MenuSep />
-              <MenuItem icon={<PanelRight size={14} />} label="Split right" disabled />
-              <MenuItem icon={<PanelBottom size={14} />} label="Split down" disabled />
-              <MenuItem icon={<ExternalLink size={14} />} label="Open in new window" disabled />
               <MenuSep />
               <MenuItem icon={<Pencil size={14} />} label="Rename..." onClick={handleRename} />
               <MenuItem icon={<FolderInput size={14} />} label="Move file to..." disabled />
               <MenuItem icon={<Bookmark size={14} />} label="Bookmark..." disabled />
-              <MenuItem icon={<GitMerge size={14} />} label="Merge entire file with..." disabled />
-              <MenuItem icon={<PlusCircle size={14} />} label="Add file property" disabled />
               <MenuItem icon={<Download size={14} />} label="Export to PDF..." disabled />
               <MenuSep />
               <MenuItem icon={<Search size={14} />} label="Find..." disabled />
@@ -398,12 +422,19 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               <MenuSep />
               <MenuItem icon={<Copy size={14} />} label="Copy path" onClick={handleCopyPath} hasArrow />
               <MenuSep />
-              <MenuItem icon={<History size={14} />} label="Open version history" disabled />
-              <MenuItem icon={<Link2 size={14} />} label="Open linked view" disabled hasArrow />
-              <MenuSep />
-              <MenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
-              <MenuItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />
-              <MenuItem icon={<FolderOpen size={14} />} label="Reveal file in navigation" disabled />
+              <SubMenu icon={<ExternalLink size={14} />} label="Open">
+                <MenuItem icon={<PanelRight size={14} />} label="Split right" disabled />
+                <MenuItem icon={<PanelBottom size={14} />} label="Split down" disabled />
+                <MenuItem icon={<ExternalLink size={14} />} label="Open in new window" disabled />
+                <MenuSep />
+                <MenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
+                <MenuItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />
+                <MenuItem icon={<FolderOpen size={14} />} label="Reveal file in navigation" disabled />
+              </SubMenu>
+              <SubMenu icon={<History size={14} />} label="History">
+                <MenuItem icon={<History size={14} />} label="Open version history" disabled />
+                <MenuItem icon={<Link2 size={14} />} label="Open linked view" disabled hasArrow />
+              </SubMenu>
               <MenuSep />
               <MenuItem icon={<Trash2 size={14} />} label="Delete file" onClick={handleDelete} danger />
             </div>
