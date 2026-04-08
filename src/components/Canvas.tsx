@@ -66,12 +66,10 @@ export const Canvas: React.FC = () => {
           </div>
           <h2 className="text-[var(--text-xl)] font-bold text-[var(--text-primary)] mb-2">Welcome to Ibsidian</h2>
           <p className="text-[var(--text-sm)] text-[var(--text-muted)]">Open a file from the sidebar or create a new one.</p>
-          <div className="mt-6 flex gap-4 text-[var(--text-xs)]">
-            <div className="flex items-center gap-1.5">
-              <kbd className="px-1.5 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-[var(--text-secondary)]">Ctrl</kbd>
-              <kbd className="px-1.5 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-[var(--text-secondary)]">K</kbd>
-              <span className="text-[var(--text-secondary)]">Command Palette</span>
-            </div>
+          <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+            <kbd style={{ padding: '2px 7px', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 5, boxShadow: '0 1px 0 var(--border)', color: 'var(--text-secondary)', lineHeight: '18px' }}>Ctrl</kbd>
+            <kbd style={{ padding: '2px 7px', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 5, boxShadow: '0 1px 0 var(--border)', color: 'var(--text-secondary)', lineHeight: '18px' }}>K</kbd>
+            <span>Command Palette</span>
           </div>
         </div>
       );
