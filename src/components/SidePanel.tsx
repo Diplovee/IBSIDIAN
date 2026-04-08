@@ -97,7 +97,7 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
       <CtxSep />
       <CtxMenuItem icon={<Copy size={14} />} label="Copy path" onClick={() => act(() => navigator.clipboard.writeText(menu.node.id).catch(() => {}))} />
       <CtxSep />
-      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); prompt({ title: 'Rename', defaultValue: menu.node.name, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) renameItem(menu.node.id, n).then(() => refreshFileTree()); }); }} />
+      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); const isMd = menu.node.name.endsWith('.md'); const displayName = isMd ? menu.node.name.slice(0, -3) : menu.node.name; prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) { const newName = isMd ? (n.endsWith('.md') ? n : `${n}.md`) : n; renameItem(menu.node.id, newName).then(() => refreshFileTree()); } }); }} />
       <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteItem(menu.node.id).then(() => refreshFileTree()); }); }} />
     </div>
   );

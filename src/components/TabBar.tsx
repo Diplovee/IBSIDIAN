@@ -100,8 +100,9 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
 
   const handleRename = () => {
     onClose();
-    prompt({ title: 'Rename file', defaultValue: tab.title, placeholder: 'File name', confirmLabel: 'Rename' }).then(n => {
-      if (n && node?.id) renameNode(node.id, n);
+    const displayName = tab.title.endsWith('.md') ? tab.title.slice(0, -3) : tab.title;
+    prompt({ title: 'Rename file', defaultValue: displayName, placeholder: 'File name', confirmLabel: 'Rename' }).then(n => {
+      if (n && node?.id) renameNode(node.id, n.endsWith('.md') ? n : `${n}.md`);
     });
   };
 
