@@ -3,7 +3,9 @@ import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { EditorView } from '@codemirror/view';
+import { hybridMarkdown } from 'codemirror-markdown-hybrid';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useModal } from './Modal';
@@ -13,7 +15,7 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import {
   Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
-  BookOpen, MoreHorizontal, Code, PanelRight, PanelBottom,
+  BookOpen, MoreHorizontal, Code, PanelRight, PanelBottom, Columns2, Eye,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
   Trash2, ChevronRight,
@@ -259,7 +261,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
   const [content, setContent] = useState<string>('');
   const [titleValue, setTitleValue] = useState(stripExt(node?.name || tab.title));
-  const [isPreview, setIsPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<'source' | 'preview' | 'split' | 'live'>('source');
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
@@ -389,13 +391,40 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
         {/* Right controls */}
         <div className="flex items-center gap-0.5 relative" ref={menuRef}>
-          {/* Reading view toggle */}
+          {/* Source mode */}
           <button
-            onClick={() => setIsPreview(v => !v)}
-            title={isPreview ? 'Switch to editing' : 'Reading view'}
-            className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            onClick={() => setViewMode('source')}
+            title="Source mode"
+            className={`w-[26px] h-[26px] flex items-center justify-center rounded-sm transition-colors ${viewMode === 'source' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
           >
-            {isPreview ? <Pencil size={14} /> : <BookOpen size={14} />}
+            <Pencil size={14} />
+          </button>
+
+          {/* Split view */}
+          <button
+            onClick={() => setViewMode('split')}
+            title="Split view"
+            className={`w-[26px] h-[26px] flex items-center justify-center rounded-sm transition-colors ${viewMode === 'split' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+          >
+            <Columns2 size={14} />
+          </button>
+
+          {/* Preview mode */}
+          <button
+            onClick={() => setViewMode('preview')}
+            title="Reading view"
+            className={`w-[26px] h-[26px] flex items-center justify-center rounded-sm transition-colors ${viewMode === 'preview' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+          >
+            <BookOpen size={14} />
+          </button>
+
+          {/* Live Preview mode */}
+          <button
+            onClick={() => setViewMode('live')}
+            title="Live Preview"
+            className={`w-[26px] h-[26px] flex items-center justify-center rounded-sm transition-colors ${viewMode === 'live' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+          >
+            <Eye size={14} />
           </button>
 
           {/* More options */}
@@ -409,8 +438,10 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           {/* Dropdown menu */}
           {menuOpen && (
             <div className="absolute top-full right-8 mt-1 w-[264px] bg-[var(--bg-primary)] border border-[var(--border)] rounded shadow-[var(--shadow-md)] z-50 py-1">
-              <MenuItem icon={<BookOpen size={14} />} label="Reading view" onClick={() => { setIsPreview(true); setMenuOpen(false); }} />
-              <MenuItem icon={<Code size={14} />} label="Source mode" onClick={() => { setIsPreview(false); setMenuOpen(false); }} />
+              <MenuItem icon={<Pencil size={14} />} label="Source mode" onClick={() => { setViewMode('source'); setMenuOpen(false); }} />
+              <MenuItem icon={<Columns2 size={14} />} label="Split view" onClick={() => { setViewMode('split'); setMenuOpen(false); }} />
+              <MenuItem icon={<BookOpen size={14} />} label="Reading view" onClick={() => { setViewMode('preview'); setMenuOpen(false); }} />
+              <MenuItem icon={<Eye size={14} />} label="Live Preview" onClick={() => { setViewMode('live'); setMenuOpen(false); }} />
               <MenuSep />
               <MenuItem icon={<Pencil size={14} />} label="Rename..." onClick={handleRename} />
               <MenuItem icon={<FolderInput size={14} />} label="Move file to..." disabled />
@@ -443,53 +474,149 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
       </div>
 
       {/* Editor / Preview — click outside CodeMirror to still focus it */}
-      <div ref={scrollAreaRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }} onClick={handleScrollAreaClick}>
-        <div className="editor-content-inner" style={{ maxWidth: 720, margin: '0 auto', padding: '48px 48px 80px' }}>
-          {/* Inline title */}
-          {!isPreview && (
-            <input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={handleTitleChange}
-              onBlur={handleTitleBlur}
-              onKeyDown={handleTitleKeyDown}
-              spellCheck={false}
-              style={{
-                display: 'block', width: '100%', border: 'none', outline: 'none',
-                background: 'transparent', padding: 0, marginBottom: 24,
-                fontSize: 32, fontWeight: 700, lineHeight: 1.25,
-                color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
-                caretColor: 'var(--text-primary)',
-              }}
-              placeholder="Untitled"
-            />
-          )}
-          {isPreview ? (
-            <div className="markdown-body">
-              <ReactMarkdown>{content}</ReactMarkdown>
+      <div ref={scrollAreaRef} style={{ flex: 1, overflow: 'hidden' }} onClick={handleScrollAreaClick}>
+        {viewMode === 'split' ? (
+          /* Split view: editor left, preview right */
+          <div style={{ display: 'flex', height: '100%' }}>
+            {/* Editor pane */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '32px' }}>
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={handleTitleChange}
+                onBlur={handleTitleBlur}
+                onKeyDown={handleTitleKeyDown}
+                spellCheck={false}
+                style={{
+                  display: 'block', width: '100%', border: 'none', outline: 'none',
+                  background: 'transparent', padding: 0, marginBottom: 24,
+                  fontSize: 24, fontWeight: 700, lineHeight: 1.25,
+                  color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
+                  caretColor: 'var(--text-primary)',
+                }}
+                placeholder="Untitled"
+              />
+              <CodeMirror
+                value={content}
+                theme={editorTheme}
+                extensions={[
+                  markdown({ base: markdownLanguage, codeLanguages: languages }),
+                  EditorView.lineWrapping,
+                ]}
+                onChange={handleChange}
+                onCreateEditor={(view) => { editorViewRef.current = view; }}
+                basicSetup={{
+                  lineNumbers: false,
+                  foldGutter: false,
+                  highlightActiveLine: false,
+                  highlightActiveLineGutter: false,
+                  dropCursor: false,
+                  rectangularSelection: false,
+                }}
+                style={{ fontSize: '15px', fontFamily: 'var(--font-sans)' }}
+              />
             </div>
-          ) : (
-            <CodeMirror
-              value={content}
-              theme={editorTheme}
-              extensions={[
-                markdown({ base: markdownLanguage, codeLanguages: languages }),
-                EditorView.lineWrapping,
-              ]}
-              onChange={handleChange}
-              onCreateEditor={(view) => { editorViewRef.current = view; }}
-              basicSetup={{
-                lineNumbers: false,
-                foldGutter: false,
-                highlightActiveLine: false,
-                highlightActiveLineGutter: false,
-                dropCursor: false,
-                rectangularSelection: false,
-              }}
-              style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
-            />
-          )}
-        </div>
+            {/* Divider */}
+            <div style={{ width: 1, background: 'var(--border)' }} />
+            {/* Preview pane */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '32px', background: 'var(--bg-secondary)' }}>
+              <div className="markdown-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        ) : viewMode === 'live' ? (
+          /* Live Preview mode: hybrid markdown editing */
+          <div style={{ height: '100%', overflow: 'auto', padding: '32px 48px 80px' }}>
+            <div style={{ maxWidth: 720, margin: '0 auto' }}>
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={handleTitleChange}
+                onBlur={handleTitleBlur}
+                onKeyDown={handleTitleKeyDown}
+                spellCheck={false}
+                style={{
+                  display: 'block', width: '100%', border: 'none', outline: 'none',
+                  background: 'transparent', padding: 0, marginBottom: 24,
+                  fontSize: 32, fontWeight: 700, lineHeight: 1.25,
+                  color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
+                  caretColor: 'var(--text-primary)',
+                }}
+                placeholder="Untitled"
+              />
+              <CodeMirror
+                value={content}
+                theme={editorTheme}
+                extensions={[
+                  hybridMarkdown({ theme: 'dark' }),
+                  EditorView.lineWrapping,
+                ]}
+                onChange={handleChange}
+                onCreateEditor={(view) => { editorViewRef.current = view; }}
+                basicSetup={{
+                  lineNumbers: false,
+                  foldGutter: false,
+                  highlightActiveLine: false,
+                  highlightActiveLineGutter: false,
+                  dropCursor: false,
+                  rectangularSelection: false,
+                }}
+                style={{ fontSize: '16px', fontFamily: 'var(--font-sans)' }}
+              />
+            </div>
+          </div>
+        ) : (
+          /* Source or Preview mode */
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+            <div className="editor-content-inner" style={{ maxWidth: 720, margin: '0 auto', padding: '48px 48px 80px' }}>
+              {/* Inline title */}
+              {viewMode !== 'preview' && (
+                <input
+                  ref={titleInputRef}
+                  value={titleValue}
+                  onChange={handleTitleChange}
+                  onBlur={handleTitleBlur}
+                  onKeyDown={handleTitleKeyDown}
+                  spellCheck={false}
+                  style={{
+                    display: 'block', width: '100%', border: 'none', outline: 'none',
+                    background: 'transparent', padding: 0, marginBottom: 24,
+                    fontSize: 32, fontWeight: 700, lineHeight: 1.25,
+                    color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
+                    caretColor: 'var(--text-primary)',
+                  }}
+                  placeholder="Untitled"
+                />
+              )}
+              {viewMode === 'preview' ? (
+                <div className="markdown-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                </div>
+              ) : (
+                <CodeMirror
+                  value={content}
+                  theme={editorTheme}
+                  extensions={[
+                    markdown({ base: markdownLanguage, codeLanguages: languages }),
+                    EditorView.lineWrapping,
+                  ]}
+                  onChange={handleChange}
+                  onCreateEditor={(view) => { editorViewRef.current = view; }}
+                  basicSetup={{
+                    lineNumbers: false,
+                    foldGutter: false,
+                    highlightActiveLine: false,
+                    highlightActiveLineGutter: false,
+                    dropCursor: false,
+                    rectangularSelection: false,
+                  }}
+                  style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Status bar */}

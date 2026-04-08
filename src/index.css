@@ -109,6 +109,7 @@
   padding: 0;
   user-select: none;
   -webkit-user-select: none;
+  outline: none;
 }
 
 /* Enable selection only where needed */
@@ -178,6 +179,35 @@ body {
   margin-bottom: var(--space-3);
 }
 
+.markdown-body h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-top: var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+.markdown-body li {
+  margin-bottom: var(--space-1);
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--space-6) 0;
+}
+
 .markdown-body p {
   margin-bottom: var(--space-4);
 }
@@ -205,4 +235,52 @@ body {
 
 .markdown-body a:hover {
   text-decoration: underline;
+}
+
+/* Tables */
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-4) 0;
+  font-size: var(--text-sm);
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+.markdown-body tr:hover td {
+  background: var(--bg-hover);
+}
+
+/* Task lists */
+.markdown-body ul:has(input[type="checkbox"]) {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown-body li:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.markdown-body input[type="checkbox"] {
+  margin-top: 6px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Strikethrough */
+.markdown-body del,
+.markdown-body s {
+  opacity: 0.6;
 }

@@ -26,7 +26,9 @@ Features
 * Vault System       — real file-system folder; open or create via native dialog
 * File Tree          — browse, create, rename, and delete notes and folders
 * Markdown Editor    — CodeMirror 6 with live syntax highlighting
-* Reading View       — toggle between edit and rendered markdown preview
+* Editor View Modes  — Source, Split (side-by-side), Reading, and Live Preview
+* Live Preview       — Obsidian-style WYSIWYG editing with hybrid markdown rendering
+* Enhanced Markdown  — tables, task lists, strikethrough via GitHub Flavored Markdown
 * Drawing Canvas     — visual notes via Excalidraw
 * Browser Tab        — built-in web browser
 * Terminal           — real PTY shell starting in your vault root

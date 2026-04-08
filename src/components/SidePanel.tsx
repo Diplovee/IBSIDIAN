@@ -160,7 +160,7 @@ const FileTreeView: React.FC = () => {
               width={dimensions.width}
               height={dimensions.height - headerHeight}
               indent={16}
-              rowHeight={28}
+              rowHeight={36}
               onMove={handleMove}
             >
               {TreeNode}
@@ -201,12 +201,13 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   return (
     <div
       ref={dragHandle}
-      style={{ ...style, display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 8, cursor: 'pointer', background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: 13, transition: 'background 0.1s', userSelect: 'none' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => { if (node.data.type === 'folder') node.toggle(); else openTab({ type: node.data.ext === 'md' ? 'note' : 'draw', title: node.data.name, filePath: node.data.id }); }}
       onContextMenu={(e) => openContextMenu(e, node.data)}
     >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', paddingLeft: 8, paddingRight: 8, borderRadius: 6, background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: 14, transition: 'background 0.1s' }}>
       {node.data.type === 'folder' && (
         <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
           {node.isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -221,6 +222,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
         : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
       }
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name.endsWith('.md') ? node.data.name.slice(0, -3) : node.data.name.endsWith('.excalidraw') ? node.data.name.slice(0, -11) : node.data.name}</span>
+      </div>
     </div>
   );
 };
