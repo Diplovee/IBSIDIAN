@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { FolderOpen, FolderPlus } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
-import { useModal } from './Modal';
 
 export const VaultSetup: React.FC = () => {
   const { setActiveVault } = useVault();
-  const { confirm } = useModal();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [vaultName, setVaultName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,26 +29,18 @@ export const VaultSetup: React.FC = () => {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 20 }}>
-      <div style={{ width: 480, maxWidth: '100%' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 32 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)', boxShadow: '0 4px 16px rgba(124,58,237,0.3)' }}>
-            <span style={{ color: 'white', fontSize: 24, fontWeight: 700 }}>I</span>
-          </div>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>Ibsidian</h1>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Version 2026.5.0</p>
-          </div>
-        </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 40 }}>
 
-        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 28, fontSize: 15 }}>
-          Create a vault to get started
-        </p>
+      {/* Icon + branding */}
+      <img src="/favicon.svg" alt="Ibsidian" style={{ width: 96, height: 96, marginBottom: 24, borderRadius: 16 }} />
+      <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.5px', margin: 0 }}>Ibsidian</h1>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, marginBottom: 48 }}>Version 2026.5.1</p>
 
+      {/* Form */}
+      <div style={{ width: '100%', maxWidth: 420 }}>
         {/* Folder picker */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Location</label>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>Location</label>
           <button
             onClick={handlePickFolder}
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', textAlign: 'left' }}
@@ -64,7 +54,7 @@ export const VaultSetup: React.FC = () => {
 
         {/* Vault name */}
         <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>Vault name</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>Vault name</label>
           <input
             type="text"
             value={vaultName}
@@ -81,7 +71,7 @@ export const VaultSetup: React.FC = () => {
         <button
           onClick={handleCreateVault}
           disabled={!selectedPath || !vaultName.trim() || isLoading}
-          style={{ width: '100%', padding: '13px 20px', borderRadius: 8, background: 'var(--accent)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: selectedPath && vaultName.trim() && !isLoading ? 'pointer' : 'not-allowed', opacity: selectedPath && vaultName.trim() && !isLoading ? 1 : 0.5 }}
+          style={{ width: '100%', padding: '12px 20px', borderRadius: 8, background: 'var(--accent)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: selectedPath && vaultName.trim() && !isLoading ? 'pointer' : 'not-allowed', opacity: selectedPath && vaultName.trim() && !isLoading ? 1 : 0.5 }}
         >
           {isLoading ? 'Creating…' : 'Create Vault'}
         </button>
