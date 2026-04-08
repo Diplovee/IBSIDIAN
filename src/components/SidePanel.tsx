@@ -230,7 +230,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
             : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
         : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
       }
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name}</span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name.endsWith('.md') ? node.data.name.slice(0, -3) : node.data.name}</span>
     </div>
   );
 };
