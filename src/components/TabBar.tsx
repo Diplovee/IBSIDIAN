@@ -75,15 +75,17 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
   const isNote = tab.type === 'note';
   const node = isNote && tab.filePath ? getNodeById(tab.filePath) : null;
 
-  // Smart positioning
+  // Smart positioning — clamp within viewport
   const [pos, setPos] = useState({ x: menu.x, y: menu.y });
+  const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!ref.current) return;
     const { width, height } = ref.current.getBoundingClientRect();
     setPos({
-      x: menu.x + width > window.innerWidth ? menu.x - width : menu.x,
-      y: menu.y + height > window.innerHeight ? menu.y - height : menu.y,
+      x: Math.max(8, Math.min(menu.x, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(menu.y, window.innerHeight - height - 8)),
     });
+    setVisible(true);
   }, [menu]);
 
   useEffect(() => {
@@ -115,47 +117,22 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
       ref={ref}
       style={{
         position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999,
-        minWidth: 240, background: 'var(--bg-primary)',
+        minWidth: 220, background: 'var(--bg-primary)',
         border: '1px solid var(--border)', borderRadius: 8,
         boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
         paddingTop: 4, paddingBottom: 4,
+        visibility: visible ? 'visible' : 'hidden',
       }}
     >
       <TabCtxItem icon={<X size={14} />} label="Close" onClick={() => act(() => closeTab(tab.id))} />
-      <TabCtxItem icon={<Pin size={14} />} label="Pin" disabled />
-      <TabCtxItem icon={<Link2 size={14} />} label="Link with tab..." disabled />
-      {isNote && <TabCtxItem icon={<Link size={14} />} label="Backlinks in document" disabled />}
-      {isNote && <TabCtxItem icon={<BookOpen size={14} />} label="Reading view" disabled />}
-      {isNote && <TabCtxItem icon={<Code size={14} />} label="Source mode" disabled />}
-      <TabCtxSep />
-      <TabCtxItem icon={<ExternalLink size={14} />} label="Move to new window" disabled />
-      <TabCtxItem icon={<PanelRight size={14} />} label="Split right" disabled />
-      <TabCtxItem icon={<PanelBottom size={14} />} label="Split down" disabled />
-      <TabCtxItem icon={<ExternalLink size={14} />} label="Open in new window" disabled />
       {isNote && (
         <>
           <TabCtxSep />
           <TabCtxItem icon={<Pencil size={14} />} label="Rename..." onClick={handleRename} />
-          <TabCtxItem icon={<FolderInput size={14} />} label="Move file to..." disabled />
-          <TabCtxItem icon={<Bookmark size={14} />} label="Bookmark..." disabled />
-          <TabCtxItem icon={<GitMerge size={14} />} label="Merge entire file with..." disabled />
-          <TabCtxItem icon={<PlusCircle size={14} />} label="Add file property" disabled />
-          <TabCtxItem icon={<Download size={14} />} label="Export to PDF..." disabled />
-          <TabCtxSep />
-          <TabCtxItem icon={<Search size={14} />} label="Find..." disabled />
-          <TabCtxItem icon={<Search size={14} />} label="Replace..." disabled />
-          <TabCtxSep />
           <TabCtxItem
-            icon={<Copy size={14} />} label="Copy path" hasArrow
+            icon={<Copy size={14} />} label="Copy path"
             onClick={() => act(() => navigator.clipboard.writeText(tab.filePath || tab.title).catch(() => {}))}
           />
-          <TabCtxSep />
-          <TabCtxItem icon={<History size={14} />} label="Open version history" disabled />
-          <TabCtxItem icon={<Link2 size={14} />} label="Open linked view" hasArrow disabled />
-          <TabCtxSep />
-          <TabCtxItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
-          <TabCtxItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />
-          <TabCtxItem icon={<FolderOpen size={14} />} label="Reveal file in navigation" disabled />
           <TabCtxSep />
           <TabCtxItem icon={<Trash2 size={14} />} label="Delete file" danger onClick={handleDelete} />
         </>

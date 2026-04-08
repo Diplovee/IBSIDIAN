@@ -76,36 +76,26 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
 
-  // Smart positioning — flip if off screen
+  // Smart positioning — clamp within viewport
   const [pos, setPos] = useState({ x: menu.x, y: menu.y });
+  const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!ref.current) return;
     const { width, height } = ref.current.getBoundingClientRect();
     setPos({
-      x: menu.x + width > window.innerWidth ? menu.x - width : menu.x,
-      y: menu.y + height > window.innerHeight ? menu.y - height : menu.y,
+      x: Math.max(8, Math.min(menu.x, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(menu.y, window.innerHeight - height - 8)),
     });
+    setVisible(true);
   }, [menu]);
 
   const act = (fn: () => void) => { fn(); onClose(); };
 
   return (
-    <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, minWidth: 220, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', paddingTop: 4, paddingBottom: 4 }}>
-      {isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => openTab({ type: menu.node.type === 'file' && (menu.node as any).ext === 'md' ? 'note' : 'draw', title: menu.node.name, filePath: menu.node.id }))} />}
-      <CtxMenuItem icon={<PanelRight size={14} />} label="Open to the right" disabled />
-      <CtxMenuItem icon={<ExternalLink size={14} />} label="Open in new window" disabled />
+    <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, minWidth: 200, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', paddingTop: 4, paddingBottom: 4, visibility: visible ? 'visible' : 'hidden' }}>
+      {isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => openTab({ type: (menu.node as any).ext === 'md' ? 'note' : 'draw', title: menu.node.name, filePath: menu.node.id }))} />}
       <CtxSep />
-      {isFile && <CtxMenuItem icon={<Copy size={14} />} label="Make a copy" onClick={() => act(() => copyNode(menu.node.id))} />}
-      <CtxMenuItem icon={<FolderInput size={14} />} label="Move file to..." disabled />
-      <CtxMenuItem icon={<Bookmark size={14} />} label="Bookmark..." disabled />
-      {isFile && <CtxMenuItem icon={<GitMerge size={14} />} label="Merge entire file with..." disabled />}
-      <CtxSep />
-      <CtxMenuItem icon={<Copy size={14} />} label="Copy path" hasArrow onClick={() => act(() => navigator.clipboard.writeText(menu.node.id).catch(() => {}))} />
-      <CtxSep />
-      <CtxMenuItem icon={<History size={14} />} label="Open version history" disabled />
-      <CtxSep />
-      <CtxMenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
-      <CtxMenuItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />
+      <CtxMenuItem icon={<Copy size={14} />} label="Copy path" onClick={() => act(() => navigator.clipboard.writeText(menu.node.id).catch(() => {}))} />
       <CtxSep />
       <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); prompt({ title: 'Rename', defaultValue: menu.node.name, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) renameItem(menu.node.id, n).then(() => refreshFileTree()); }); }} />
       <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteItem(menu.node.id).then(() => refreshFileTree()); }); }} />
