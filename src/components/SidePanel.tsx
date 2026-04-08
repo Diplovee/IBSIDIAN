@@ -97,7 +97,7 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
       <CtxSep />
       <CtxMenuItem icon={<Copy size={14} />} label="Copy path" onClick={() => act(() => navigator.clipboard.writeText(menu.node.id).catch(() => {}))} />
       <CtxSep />
-      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); const isMd = menu.node.name.endsWith('.md'); const displayName = isMd ? menu.node.name.slice(0, -3) : menu.node.name; prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) { const newName = isMd ? (n.endsWith('.md') ? n : `${n}.md`) : n; renameItem(menu.node.id, newName).then(() => refreshFileTree()); } }); }} />
+      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); const name = menu.node.name; const isMd = name.endsWith('.md'); const isEx = name.endsWith('.excalidraw'); const ext = isMd ? '.md' : isEx ? '.excalidraw' : ''; const displayName = ext ? name.slice(0, -ext.length) : name; prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) { const newName = ext ? (n.endsWith(ext) ? n : `${n}${ext}`) : n; renameItem(menu.node.id, newName).then(() => refreshFileTree()); } }); }} />
       <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteItem(menu.node.id).then(() => refreshFileTree()); }); }} />
     </div>
   );
@@ -220,7 +220,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
             : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
         : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
       }
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name.endsWith('.md') ? node.data.name.slice(0, -3) : node.data.name}</span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name.endsWith('.md') ? node.data.name.slice(0, -3) : node.data.name.endsWith('.excalidraw') ? node.data.name.slice(0, -11) : node.data.name}</span>
     </div>
   );
 };
