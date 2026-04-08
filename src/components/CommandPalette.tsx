@@ -12,11 +12,17 @@ export const CommandPalette: React.FC = () => {
 
   const { openTab } = useTabs();
   const { toggleActivity, setSidebarCollapsed, isSidebarCollapsed } = useActivity();
-  const { createFile, createFolder } = useVault();
+  const { createFileRemote, createFolderRemote, refreshFileTree, nextUntitledName } = useVault();
 
   const commands = [
-    { label: 'New Note',       shortcut: 'N', action: () => createFile(null, 'Untitled', 'md') },
-    { label: 'New Folder',     shortcut: 'F', action: () => createFolder(null, 'New Folder') },
+    { label: 'New Note', shortcut: 'N', action: () => {
+      const name = nextUntitledName();
+      createFileRemote('', name, 'md').then(() => {
+        refreshFileTree();
+        openTab({ type: 'note', title: name, filePath: `${name}.md` });
+      });
+    }},
+    { label: 'New Folder', shortcut: 'F', action: () => createFolderRemote('', 'New Folder').then(() => refreshFileTree()) },
     { label: 'Open Browser',   shortcut: 'B', action: () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' }) },
     { label: 'Open Drawing',   shortcut: 'D', action: () => openTab({ type: 'draw', title: 'Untitled Drawing', filePath: 'drawing.excalidraw' }) },
     { label: 'Open Terminal',  shortcut: 'T', action: () => openTab({ type: 'terminal', title: 'Terminal' }) },

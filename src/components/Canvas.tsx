@@ -117,15 +117,16 @@ export const Canvas: React.FC = () => {
 
 const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
   const { closeTab, openTab } = useTabs();
-  const { createFile, nextUntitledName } = useVault();
+  const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
 
   const handleNewNote = useCallback(() => {
     const name = nextUntitledName();
-    const id = createFile(null, name, 'md');
-    // Replace current new-tab with the note tab
-    closeTab(tab.id);
-    openTab({ type: 'note', title: name, filePath: id });
-  }, [tab.id, closeTab, openTab, createFile, nextUntitledName]);
+    createFileRemote('', name, 'md').then(() => {
+      refreshFileTree();
+      closeTab(tab.id);
+      openTab({ type: 'note', title: name, filePath: `${name}.md` });
+    });
+  }, [tab.id, closeTab, openTab, createFileRemote, refreshFileTree, nextUntitledName]);
 
   const LinkBtn: React.FC<{ label: string; shortcut?: string; onClick: () => void }> = ({ label, shortcut, onClick }) => {
     const [h, setH] = useState(false);
