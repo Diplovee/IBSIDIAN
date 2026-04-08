@@ -64,7 +64,7 @@ const CtxMenuItem: React.FC<{ icon: React.ReactNode; label: string; onClick?: ()
 const CtxSep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />;
 
 const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, onClose }) => {
-  const { deleteNode, renameNode, copyNode } = useVault();
+  const { deleteItem, renameItem, refreshFileTree } = useVault();
   const { openTab } = useTabs();
   const { confirm, prompt } = useModal();
   const ref = useRef<HTMLDivElement>(null);
@@ -107,15 +107,15 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
       <CtxMenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
       <CtxMenuItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />
       <CtxSep />
-      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); prompt({ title: 'Rename', defaultValue: menu.node.name, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) renameNode(menu.node.id, n); }); }} />
-      <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteNode(menu.node.id); }); }} />
+      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); prompt({ title: 'Rename', defaultValue: menu.node.name, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) renameItem(menu.node.id, n).then(() => refreshFileTree()); }); }} />
+      <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteItem(menu.node.id).then(() => refreshFileTree()); }); }} />
     </div>
   );
 };
 
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
-  const { nodes, createFile, createFolder, moveNode, nextUntitledName, isLoading, error, refreshFileTree } = useVault();
+  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree } = useVault();
   const { openTab } = useTabs();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -141,9 +141,9 @@ const FileTreeView: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'md'); openTab({ type: 'note', title: name, filePath: id }); }} />
-          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); const id = createFile(null, name, 'excalidraw'); openTab({ type: 'draw', title: name, filePath: id }); }} />
-          <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolder(null, 'New Folder')} />
+          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'md').then(() => { refreshFileTree(); openTab({ type: 'note', title: name, filePath: `${name}.md` }); }); }} />
+          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'excalidraw').then(() => { refreshFileTree(); openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` }); }); }} />
+          <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolderRemote('', 'New Folder').then(() => refreshFileTree())} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title="Sort" onClick={() => {}} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
           <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => {}} />

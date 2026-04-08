@@ -17,11 +17,13 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
   const openTab = useCallback((tab: Omit<Tab, 'id'>) => {
-    // Check if tab already exists
-    const existingTab = tabs.find(t => t.filePath === tab.filePath && t.type === tab.type);
-    if (existingTab) {
-      setActiveTabId(existingTab.id);
-      return;
+    // Check if tab already exists (terminals are never deduplicated)
+    if (tab.type !== 'terminal') {
+      const existingTab = tabs.find(t => t.filePath === tab.filePath && t.type === tab.type);
+      if (existingTab) {
+        setActiveTabId(existingTab.id);
+        return;
+      }
     }
 
     const newTab: Tab = {

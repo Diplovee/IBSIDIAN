@@ -1,122 +1,108 @@
-# Ibsidian
-
 <p align="center">
-  <img src="public/favicon.svg" alt="Ibsidian Logo" width="64" height="64" />
+  <img src="public/favicon.svg" alt="Ibsidian" width="80" height="80" />
 </p>
 
-<p align="center">A native desktop knowledge vault — Obsidian-inspired, built on Electron + React.</p>
+Ibsidian
+========
 
-## Features
+A native desktop knowledge vault — Obsidian-inspired, built on Electron + React.
+Organise your notes, drawings, and research in a real file-system vault with a
+built-in terminal and browser — all in one window.
 
-- **Vault System** — Real file system vault; select any folder via native OS dialog
-- **File Tree** — Browse, create, rename and delete notes and folders
-- **Markdown Editor** — CodeMirror-powered editor with live syntax highlighting
-- **Reading View** — Toggle between edit and rendered markdown preview
-- **Drawing Canvas** — Visual notes via Excalidraw
-- **Browser Tab** — Built-in web browser tab
-- **Terminal** — Real shell (PTY) starting in your vault, navigate anywhere
-- **Command Palette** — `Ctrl+K` for quick access to all commands
-- **Light / Dark Theme** — Switch in Settings panel
-- **Resizable Sidebar** — Drag the panel divider to resize
+Quick Start
+-----------
 
-## Getting Started
+* Install dependencies: `bun install`
+* Rebuild native modules: `bun run rebuild`  (first time only)
+* Launch in dev mode: `bun run dev`
+* Production build: `bun run build`
 
-**Prerequisites:** Node.js + Bun (for dev tooling)
+On first launch, pick a folder, name your vault, and click **Create Vault**.
+Welcome files are created automatically.
 
-```bash
-bun install
-bun run rebuild   # build node-pty against Electron headers (first time only)
-bun run dev       # launch Electron app with HMR
-```
+Features
+--------
 
-### First Launch
+* Vault System       — real file-system folder; open or create via native dialog
+* File Tree          — browse, create, rename, and delete notes and folders
+* Markdown Editor    — CodeMirror 6 with live syntax highlighting
+* Reading View       — toggle between edit and rendered markdown preview
+* Drawing Canvas     — visual notes via Excalidraw
+* Browser Tab        — built-in web browser
+* Terminal           — real PTY shell starting in your vault root
+* Command Palette    — Ctrl+K for quick access to all commands
+* Light / Dark Theme — toggle in Settings panel
+* Resizable Sidebar  — drag the panel divider
 
-1. Click **Choose folder…** to pick a location
-2. Enter a vault name
-3. Click **Create Vault** — folder is created with welcome files
-4. Your vault is ready!
+Keyboard Shortcuts
+------------------
 
-## Scripts
+    Ctrl+K    Open command palette
+    N         New note
+    F         New folder
+    B         Open browser tab
+    D         Open drawing
+    T         Open terminal
+    \         Toggle sidebar
+    S         Search vault
+    ,         Open settings
 
-```bash
-bun run dev       # Dev mode — Electron app with live reload
-bun run build     # Production build → out/
-bun run preview   # Preview the production build
-bun run rebuild   # Rebuild node-pty for current Electron version
-```
+Tech Stack
+----------
 
-## Keyboard Shortcuts
+    App Shell       Electron 41
+    Frontend        React 19 + TypeScript
+    Build           electron-vite 5
+    Styling         Tailwind CSS v4
+    Editor          CodeMirror 6
+    Markdown        react-markdown
+    File Tree       react-arborist
+    Terminal        xterm.js + node-pty (IPC bridge)
+    Icons           lucide-react
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+K` | Open command palette |
-| `N` (in palette) | New note |
-| `F` (in palette) | New folder |
-| `B` (in palette) | Open browser |
-| `D` (in palette) | Open drawing |
-| `T` (in palette) | Open terminal |
-| `\` (in palette) | Toggle sidebar |
-| `S` (in palette) | Search vault |
-| `,` (in palette) | Open settings |
+Project Structure
+-----------------
 
-## Tech Stack
+    IBSIDIAN/
+    ├── electron/
+    │   ├── main.ts       main process: window, file system, PTY
+    │   └── preload.ts    contextBridge API (window.api)
+    ├── src/
+    │   ├── components/
+    │   │   ├── Canvas.tsx          editor / browser / draw / terminal views
+    │   │   ├── CommandPalette.tsx
+    │   │   ├── SidePanel.tsx       file tree, search, settings
+    │   │   ├── TabBar.tsx
+    │   │   └── VaultSetup.tsx      first-launch screen
+    │   ├── contexts/
+    │   │   ├── TabsContext.tsx
+    │   │   └── VaultContext.tsx    vault state + window.api calls
+    │   └── types/
+    │       └── electron.d.ts       window.api TypeScript types
+    ├── electron.vite.config.ts
+    └── package.json
 
-| Layer | Library |
-|---|---|
-| App Shell | Electron 41 |
-| Frontend Framework | React 19 + TypeScript |
-| Build Tool | electron-vite 5 |
-| Styling | Tailwind CSS v4 + inline styles |
-| Editor | CodeMirror 6 (`@uiw/react-codemirror`) |
-| Markdown | `react-markdown` |
-| File Tree | `react-arborist` |
-| Terminal | `xterm.js` + `node-pty` (IPC) |
-| Icons | `lucide-react` |
+IPC API (window.api)
+--------------------
 
-## Project Structure
+Exposed via contextBridge in the preload script:
 
-```
-IBSIDIAN/
-├── electron/
-│   ├── main.ts          # Main process: window, file system, PTY
-│   └── preload.ts       # contextBridge API (window.api)
-├── src/                 # Renderer (React + TypeScript)
-│   ├── components/
-│   │   ├── Canvas.tsx        # Editor / browser / draw / terminal views
-│   │   ├── CommandPalette.tsx
-│   │   ├── Layout.tsx
-│   │   ├── SidePanel.tsx     # File tree, search, settings
-│   │   ├── TabBar.tsx
-│   │   ├── TopBar.tsx
-│   │   └── VaultSetup.tsx    # First-launch screen
-│   ├── contexts/
-│   │   ├── ActivityContext.tsx
-│   │   ├── TabsContext.tsx
-│   │   └── VaultContext.tsx  # Vault state + window.api calls
-│   └── types/
-│       └── electron.d.ts     # window.api TypeScript types
-├── electron.vite.config.ts
-└── package.json
-```
+    vault.selectFolder()           native OS folder picker
+    vault.create(name, path)       create vault + welcome files
+    vault.open(vault)              re-register vault on reload
+    files.tree()                   recursive file tree
+    files.read(path)               read file content
+    files.write(path, content)     write file
+    files.create(path, type)       create file or folder
+    files.delete(path)             delete file or folder
+    files.rename(old, new)         rename / move
+    terminal.create(cols, rows)    spawn PTY, returns session ID
+    terminal.input(id, data)       send keystrokes to PTY
+    terminal.resize(id, cols, rows) resize PTY
+    terminal.close(id)             kill PTY session
+    terminal.onData(cb)            listen for PTY output
+    terminal.onExit(cb)            listen for PTY exit
 
-## IPC API (`window.api`)
+---
 
-Exposed via `contextBridge` in the preload script:
-
-| Namespace | Method | Description |
-|---|---|---|
-| `vault` | `selectFolder()` | Native OS folder picker |
-| `vault` | `create(name, path)` | Create vault + welcome files |
-| `vault` | `open(vault)` | Re-register vault on reload |
-| `files` | `tree()` | Recursive file tree |
-| `files` | `read(path)` | Read file content |
-| `files` | `write(path, content)` | Write file |
-| `files` | `create(path, type)` | Create file or folder |
-| `files` | `delete(path)` | Delete file or folder |
-| `files` | `rename(old, new)` | Rename / move |
-| `terminal` | `create(cols, rows)` | Spawn PTY, returns session ID |
-| `terminal` | `input(id, data)` | Send keystrokes to PTY |
-| `terminal` | `resize(id, cols, rows)` | Resize PTY |
-| `terminal` | `close(id)` | Kill PTY session |
-| `terminal` | `onData(cb)` | Listen for PTY output |
-| `terminal` | `onExit(cb)` | Listen for PTY exit |
+<p align="center">Ibsidian</p>

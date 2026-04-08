@@ -1,4 +1,15 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+
+// Suppress GPU/vaapi warnings on Linux
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('ignore-gpu-blacklist')
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('no-sandbox')
+  app.commandLine.appendSwitch('no-zygote')
+  app.commandLine.appendSwitch('disable-dev-shm-usage')
+  app.commandLine.appendSwitch('disable-gpu-sandbox')
+}
 import { join, relative } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm, stat, rename } from 'fs/promises'
 import { randomBytes } from 'crypto'
@@ -27,10 +38,10 @@ function createWindow() {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
     show: false,
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 14, y: 14 },
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
   })
 
   if (isDev) {
@@ -43,6 +54,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

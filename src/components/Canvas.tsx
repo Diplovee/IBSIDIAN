@@ -51,35 +51,66 @@ export const Canvas: React.FC = () => {
   const { activeTabId, tabs } = useTabs();
   const activeTab = tabs.find(t => t.id === activeTabId);
 
-  if (!activeTab) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
-        <div className="w-24 h-24 bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center mb-6">
-          <div className="w-12 h-12 bg-[var(--accent)] rounded-sm flex items-center justify-center text-white text-2xl font-bold">
-            I
-          </div>
-        </div>
-        <h2 className="text-[var(--text-xl)] font-bold text-[var(--text-primary)] mb-2">Welcome to Ibsidian</h2>
-        <p className="text-[var(--text-sm)] text-[var(--text-muted)]">Open a file from the sidebar or create a new one.</p>
-        <div className="mt-6 flex gap-4 text-[var(--text-xs)]">
-          <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-[var(--text-secondary)]">Ctrl</kbd>
-            <kbd className="px-1.5 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-[var(--text-secondary)]">K</kbd>
-            <span className="text-[var(--text-secondary)]">Command Palette</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Always render all terminal tabs so PTY sessions survive tab switches.
+  // Only unmount when the tab is closed (removed from tabs array).
+  const terminalTabs = tabs.filter(t => t.type === 'terminal');
 
-  switch (activeTab.type) {
-    case 'note': return <EditorTab tab={activeTab} />;
-    case 'browser': return <BrowserTab tab={activeTab} />;
-    case 'draw': return <DrawTab tab={activeTab} />;
-    case 'terminal': return <TerminalTab tab={activeTab} />;
-    case 'new-tab': return <NewTabScreen tab={activeTab} />;
-    default: return <div className="flex-1 bg-[var(--bg-primary)]" />;
-  }
+  const renderActiveTab = () => {
+    if (!activeTab) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
+          <div className="w-24 h-24 bg-[var(--bg-secondary)] rounded-xl flex items-center justify-center mb-6">
+            <div className="w-12 h-12 bg-[var(--accent)] rounded-sm flex items-center justify-center text-white text-2xl font-bold">
+              I
+            </div>
+          </div>
+          <h2 className="text-[var(--text-xl)] font-bold text-[var(--text-primary)] mb-2">Welcome to Ibsidian</h2>
+          <p className="text-[var(--text-sm)] text-[var(--text-muted)]">Open a file from the sidebar or create a new one.</p>
+          <div className="mt-6 flex gap-4 text-[var(--text-xs)]">
+            <div className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-[var(--text-secondary)]">Ctrl</kbd>
+              <kbd className="px-1.5 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-[var(--text-secondary)]">K</kbd>
+              <span className="text-[var(--text-secondary)]">Command Palette</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // Terminal tabs are rendered persistently below; hide this slot when active tab is terminal
+    if (activeTab.type === 'terminal') return null;
+    switch (activeTab.type) {
+      case 'note': return <EditorTab tab={activeTab} />;
+      case 'browser': return <BrowserTab tab={activeTab} />;
+      case 'draw': return <DrawTab tab={activeTab} />;
+      case 'new-tab': return <NewTabScreen tab={activeTab} />;
+      default: return <div className="flex-1 bg-[var(--bg-primary)]" />;
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      {/* Always-mounted terminal tabs — hidden when not active */}
+      {terminalTabs.map(t => (
+        <div
+          key={t.id}
+          style={{
+            display: activeTab?.id === t.id ? 'flex' : 'none',
+            flex: 1,
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <TerminalTab tab={t} />
+        </div>
+      ))}
+      {/* Non-terminal active tab */}
+      {activeTab?.type !== 'terminal' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {renderActiveTab()}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // ── New tab screen ───────────────────────────────────────────────────
@@ -406,23 +437,40 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 // ── Browser tab ──────────────────────────────────────────────────────
 
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
-  const [url, setUrl] = useState(tab.url || 'https://www.google.com');
-  const [inputUrl, setInputUrl] = useState(url);
+  const webviewRef = useRef<any>(null);
+  const [inputUrl, setInputUrl] = useState(tab.url || 'https://www.google.com');
+  const [currentUrl, setCurrentUrl] = useState(tab.url || 'https://www.google.com');
+
+  const navigate = (target: string) => {
+    if (!target.startsWith('http')) target = 'https://' + target;
+    setCurrentUrl(target);
+    setInputUrl(target);
+  };
 
   const handleNavigate = (e: React.FormEvent) => {
     e.preventDefault();
-    let target = inputUrl;
-    if (!target.startsWith('http')) target = 'https://' + target;
-    setUrl(target);
+    navigate(inputUrl);
   };
+
+  useEffect(() => {
+    const wv = webviewRef.current;
+    if (!wv) return;
+    const onNav = (e: any) => setInputUrl(e.url);
+    wv.addEventListener('did-navigate', onNav);
+    wv.addEventListener('did-navigate-in-page', onNav);
+    return () => {
+      wv.removeEventListener('did-navigate', onNav);
+      wv.removeEventListener('did-navigate-in-page', onNav);
+    };
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
       <div className="h-[36px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center px-3 gap-2">
         <div className="flex items-center gap-0.5">
-          <button className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)]"><ArrowLeft size={14} /></button>
-          <button className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)]"><ArrowRight size={14} /></button>
-          <button className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)]"><RefreshCw size={14} /></button>
+          <button className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)]" onClick={() => webviewRef.current?.goBack()}><ArrowLeft size={14} /></button>
+          <button className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)]" onClick={() => webviewRef.current?.goForward()}><ArrowRight size={14} /></button>
+          <button className="w-[26px] h-[26px] flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)]" onClick={() => webviewRef.current?.reload()}><RefreshCw size={14} /></button>
         </div>
         <form onSubmit={handleNavigate} className="flex-1">
           <input
@@ -433,7 +481,8 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
           />
         </form>
       </div>
-      <iframe src={url} className="flex-1 border-none" title="Browser" referrerPolicy="no-referrer" />
+      {/* @ts-ignore - webview is an Electron-specific tag */}
+      <webview ref={webviewRef} src={currentUrl} style={{ flex: 1, border: 'none' }} />
     </div>
   );
 };
@@ -443,18 +492,21 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
 const DrawTab: React.FC<{ tab: any }> = () => {
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)] relative">
-      <iframe src="https://excalidraw.com" className="flex-1 border-none" title="Excalidraw" referrerPolicy="no-referrer" />
+      {/* @ts-ignore */}
+      <webview src="https://excalidraw.com" style={{ flex: 1, border: 'none' }} />
     </div>
   );
 };
 
 // ── Terminal tab ─────────────────────────────────────────────────────
 
-const TerminalTab: React.FC<{ tab: any }> = () => {
+const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const { theme } = useActivity();
+  const { activeTabId } = useTabs();
   const [cols, setCols] = useState(80);
   const [rows, setRows] = useState(24);
 
@@ -468,11 +520,13 @@ const TerminalTab: React.FC<{ tab: any }> = () => {
 
     const term = new XTerm({
       theme: xtermTheme[theme],
-      fontFamily: 'JetBrains Mono, Fira Code, monospace',
+      fontFamily: '"JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", "FiraCode Nerd Font", "FiraCode NF", "Fira Code", "Hack Nerd Font", "Hack NF", "MesloLGS NF", "Noto Color Emoji", monospace',
       fontSize: 13,
       cursorBlink: true,
+      allowProposedApi: true,
     });
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
     fitAddon.fit();
@@ -529,6 +583,14 @@ const TerminalTab: React.FC<{ tab: any }> = () => {
   useEffect(() => {
     if (xtermRef.current) xtermRef.current.options.theme = xtermTheme[theme];
   }, [theme]);
+
+  // Re-fit when this tab becomes visible after being hidden
+  useEffect(() => {
+    if (activeTabId === tab.id && fitAddonRef.current) {
+      // Use rAF so the div has finished re-displaying before we measure
+      requestAnimationFrame(() => fitAddonRef.current?.fit());
+    }
+  }, [activeTabId, tab.id]);
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
