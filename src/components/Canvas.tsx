@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { autocompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete';
-import { EditorView } from '@codemirror/view';
+import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
+import { EditorView, keymap } from '@codemirror/view';
 import { hybridMarkdown } from 'codemirror-markdown-hybrid';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
@@ -151,12 +153,28 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
     h4: ({ children }: any) => <h4 style={{ fontSize: 'var(--text-base)', fontWeight: 600, marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>{children}</h4>,
     h5: ({ children }: any) => <h5 style={{ fontSize: 'var(--text-base)', fontWeight: 600, marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>{children}</h5>,
     h6: ({ children }: any) => <h6 style={{ fontSize: 'var(--text-base)', fontWeight: 600, marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>{children}</h6>,
-    p: ({ children }: any) => <p style={{ marginBottom: 'var(--space-4)' }}>{children}</p>,
-    ul: ({ children }: any) => <ul style={{ paddingLeft: 'var(--space-6)', marginBottom: 'var(--space-4)' }}>{children}</ul>,
-    ol: ({ children }: any) => <ol style={{ paddingLeft: 'var(--space-6)', marginBottom: 'var(--space-4)' }}>{children}</ol>,
-    li: ({ children }: any) => <li style={{ marginBottom: 'var(--space-1)' }}>{children}</li>,
+    p: ({ children }: any) => <p style={{ marginBottom: 'var(--space-4)', whiteSpace: 'normal' }}>{children}</p>,
+    br: () => <br />,
+    ul: ({ children }: any) => <ul style={{ paddingLeft: 'var(--space-6)', marginBottom: 'var(--space-4)', listStyle: 'disc' }}>{children}</ul>,
+    ol: ({ children }: any) => <ol style={{ paddingLeft: 'var(--space-6)', marginBottom: 'var(--space-4)', listStyle: 'decimal' }}>{children}</ol>,
+    li: ({ children }: any) => <li style={{ marginBottom: 'var(--space-1)', paddingLeft: 2 }}>{children}</li>,
     hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: 'var(--space-6) 0' }} />,
-    code: ({ children }: any) => <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', padding: '2px 4px', fontSize: '0.9em' }}>{children}</code>,
+    code: ({ className, children }: any) => {
+      const isBlock = typeof className === 'string' && className.includes('language-');
+      if (isBlock) {
+        return (
+          <code style={{ fontFamily: 'var(--font-mono)', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {children}
+          </code>
+        );
+      }
+      return <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', padding: '2px 4px', fontSize: '0.9em' }}>{children}</code>;
+    },
+    pre: ({ children }: any) => (
+      <pre style={{ margin: 'var(--space-4) 0', padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, overflowX: 'auto', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.7 }}>
+        {children}
+      </pre>
+    ),
     blockquote: ({ children }: any) => {
       const items = React.Children.toArray(children);
       const first = items[0];
@@ -180,6 +198,8 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
         </div>
       );
     },
+    strong: ({ children }: any) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
+    em: ({ children }: any) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
     a: ({ children, href }: any) => {
       const url = typeof href === 'string' ? href : '';
       const isInternal = url.startsWith(INTERNAL_LINK_PREFIX);
@@ -205,6 +225,12 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
       const target = decodeURIComponent(url.slice(INTERNAL_EMBED_PREFIX.length));
       return <InternalEmbed target={target} currentPath={currentPath} />;
     },
+    div: ({ children }: any) => <div style={{ marginBottom: 'var(--space-4)' }}>{children}</div>,
+    span: ({ children }: any) => <span>{children}</span>,
+    table: ({ children }: any) => <table style={{ width: '100%', borderCollapse: 'collapse', margin: 'var(--space-4) 0', fontSize: 'var(--text-sm)' }}>{children}</table>,
+    thead: ({ children }: any) => <thead>{children}</thead>,
+    tbody: ({ children }: any) => <tbody>{children}</tbody>,
+    tr: ({ children }: any) => <tr>{children}</tr>,
     input: ({ type, checked }: any) => {
       if (type !== 'checkbox') return <input type={type} checked={checked} readOnly />;
       return (
@@ -216,16 +242,16 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
         />
       );
     },
-    table: ({ children }: any) => <table style={{ width: '100%', borderCollapse: 'collapse', margin: 'var(--space-4) 0', fontSize: 'var(--text-sm)' }}>{children}</table>,
     th: ({ children }: any) => <th style={{ border: '1px solid var(--border)', padding: 'var(--space-2) var(--space-3)', textAlign: 'left', background: 'var(--bg-secondary)', fontWeight: 600 }}>{children}</th>,
     td: ({ children }: any) => <td style={{ border: '1px solid var(--border)', padding: 'var(--space-2) var(--space-3)', textAlign: 'left' }}>{children}</td>,
     del: ({ children }: any) => <del style={{ color: 'var(--text-muted)' }}>{children}</del>,
     s: ({ children }: any) => <s style={{ color: 'var(--text-muted)' }}>{children}</s>,
+    kbd: ({ children }: any) => <kbd style={{ padding: '2px 6px', fontSize: 12, fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6 }}>{children}</kbd>,
   };
 
   return (
     <div style={{ fontFamily: 'var(--font-sans)', lineHeight: 'var(--leading-relaxed)', color: 'var(--text-primary)' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={markdownComponents}>
         {preprocessObsidianMarkdown(content)}
       </ReactMarkdown>
     </div>
@@ -269,6 +295,8 @@ const editorTheme = EditorView.theme({
   },
   '.cm-markdown-preview .md-list-marker': { color: 'var(--text-muted)', marginRight: '6px' },
   '.cm-markdown-preview .md-list-item': { display: 'inline', color: 'var(--text-primary)' },
+  '.cm-link': { color: 'var(--accent)' },
+  '.cm-url': { color: 'var(--accent)', textDecoration: 'underline' },
   // Scroller fills available space
   '.cm-scroller': { fontFamily: 'var(--font-sans)', overflow: 'visible' },
   // Line wrapper
@@ -718,6 +746,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const liveMarkdownExtensions = [
     hybridMarkdown({ theme }),
     autocompletion({ override: [obsidianCompletionSource] }),
+    keymap.of([{ key: 'Enter', run: insertNewlineContinueMarkup }]),
     EditorView.lineWrapping,
   ];
 

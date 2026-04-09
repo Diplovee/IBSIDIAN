@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.4] - 2026-04-09
+
+### Added
+- `docs/markdown-basic-syntax.md` as an Ibsidian support reference for the Markdown Guide basic syntax
+- `docs/markdown-basic-syntax-example.md` as a single example note covering every Markdown Guide basic syntax section
+- Shared markdown support types for tracking basic syntax coverage in code and docs
+
+### Changed
+- Reading view now renders Markdown Guide basic syntax more completely, including raw HTML, indented code blocks, linked images, reference-style links, and hard line breaks
+- Editor Enter behavior now continues Markdown list and blockquote markup while typing in live preview
+- README now links to the dedicated Markdown syntax documentation page
+
 ## [2026.5.3] - 2026-04-09
 
 ### Added

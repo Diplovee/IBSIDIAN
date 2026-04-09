@@ -26,7 +26,7 @@ Features
 * Vault System       — real file-system folder; open or create via native dialog
 * File Tree          — browse, create, rename, and delete notes and folders
 * Markdown Editor    — CodeMirror 6 with automatic live preview while typing
-* Enhanced Markdown  — wikilinks, embeds, callouts, task lists, tables, and GFM basics
+* Enhanced Markdown  — Markdown Guide basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
 * Settings Modal     — theme and appearance controls in a command-palette-style modal
 * Drawing Canvas     — visual notes via Excalidraw
 * Browser Tab        — built-in web browser
@@ -60,6 +60,11 @@ Tech Stack
     File Tree       react-arborist
     Terminal        xterm.js + node-pty (IPC bridge)
     Icons           lucide-react
+
+Documentation
+-------------
+
+* Markdown Guide support: `docs/markdown-basic-syntax.md`
 
 Project Structure
 -----------------

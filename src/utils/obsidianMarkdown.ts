@@ -28,6 +28,22 @@ export interface VaultTarget {
   type: 'note' | 'draw';
 }
 
+export type MarkdownSupportStatus = 'supported' | 'partial' | 'missing';
+
+export type MarkdownFeatureKey =
+  | 'headings'
+  | 'paragraphs'
+  | 'line-breaks'
+  | 'emphasis'
+  | 'blockquotes'
+  | 'lists'
+  | 'code'
+  | 'horizontal-rules'
+  | 'links'
+  | 'images'
+  | 'escaping-characters'
+  | 'html';
+
 export const CALL_OUT_STYLES: Record<string, { border: string; background: string; iconBg: string; label: string }> = {
   note: { border: '#3b82f6', background: 'rgba(59,130,246,0.08)', iconBg: '#3b82f6', label: 'Note' },
   info: { border: '#06b6d4', background: 'rgba(6,182,212,0.08)', iconBg: '#06b6d4', label: 'Info' },
@@ -157,4 +173,3 @@ export const resolveVaultLink = (rawTarget: string, nodes: VaultTreeNode[], curr
 
   return findFile(nodes);
 };
-
