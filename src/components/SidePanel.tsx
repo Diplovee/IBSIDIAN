@@ -27,7 +27,6 @@ export const SidePanel: React.FC = () => {
     <div style={{ height: '100%', width: '100%', background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {activeActivity === 'files'    && <FileTreeView />}
       {activeActivity === 'search'   && <SearchView />}
-      {activeActivity === 'settings' && <SettingsView />}
     </div>
   );
 };
@@ -267,11 +266,11 @@ const SearchView: React.FC = () => {
 };
 
 // ── Settings ──────────────────────────────────────────────────────────────
-const SettingsView: React.FC = () => {
+export const SettingsView: React.FC<{ showTitle?: boolean }> = ({ showTitle = true }) => {
   const { theme, setTheme } = useActivity();
   return (
-    <div className="flex flex-col h-full p-4">
-      <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>Settings</h3>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16, boxSizing: 'border-box' }}>
+      {showTitle && <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>Settings</h3>}
       <div>
         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Appearance</label>
         <div style={{ display: 'flex', gap: 8 }}>

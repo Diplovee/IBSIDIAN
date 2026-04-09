@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.3] - 2026-04-09
+
+### Added
+- Vault-aware Obsidian markdown helpers shared across preview and editor logic
+- Wikilink autocomplete in the editor for notes, headings, block refs, and callout types
+- Embedded note and drawing cards in markdown preview for `![[...]]`
+
+### Changed
+- Settings now open in a modal instead of taking over the side panel
+- Top-right settings and overflow buttons removed from the title bar
+- Note editor now defaults to automatic live preview instead of manual source/split/reading/live mode toggles
+- Live preview unordered list markers render as bullet points while preserving raw markdown text
+- Markdown preview handles Obsidian-style internal links, embeds, callouts, and task checkboxes more cleanly
+
+### Fixed
+- Live preview in the light theme no longer uses the dark selected-line background from the hybrid editor package
+- Current-note heading and block links resolve correctly in preview
+- Separate bottom preview panel removed so preview only happens inline while typing
+
 ## [2026.5.2] - 2026-04-08
 
 ### Added

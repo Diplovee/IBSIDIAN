@@ -26,12 +26,6 @@ const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, 
 );
 import { useModal } from './Modal';
 import { Tab, TabType } from '../types';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 // ── Tab context menu ──────────────────────────────────────────────────
 
@@ -171,6 +165,71 @@ const NewTabButton: React.FC<{ openTab: any }> = ({ openTab }) => {
   );
 };
 
+const TabItem: React.FC<{
+  tab: Tab;
+  isActive: boolean;
+  icon: React.ReactNode;
+  onSelect: () => void;
+  onClose: (e: React.MouseEvent) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}> = ({ tab, isActive, icon, onSelect, onClose, onContextMenu }) => {
+  const [hovered, setHovered] = useState(false);
+  const [closeHovered, setCloseHovered] = useState(false);
+
+  return (
+    <div
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setCloseHovered(false);
+      }}
+      style={{
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        cursor: 'pointer',
+        borderRight: '1px solid var(--border)',
+        transition: 'background 0.1s, color 0.1s',
+        position: 'relative',
+        paddingLeft: 14,
+        paddingRight: 10,
+        gap: 8,
+        minWidth: 120,
+        maxWidth: 200,
+        background: isActive ? 'var(--bg-primary)' : hovered ? 'var(--bg-hover)' : 'transparent',
+        color: isActive ? 'var(--text-primary)' : hovered ? 'var(--text-secondary)' : 'var(--text-muted)',
+      }}
+    >
+      <span style={{ flexShrink: 0, color: isActive ? 'var(--text-secondary)' : 'var(--text-muted)' }}>{icon}</span>
+      <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.title}</span>
+      <button
+        onClick={onClose}
+        onMouseEnter={() => setCloseHovered(true)}
+        onMouseLeave={() => setCloseHovered(false)}
+        style={{
+          width: 16,
+          height: 16,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 3,
+          border: 'none',
+          background: closeHovered ? 'var(--bg-active)' : 'transparent',
+          color: closeHovered ? 'var(--text-primary)' : 'var(--text-muted)',
+          opacity: isActive ? (closeHovered ? 1 : 0.6) : hovered ? (closeHovered ? 1 : 0.6) : 0,
+          cursor: 'pointer',
+          transition: 'background 0.1s, color 0.1s, opacity 0.1s',
+        }}
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
+};
+
 // ── Tab bar ───────────────────────────────────────────────────────────
 
 export const TabBar: React.FC = () => {
@@ -195,36 +254,18 @@ export const TabBar: React.FC = () => {
 
   return (
     <>
-      <div className="h-[36px] bg-[var(--bg-secondary)] flex items-stretch overflow-x-auto no-scrollbar z-30 border-b border-[var(--border)]">
-        <div className="flex h-full">
+      <div style={{ height: 36, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'stretch', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', zIndex: 30, borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', height: '100%' }}>
           {tabs.map((tab) => (
-            <div
+            <TabItem
               key={tab.id}
-              onClick={() => setActiveTabId(tab.id)}
+              tab={tab}
+              isActive={activeTabId === tab.id}
+              icon={getIcon(tab.type)}
+              onSelect={() => setActiveTabId(tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab)}
-              style={{ paddingLeft: 14, paddingRight: 10, gap: 8, minWidth: 120, maxWidth: 200 }}
-              className={cn(
-                "h-full flex items-center cursor-pointer border-r border-[var(--border)] transition-colors duration-100 group relative",
-                activeTabId === tab.id
-                  ? "bg-[var(--bg-primary)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-              )}
-            >
-              <span style={{ flexShrink: 0 }} className={activeTabId === tab.id ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"}>
-                {getIcon(tab.type)}
-              </span>
-              <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.title}</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                style={{ width: 16, height: 16, flexShrink: 0 }}
-                className={cn(
-                  "flex items-center justify-center rounded-sm hover:bg-[var(--bg-active)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors",
-                  activeTabId === tab.id ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover:opacity-60 group-hover:hover:opacity-100"
-                )}
-              >
-                <X size={12} />
-              </button>
-            </div>
+              onClose={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+            />
           ))}
         </div>
 

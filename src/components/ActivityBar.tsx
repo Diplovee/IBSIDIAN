@@ -5,7 +5,7 @@ import { useActivity } from '../contexts/ActivityContext';
 import { useTabs } from '../contexts/TabsContext';
 
 export const ActivityBar: React.FC = () => {
-  const { activeActivity, toggleActivity } = useActivity();
+  const { activeActivity, toggleActivity, isSettingsOpen, openSettings } = useActivity();
   const { openTab } = useTabs();
 
   const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' });
@@ -23,7 +23,7 @@ export const ActivityBar: React.FC = () => {
         <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
       </div>
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-        <ActivityButton icon={<Settings size={18} />} active={activeActivity === 'settings'} onClick={() => toggleActivity('settings')} />
+        <ActivityButton icon={<Settings size={18} />} active={isSettingsOpen} onClick={openSettings} />
       </div>
     </div>
   );

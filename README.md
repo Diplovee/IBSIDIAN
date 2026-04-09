@@ -25,15 +25,14 @@ Features
 
 * Vault System       — real file-system folder; open or create via native dialog
 * File Tree          — browse, create, rename, and delete notes and folders
-* Markdown Editor    — CodeMirror 6 with live syntax highlighting
-* Editor View Modes  — Source, Split (side-by-side), Reading, and Live Preview
-* Live Preview       — Obsidian-style WYSIWYG editing with hybrid markdown rendering
-* Enhanced Markdown  — tables, task lists, strikethrough via GitHub Flavored Markdown
+* Markdown Editor    — CodeMirror 6 with automatic live preview while typing
+* Enhanced Markdown  — wikilinks, embeds, callouts, task lists, tables, and GFM basics
+* Settings Modal     — theme and appearance controls in a command-palette-style modal
 * Drawing Canvas     — visual notes via Excalidraw
 * Browser Tab        — built-in web browser
 * Terminal           — real PTY shell starting in your vault root
 * Command Palette    — Ctrl+K for quick access to all commands
-* Light / Dark Theme — toggle in Settings panel
+* Light / Dark Theme — toggle in the Settings modal
 * Resizable Sidebar  — drag the panel divider
 
 Keyboard Shortcuts
@@ -55,9 +54,9 @@ Tech Stack
     App Shell       Electron 41
     Frontend        React 19 + TypeScript
     Build           electron-vite 5
-    Styling         Tailwind CSS v4
+    Styling         inline styles + CSS variables
     Editor          CodeMirror 6
-    Markdown        react-markdown
+    Markdown        CodeMirror 6 + react-markdown + Obsidian-style helpers
     File Tree       react-arborist
     Terminal        xterm.js + node-pty (IPC bridge)
     Icons           lucide-react

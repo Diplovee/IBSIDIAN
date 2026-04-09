@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sidebar, Settings, MoreHorizontal, FolderOpen } from 'lucide-react';
+import { Sidebar, FolderOpen } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
 
@@ -8,16 +8,16 @@ export const TopBar: React.FC = () => {
   const { vault } = useVault();
 
   return (
-    <div className="h-[44px] bg-[var(--bg-secondary)] border-b border-[var(--border)] flex items-center justify-between px-3 z-40 shrink-0">
-      <div className="flex items-center gap-2" style={{ paddingLeft: 6 }}>
-        <div className="w-5 h-5 rounded-[4px] flex items-center justify-center text-white text-[13px] font-bold shrink-0 select-none" style={{ backgroundColor: '#7c3aed' }}>
+    <div style={{ height: 44, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', zIndex: 40, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 6 }}>
+        <div style={{ width: 20, height: 20, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0, userSelect: 'none', backgroundColor: '#7c3aed' }}>
           I
         </div>
-        <span className="font-semibold text-[14px] text-[var(--text-primary)] tracking-tight">Ibsidian</span>
+        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Ibsidian</span>
         {vault && (
           <>
-            <span className="text-[var(--text-muted)]">/</span>
-            <span className="text-[13px] text-[var(--text-secondary)] flex items-center gap-1">
+            <span style={{ color: 'var(--text-muted)' }}>/</span>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
               <FolderOpen size={12} />
               {vault.name}
             </span>
@@ -25,18 +25,12 @@ export const TopBar: React.FC = () => {
         )}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           onClick={() => setSidebarCollapsed(!isSidebarCollapsed)}
-          className="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
         >
           <Sidebar size={16} />
-        </button>
-        <button className="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <Settings size={16} />
-        </button>
-        <button className="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <MoreHorizontal size={16} />
         </button>
       </div>
     </div>

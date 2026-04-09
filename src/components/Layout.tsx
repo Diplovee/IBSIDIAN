@@ -5,6 +5,7 @@ import { SidePanel } from './SidePanel';
 import { TabBar } from './TabBar';
 import { Canvas } from './Canvas';
 import { CommandPalette } from './CommandPalette';
+import { SettingsModal } from './SettingsModal';
 import { VaultSetup } from './VaultSetup';
 import { LoadingScreen } from './LoadingScreen';
 import { useActivity } from '../contexts/ActivityContext';
@@ -59,7 +60,7 @@ export const Layout: React.FC = () => {
   }, [handleResize]);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--bg-primary)]">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', background: 'var(--bg-primary)' }}>
       {!isReady ? (
         <LoadingScreen />
       ) : !vault ? (
@@ -105,11 +106,11 @@ export const Layout: React.FC = () => {
       ) : (
         <>
           <TopBar />
-          <div className="flex flex-1 overflow-hidden">
+          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
             <ActivityBar />
             {!isSidebarCollapsed && (
               <>
-                <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600 }} className="shrink-0">
+                <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600, flexShrink: 0 }}>
                   <SidePanel />
                 </div>
                 <div
@@ -120,13 +121,14 @@ export const Layout: React.FC = () => {
                 />
               </>
             )}
-            <div className="flex-1 overflow-hidden flex flex-col">
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <TabBar />
               <Canvas />
             </div>
           </div>
         </>
       )}
+      <SettingsModal />
       <CommandPalette />
     </div>
   );

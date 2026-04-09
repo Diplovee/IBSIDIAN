@@ -12,4 +12,4 @@ export interface Tab {
   url?: string;
 }
 
-export type ActivityType = 'files' | 'search' | 'settings';
+export type ActivityType = 'files' | 'search';

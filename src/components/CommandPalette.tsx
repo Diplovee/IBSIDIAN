@@ -11,7 +11,7 @@ export const CommandPalette: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { openTab } = useTabs();
-  const { toggleActivity, setSidebarCollapsed, isSidebarCollapsed } = useActivity();
+  const { toggleActivity, setSidebarCollapsed, isSidebarCollapsed, openSettings } = useActivity();
   const { createFileRemote, createFolderRemote, refreshFileTree, nextUntitledName } = useVault();
 
   const commands = [
@@ -28,7 +28,7 @@ export const CommandPalette: React.FC = () => {
     { label: 'Open Terminal',  shortcut: 'T', action: () => openTab({ type: 'terminal', title: 'Terminal' }) },
     { label: 'Toggle Sidebar', shortcut: '\\', action: () => setSidebarCollapsed(!isSidebarCollapsed) },
     { label: 'Search Vault',   shortcut: 'S', action: () => toggleActivity('search') },
-    { label: 'Settings',       shortcut: ',', action: () => toggleActivity('settings') },
+    { label: 'Settings',       shortcut: ',', action: openSettings },
   ];
 
   const filtered = commands.filter(c =>

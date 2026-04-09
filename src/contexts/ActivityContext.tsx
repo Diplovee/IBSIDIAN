@@ -8,6 +8,9 @@ interface ActivityContextType {
   toggleActivity: (activity: ActivityType) => void;
   isSidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  isSettingsOpen: boolean;
+  openSettings: () => void;
+  closeSettings: () => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
 }
@@ -17,6 +20,7 @@ const ActivityContext = createContext<ActivityContextType | undefined>(undefined
 export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeActivity, setActiveActivity] = useState<ActivityType | null>('files');
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [theme, setThemeState] = useState<Theme>('light');
 
   const setTheme = useCallback((t: Theme) => {
@@ -38,8 +42,11 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [activeActivity]);
 
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
   return (
-    <ActivityContext.Provider value={{ activeActivity, toggleActivity, isSidebarCollapsed, setSidebarCollapsed, theme, setTheme }}>
+    <ActivityContext.Provider value={{ activeActivity, toggleActivity, isSidebarCollapsed, setSidebarCollapsed, isSettingsOpen, openSettings, closeSettings, theme, setTheme }}>
       {children}
     </ActivityContext.Provider>
   );
