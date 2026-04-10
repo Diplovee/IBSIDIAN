@@ -1,8 +1,31 @@
 export type VaultNode =
   | { id: string; type: 'folder'; name: string; children: VaultNode[]; isOpen?: boolean }
-  | { id: string; type: 'file'; name: string; ext: 'md' | 'excalidraw'; content: string };
+  | { id: string; type: 'file'; name: string; ext?: string; content?: string };
 
-export type TabType = 'note' | 'browser' | 'draw' | 'terminal' | 'new-tab';
+export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab';
+export type AttachmentLocation = 'same-folder-as-note' | 'specific-folder';
+export type FileTreeStyle = 'original' | 'hierarchy';
+
+export interface ExcalidrawSceneFile {
+  type: string;
+  version: number;
+  source: string;
+  elements: unknown[];
+  appState?: Record<string, unknown>;
+  files?: Record<string, unknown>;
+}
+
+export interface AttachmentSettings {
+  attachmentLocation: AttachmentLocation;
+  attachmentFolderPath: string;
+}
+
+export interface AppSettings {
+  attachments: AttachmentSettings;
+  fileTree: {
+    style: FileTreeStyle;
+  };
+}
 
 export interface Tab {
   id: string;

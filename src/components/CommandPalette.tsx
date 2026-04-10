@@ -24,7 +24,13 @@ export const CommandPalette: React.FC = () => {
     }},
     { label: 'New Folder', shortcut: 'F', action: () => createFolderRemote('', 'New Folder').then(() => refreshFileTree()) },
     { label: 'Open Browser',   shortcut: 'B', action: () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' }) },
-    { label: 'Open Drawing',   shortcut: 'D', action: () => openTab({ type: 'draw', title: 'Untitled Drawing', filePath: 'drawing.excalidraw' }) },
+    { label: 'Open Drawing',   shortcut: 'D', action: () => {
+      const name = nextUntitledName();
+      createFileRemote('', name, 'excalidraw').then(() => {
+        refreshFileTree();
+        openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
+      });
+    } },
     { label: 'Open Terminal',  shortcut: 'T', action: () => openTab({ type: 'terminal', title: 'Terminal' }) },
     { label: 'Toggle Sidebar', shortcut: '\\', action: () => setSidebarCollapsed(!isSidebarCollapsed) },
     { label: 'Search Vault',   shortcut: 'S', action: () => toggleActivity('search') },

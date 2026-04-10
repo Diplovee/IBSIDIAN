@@ -2,13 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { autocompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete';
 import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
+import { RangeSetBuilder } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
+import { Decoration, type DecorationSet, ViewPlugin, WidgetType } from '@codemirror/view';
 import { hybridMarkdown } from 'codemirror-markdown-hybrid';
 import ReactMarkdown from 'react-markdown';
+import { Excalidraw, serializeAsJSON } from '@excalidraw/excalidraw';
+import '@excalidraw/excalidraw/index.css';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
+import { useAppSettings } from '../contexts/AppSettingsContext';
 import { useModal } from './Modal';
 import { useActivity } from '../contexts/ActivityContext';
 import { Terminal as XTerm } from 'xterm';
@@ -28,8 +33,18 @@ import {
   extractMarkdownAnchors,
   getVaultTargets,
   preprocessObsidianMarkdown,
+  resolveVaultEmbed,
   resolveVaultLink,
 } from '../utils/obsidianMarkdown';
+import {
+  buildTimestampedImageName,
+  ensureUniqueVaultPath,
+  isImagePath,
+  listVaultFilePaths,
+  resolveAttachmentDestination,
+} from '../utils/attachments';
+import type { ExcalidrawSceneFile, Tab } from '../types';
+import { parseExcalidrawFileContent } from '../utils/excalidraw';
 
 const extractText = (node: React.ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -88,12 +103,18 @@ const normalizeLivePreviewMarkers = (view: EditorView | null) => {
 const InternalEmbed: React.FC<{ target: string; currentPath?: string | null }> = ({ target, currentPath }) => {
   const { nodes, readFile } = useVault();
   const { openTab } = useTabs();
-  const resolved = resolveVaultLink(target, nodes, currentPath);
+  const resolved = resolveVaultEmbed(target, nodes, currentPath);
   const [preview, setPreview] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     if (!resolved) {
+      setPreview('');
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (resolved.type === 'image') {
       setPreview('');
       return () => {
         cancelled = true;
@@ -125,6 +146,10 @@ const InternalEmbed: React.FC<{ target: string; currentPath?: string | null }> =
         Missing embed: {target}
       </div>
     );
+  }
+
+  if (resolved.type === 'image') {
+    return <VaultImage src={resolved.path} alt={resolved.title} />;
   }
 
   return (
@@ -185,7 +210,7 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
       const title = match[2] || CALL_OUT_STYLES[kind]?.label || `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
       const theme = CALL_OUT_STYLES[kind] || CALL_OUT_STYLES.note;
       const normalizedItems = [...items];
-      normalizedItems[0] = stripCalloutMarker(first);
+      normalizedItems[0] = stripCalloutMarker(first) as Exclude<React.ReactNode, boolean | null | undefined>;
       return (
         <div style={{ margin: 'var(--space-4) 0', borderLeft: `3px solid ${theme.border}`, background: theme.background, borderRadius: 8, padding: '12px 14px 12px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -220,7 +245,7 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
     img: ({ src, alt }: any) => {
       const url = typeof src === 'string' ? src : '';
       if (!url.startsWith(INTERNAL_EMBED_PREFIX)) {
-        return <img src={src} alt={alt} style={{ maxWidth: '100%', borderRadius: 8, margin: 'var(--space-4) 0' }} />;
+        return <VaultImage src={url} alt={alt} currentPath={currentPath} />;
       }
       const target = decodeURIComponent(url.slice(INTERNAL_EMBED_PREFIX.length));
       return <InternalEmbed target={target} currentPath={currentPath} />;
@@ -336,6 +361,7 @@ export const Canvas: React.FC = () => {
       case 'note': return <EditorTab tab={activeTab} />;
       case 'browser': return <BrowserTab tab={activeTab} />;
       case 'draw': return <DrawTab tab={activeTab} />;
+      case 'image': return <ImageTab tab={activeTab} />;
       case 'new-tab': return <NewTabScreen tab={activeTab} />;
       default: return <div style={{ flex: 1, background: 'var(--bg-primary)' }} />;
     }
@@ -436,6 +462,195 @@ const replaceCompletionText = (view: EditorView, from: number, to: number, inser
   });
 };
 
+const insertTextAtSelection = (view: EditorView, text: string) => {
+  const { state } = view;
+  const main = state.selection.main;
+  view.dispatch({
+    changes: { from: main.from, to: main.to, insert: text },
+    selection: { anchor: main.from + text.length },
+  });
+};
+
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read pasted image.'));
+    reader.readAsDataURL(blob);
+  });
+
+const resolveRenderableImagePath = (value: string, nodes: ReturnType<typeof useVault>['nodes'], currentPath?: string | null) => {
+  if (value.startsWith(INTERNAL_EMBED_PREFIX)) {
+    const target = decodeURIComponent(value.slice(INTERNAL_EMBED_PREFIX.length));
+    const resolved = resolveVaultEmbed(target, nodes, currentPath);
+    return resolved?.type === 'image' ? resolved.path : value;
+  }
+  const resolved = resolveVaultEmbed(value, nodes, currentPath);
+  return resolved?.type === 'image' ? resolved.path : value;
+};
+
+const VaultImage: React.FC<{ src: string; alt?: string; currentPath?: string | null }> = ({ src, alt, currentPath }) => {
+  const { nodes } = useVault();
+  const [resolvedSrc, setResolvedSrc] = useState(src);
+
+  useEffect(() => {
+    let cancelled = false;
+    const assetPath = resolveRenderableImagePath(src, nodes, currentPath);
+    if (!isImagePath(assetPath) || typeof window.api.files.dataUrl !== 'function') {
+      setResolvedSrc(assetPath);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    window.api.files.dataUrl(assetPath)
+      .then(url => {
+        if (!cancelled) setResolvedSrc(url);
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedSrc(assetPath);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPath, nodes, src]);
+
+  return <img src={resolvedSrc} alt={alt} style={{ maxWidth: '100%', borderRadius: 8, margin: 'var(--space-4) 0' }} />;
+};
+
+class InlineImagePreviewWidget extends WidgetType {
+  constructor(private readonly label: string, private readonly rawSrc: string, private readonly altText: string, private readonly resolvedVaultPath: string | null) {
+    super();
+  }
+
+  eq(other: WidgetType) {
+    return other instanceof InlineImagePreviewWidget && other.label === this.label && other.rawSrc === this.rawSrc && other.altText === this.altText && other.resolvedVaultPath === this.resolvedVaultPath;
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'inline-flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '8px';
+    wrapper.style.maxWidth = '100%';
+    wrapper.style.margin = '8px 0';
+
+    const pill = document.createElement('span');
+    pill.textContent = `[${this.label}]`;
+    pill.style.display = 'inline-flex';
+    pill.style.alignItems = 'center';
+    pill.style.width = 'fit-content';
+    pill.style.padding = '2px 8px';
+    pill.style.borderRadius = '9999px';
+    pill.style.background = 'var(--accent-soft)';
+    pill.style.color = 'var(--accent)';
+    pill.style.fontSize = '12px';
+    pill.style.fontWeight = '600';
+    pill.style.lineHeight = '1.6';
+    pill.style.userSelect = 'none';
+
+    const image = document.createElement('img');
+    image.alt = this.altText || this.label;
+    image.style.maxWidth = 'min(100%, 420px)';
+    image.style.maxHeight = '320px';
+    image.style.height = 'auto';
+    image.style.borderRadius = '10px';
+    image.style.border = '1px solid var(--border)';
+    image.style.background = 'var(--bg-secondary)';
+    image.style.objectFit = 'contain';
+
+    const applySource = (value: string) => {
+      image.src = value;
+    };
+
+    if (this.rawSrc.startsWith('data:') || this.rawSrc.startsWith('http://') || this.rawSrc.startsWith('https://')) {
+      applySource(this.rawSrc);
+    } else if (this.resolvedVaultPath && typeof window.api.files.dataUrl === 'function') {
+      window.api.files.dataUrl(this.resolvedVaultPath).then(applySource).catch(() => {
+        image.alt = this.altText || `${this.label} unavailable`;
+      });
+    } else {
+      applySource(this.rawSrc);
+    }
+
+    wrapper.appendChild(pill);
+    wrapper.appendChild(image);
+    return wrapper;
+  }
+}
+
+const buildInlineImagePlaceholders = (view: EditorView, nodes: ReturnType<typeof useVault>['nodes'], currentPath?: string | null): DecorationSet => {
+  const builder = new RangeSetBuilder<Decoration>();
+  const doc = view.state.doc.toString();
+  const selection = view.state.selection.main;
+  const matches: Array<{ from: number; to: number; rawSrc: string; altText: string; label: string }> = [];
+  const markdownImageRegex = /!\[([^\]]*)\]\(([^)\n]+)\)/g;
+  const wikilinkImageRegex = /!\[\[([^\]\n]+)\]\]/g;
+  let match: RegExpExecArray | null;
+  let imageIndex = 0;
+
+  while ((match = markdownImageRegex.exec(doc)) !== null) {
+    imageIndex += 1;
+    const rawSrc = match[2].trim();
+    matches.push({
+      from: match.index,
+      to: match.index + match[0].length,
+      rawSrc,
+      altText: match[1],
+      label: `Image${imageIndex}`,
+    });
+  }
+
+  while ((match = wikilinkImageRegex.exec(doc)) !== null) {
+    imageIndex += 1;
+    const inner = match[1].trim();
+    const [targetPart, aliasPart] = inner.split('|');
+    const rawSrc = targetPart.trim();
+    matches.push({
+      from: match.index,
+      to: match.index + match[0].length,
+      rawSrc,
+      altText: aliasPart?.trim() || rawSrc.split('/').pop() || rawSrc,
+      label: `Image${imageIndex}`,
+    });
+  }
+
+  matches.sort((a, b) => a.from - b.from || a.to - b.to);
+
+  for (const item of matches) {
+    const overlapsSelection = selection.from < item.to && selection.to > item.from;
+    if (overlapsSelection) continue;
+    builder.add(item.from, item.to, Decoration.replace({
+      widget: new InlineImagePreviewWidget(
+        item.label,
+        item.rawSrc,
+        item.altText,
+        isImagePath(resolveRenderableImagePath(item.rawSrc, nodes, currentPath)) ? resolveRenderableImagePath(item.rawSrc, nodes, currentPath) : null,
+      ),
+      inclusive: false,
+    }));
+  }
+
+  return builder.finish();
+};
+
+const inlineImagePlaceholderPlugin = (nodes: ReturnType<typeof useVault>['nodes'], currentPath?: string | null) => ViewPlugin.fromClass(class {
+  decorations: DecorationSet;
+
+  constructor(view: EditorView) {
+    this.decorations = buildInlineImagePlaceholders(view, nodes, currentPath);
+  }
+
+  update(update: { view: EditorView; docChanged: boolean; selectionSet: boolean }) {
+    if (update.docChanged || update.selectionSet) {
+      this.decorations = buildInlineImagePlaceholders(update.view, nodes, currentPath);
+    }
+  }
+}, {
+  decorations: value => value.decorations,
+});
+
 const calloutCompletions: Completion[] = Object.entries(CALL_OUT_STYLES).map(([key, value]) => ({
   label: key,
   detail: value.label,
@@ -519,9 +734,10 @@ const SubMenu: React.FC<SubMenuProps> = ({ icon, label, children }) => {
 
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { nodes, getNodeById, updateFileContent, deleteNode, renameNode, renameItem, refreshFileTree, readFile, writeFile, vault } = useVault();
-  const { closeTab, updateTabTitle } = useTabs();
+  const { closeTab, updateTabTitle, updateTabFilePath } = useTabs();
   const { confirm, prompt, alert } = useModal();
   const { theme } = useActivity();
+  const { settings } = useAppSettings();
 
   const handleError = useCallback((err: unknown, action: string) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -617,7 +833,16 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     if (newName !== originalName) {
       if (node?.id) renameNode(node.id, newName);
       updateTabTitle(tab.id, newDisplay);
-      if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(err => handleError(err, 'rename file'));
+      if (tab.filePath) {
+        const dirPath = tab.filePath.includes('/') ? tab.filePath.slice(0, tab.filePath.lastIndexOf('/')) : '';
+        const newPath = dirPath ? `${dirPath}/${newName}` : newName;
+        renameItem(tab.filePath, newName)
+          .then(() => {
+            updateTabFilePath(tab.id, newPath);
+            refreshFileTree();
+          })
+          .catch(err => handleError(err, 'rename file'));
+      }
     }
   };
 
@@ -642,7 +867,16 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         if (node?.id) renameNode(node.id, newName);
         updateTabTitle(tab.id, n);
         setTitleValue(n);
-        if (tab.filePath) renameItem(tab.filePath, newName).then(() => refreshFileTree()).catch(err => handleError(err, 'rename file'));
+        if (tab.filePath) {
+          const dirPath = tab.filePath.includes('/') ? tab.filePath.slice(0, tab.filePath.lastIndexOf('/')) : '';
+          const newPath = dirPath ? `${dirPath}/${newName}` : newName;
+          renameItem(tab.filePath, newName)
+            .then(() => {
+              updateTabFilePath(tab.id, newPath);
+              refreshFileTree();
+            })
+            .catch(err => handleError(err, 'rename file'));
+        }
       }
     });
   };
@@ -658,6 +892,63 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     setMenuOpen(false);
     navigator.clipboard.writeText(tab.filePath || title).catch(() => {});
   };
+
+  const handleImageInsert = useCallback(async (files: File[], view: EditorView, coords?: { x: number; y: number }) => {
+    if (!files.length || typeof window.api.files.writeBinary !== 'function') return false;
+
+    try {
+      const existingPaths = listVaultFilePaths(nodes);
+      const fragments: string[] = [];
+
+      for (const file of files) {
+        const dataUrl = await blobToDataUrl(file);
+        const fileName = buildTimestampedImageName(file.type || 'image/png');
+        const destination = resolveAttachmentDestination(settings, tab.filePath, fileName);
+        const uniquePath = ensureUniqueVaultPath(destination.fullPath, existingPaths);
+        existingPaths.add(uniquePath);
+        const base64 = dataUrl.split(',')[1] ?? '';
+        await window.api.files.writeBinary(uniquePath, base64);
+        const embedTarget = settings.attachments.attachmentLocation === 'same-folder-as-note'
+          ? uniquePath.split('/').pop() ?? uniquePath
+          : uniquePath;
+        fragments.push(`![[${embedTarget}]]`);
+      }
+
+      if (fragments.length) {
+        if (coords) {
+          const position = view.posAtCoords(coords);
+          if (typeof position === 'number') {
+            view.dispatch({ selection: { anchor: position } });
+          }
+        }
+        insertTextAtSelection(view, fragments.join('\n\n'));
+      }
+      refreshFileTree().catch(() => {});
+      return true;
+    } catch (err) {
+      handleError(err, 'insert image');
+      return true;
+    }
+  }, [handleError, nodes, refreshFileTree, settings, tab.filePath]);
+
+  const handleImagePaste = useCallback(async (event: ClipboardEvent, view: EditorView) => {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    const imageFiles = items
+      .filter(item => item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => !!file);
+    if (imageFiles.length === 0) return false;
+
+    event.preventDefault();
+    return handleImageInsert(imageFiles, view);
+  }, [handleImageInsert]);
+
+  const handleImageDrop = useCallback(async (event: DragEvent, view: EditorView) => {
+    const files = Array.from(event.dataTransfer?.files ?? []).filter(file => file.type.startsWith('image/'));
+    if (files.length === 0) return false;
+    event.preventDefault();
+    return handleImageInsert(files, view, { x: event.clientX, y: event.clientY });
+  }, [handleImageInsert]);
 
   const loadAnchorsForPath = useCallback(async (path: string) => {
     if (path === tab.filePath) return extractMarkdownAnchors(content);
@@ -734,9 +1025,9 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
       options: filtered.map(target => ({
         label: target.title,
         detail: target.path,
-        type: target.type === 'draw' ? 'class' : 'file',
+        type: target.type === 'draw' ? 'class' : target.type === 'image' ? 'image' : 'file',
         apply: (view: EditorView, _completion: Completion, replaceFrom: number, replaceTo: number) => {
-          replaceCompletionText(view, replaceFrom, replaceTo, target.title, ']]');
+          replaceCompletionText(view, replaceFrom, replaceTo, target.type === 'image' ? target.path : target.title, ']]');
         },
       })),
       validFor: /^[^#|\]]*$/i,
@@ -747,6 +1038,21 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     hybridMarkdown({ theme }),
     autocompletion({ override: [obsidianCompletionSource] }),
     keymap.of([{ key: 'Enter', run: insertNewlineContinueMarkup }]),
+    inlineImagePlaceholderPlugin(nodes, tab.filePath),
+    EditorView.domEventHandlers({
+      paste: (event, view) => {
+        const hasImage = Array.from(event.clipboardData?.items ?? []).some(item => item.type.startsWith('image/'));
+        if (!hasImage) return false;
+        void handleImagePaste(event, view);
+        return true;
+      },
+      drop: (event, view) => {
+        const hasImage = Array.from(event.dataTransfer?.files ?? []).some(item => item.type.startsWith('image/'));
+        if (!hasImage) return false;
+        void handleImageDrop(event, view);
+        return true;
+      },
+    }),
     EditorView.lineWrapping,
   ];
 
@@ -924,13 +1230,149 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   );
 };
 
+const ImageTab: React.FC<{ tab: any }> = ({ tab }) => {
+  const [imageUrl, setImageUrl] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!tab.filePath) return () => { cancelled = true; };
+
+    window.api.files.dataUrl(tab.filePath)
+      .then(url => {
+        if (!cancelled) {
+          setImageUrl(url);
+          setError('');
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tab.filePath]);
+
+  if (error) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: 24 }}>
+        Failed to open image: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-primary)', padding: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+      {imageUrl && <img src={imageUrl} alt={tab.title} style={{ maxWidth: '100%', height: 'auto', borderRadius: 12, boxShadow: 'var(--shadow-sm)' }} />}
+    </div>
+  );
+};
+
 // ── Draw tab ─────────────────────────────────────────────────────────
 
-const DrawTab: React.FC<{ tab: any }> = () => {
+const DRAW_SAVE_DEBOUNCE_MS = 400;
+
+const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
+  const { readFile, writeFile } = useVault();
+  const saveTimerRef = useRef<number | null>(null);
+  const [initialData, setInitialData] = useState<ExcalidrawSceneFile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    if (!tab.filePath) {
+      setInitialData(null);
+      setIsLoading(false);
+      setLoadError('This drawing tab is missing a vault file path.');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsLoading(true);
+    setLoadError('');
+    setNotice('');
+    setSaveError('');
+
+    readFile(tab.filePath)
+      .then(content => {
+        if (cancelled) return;
+        const { scene, wasRecovered } = parseExcalidrawFileContent(content);
+        setInitialData(scene);
+        setNotice(wasRecovered ? 'This drawing file was invalid or legacy data, so Ibsidian opened a blank scene. Saving will replace it with a valid .excalidraw document.' : '');
+        setIsLoading(false);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setInitialData(null);
+        setLoadError(err instanceof Error ? err.message : String(err));
+        setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [tab.filePath, readFile]);
+
+  const scheduleSave = useCallback((serialized: string) => {
+    if (!tab.filePath) return;
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      writeFile(tab.filePath!, serialized)
+        .then(() => setSaveError(''))
+        .catch(err => setSaveError(err instanceof Error ? err.message : String(err)));
+    }, DRAW_SAVE_DEBOUNCE_MS);
+  }, [tab.filePath, writeFile]);
+
+  if (isLoading) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: 24 }}>
+        Loading drawing…
+      </div>
+    );
+  }
+
+  if (loadError || !initialData) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: 24, textAlign: 'center' }}>
+        Failed to open drawing: {loadError || 'Unknown error'}
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}>
-      {/* @ts-ignore */}
-      <webview src="https://excalidraw.com" style={{ flex: 1, border: 'none' }} />
+      {(notice || saveError) && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 12, color: saveError ? '#ef4444' : 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
+          {saveError || notice}
+        </div>
+      )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <Excalidraw
+          key={tab.filePath}
+          initialData={{
+            elements: initialData.elements as never[],
+            appState: initialData.appState,
+            files: initialData.files as never,
+          }}
+          onChange={(elements, appState, files) => {
+            scheduleSave(serializeAsJSON(elements, appState, files, 'local'));
+          }}
+        />
+      </div>
     </div>
   );
 };

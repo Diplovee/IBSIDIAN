@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createEmptyExcalidrawFileContent } from '../utils/excalidraw';
 
 interface Vault {
   id: string;
@@ -17,7 +18,7 @@ interface VaultNode {
   id: string;
   type: 'file' | 'folder';
   name: string;
-  ext?: 'md' | 'excalidraw';
+  ext?: string;
   content?: string;
   children?: VaultNode[];
   isOpen?: boolean;
@@ -89,7 +90,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const convertToVaultNodes = useCallback((fileNode: FileNode): VaultNode => {
-    const ext = fileNode.name.endsWith('.md') ? 'md' : fileNode.name.endsWith('.excalidraw') ? 'excalidraw' : undefined;
+    const ext = fileNode.isDirectory ? undefined : fileNode.name.includes('.') ? fileNode.name.split('.').pop()?.toLowerCase() : undefined;
     return {
       id: fileNode.path || fileNode.name,
       type: fileNode.isDirectory ? 'folder' : 'file',
@@ -126,6 +127,26 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       refreshFileTree(vault);
     }
   }, [vault]);
+
+  useEffect(() => {
+    if (!window.api?.files?.onChange) return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleChange = () => {
+      if (!vault) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        refreshFileTree().catch(() => {});
+        debounceTimer = null;
+      }, 200);
+    };
+
+    const unsubscribe = window.api.files.onChange(() => handleChange());
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      unsubscribe?.();
+    };
+  }, [vault, refreshFileTree]);
   
   const normalizePath = useCallback((path: string): string => {
     return path.replace(/\\/g, '/').replace(/\/+/g, '/');
@@ -153,7 +174,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   
   const createFile = useCallback((parentId: string | null, name: string, ext: 'md' | 'excalidraw'): string => {
     const id = Math.random().toString(36).substr(2, 9);
-    const content = ext === 'md' ? '' : '{"elements":[]}';
+    const content = ext === 'md' ? '' : createEmptyExcalidrawFileContent();
     const newNode: VaultNode = { id, type: 'file', name, ext, content };
     
     setNodes(prev => {
@@ -304,7 +325,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const createFileRemote = useCallback(async (folderPath: string, name: string, ext: 'md' | 'excalidraw'): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    const content = ext === 'md' ? '' : '{"elements":[]}';
+    const content = ext === 'md' ? '' : createEmptyExcalidrawFileContent();
     const filePath = `${folderPath}/${name}.${ext}`.replace(/\/+/g, '/');
     await window.api.files.create(filePath, 'file', content);
   }, [vault]);
@@ -322,8 +343,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const renameItem = useCallback(async (oldPath: string, newName: string): Promise<void> => {
     if (!vault) throw new Error('No vault selected');
-    const dirPath = oldPath.substring(0, oldPath.lastIndexOf('/'));
-    const newPath = `${dirPath}/${newName}`.replace(/\/+/g, '/');
+    const dirPath = oldPath.includes('/') ? oldPath.slice(0, oldPath.lastIndexOf('/')) : '';
+    const newPath = dirPath ? `${dirPath}/${newName}` : newName;
     await window.api.files.rename(oldPath, newPath);
   }, [vault]);
   

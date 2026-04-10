@@ -3,13 +3,21 @@ import { FolderOpen, Search, Globe, SquareTerminal, Settings } from 'lucide-reac
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { useActivity } from '../contexts/ActivityContext';
 import { useTabs } from '../contexts/TabsContext';
+import { useVault } from '../contexts/VaultContext';
 
 export const ActivityBar: React.FC = () => {
   const { activeActivity, toggleActivity, isSettingsOpen, openSettings } = useActivity();
   const { openTab } = useTabs();
+  const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
 
   const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' });
-  const handleOpenDraw = () => openTab({ type: 'draw', title: 'Untitled Drawing', filePath: 'drawing.excalidraw' });
+  const handleOpenDraw = () => {
+    const name = nextUntitledName();
+    createFileRemote('', name, 'excalidraw').then(() => {
+      refreshFileTree();
+      openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
+    });
+  };
   const handleOpenTerminal = () => openTab({ type: 'terminal', title: 'Terminal' });
 
   return (
