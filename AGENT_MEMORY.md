@@ -12,14 +12,14 @@
 
 ## ✅ Last Session
 - Date: 2026-04-11
-- Summary: Phase 1 of the browser upgrade is in place: browser tabs persist their current URL/title, restore more reliably, and stay mounted per-tab so switching tabs no longer reloads or shares webview state. Phase 2 added browser tab menu actions like reload, duplicate, copy URL, rename, copy title/domain, and reset title. Browser tab groups now use a Chrome-like strip: a colored group pill sits beside group-colored tab cards, the text is black, grouped tabs are rendered as ordered blocks with connector lines, lone tabs stay separate with visible gaps, and the group-to-tabs lead-in is broken/dotted; collapsed groups hide their member tabs, and the block spacing now matches standalone tab spacing. The Sonner toaster is themed to match the app with purple accents, white/light cards, and dark-mode-aware colors.
-- Files touched: `src/App.tsx`, `src/components/Canvas.tsx`, `src/components/Layout.tsx`, `src/components/TabBar.tsx`, `src/components/Toaster.tsx`, `src/components/ui/sonner.tsx`, `src/contexts/TabsContext.tsx`, `src/types.ts`, `src/utils/attachments.ts`, `AGENT_MEMORY.md`
+- Summary: Adjusted grouped browser tab spacing so the internal connector lines stay flush to the grouped tabs while the whole group block keeps a gap before standalone tabs. Bumped the app version and changelog to capture the UI polish.
+- Files touched: `src/components/TabBar.tsx`, `package.json`, `public/version.txt`, `CHANGELOG.md`, `public/changelog.txt`, `AGENT_MEMORY.md`
 
 ---
 
 ## 📋 Next Steps
-1. Verify the ordered browser group block rendering and matched spacing against the screenshot.
-2. Continue Phase 3 browser group polish if needed (full visual grouping/collapse behavior).
+1. If anything still looks off, do a quick visual check of the browser group strip in `bun run dev`.
+2. Keep an eye on the release notes/version files if more UI polish lands.
 3. Keep AGENT_MEMORY.md updated at the next milestone.
 
 ---
@@ -59,6 +59,12 @@
 | 2026-04-11 | src/components/TabBar.tsx | Modified | Added extra browser actions for copying title/domain and retryable copy URL feedback |
 | 2026-04-11 | src/types.ts | Modified | Added optional customTitle field to tabs for browser title overrides |
 | 2026-04-11 | AGENT_MEMORY.md | Modified | Session log refresh |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Made grouped browser tab connectors touch tab edges by removing extra connector/tab spacing |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Restored the gap after grouped tab blocks while keeping the connector line flush to the tabs |
+| 2026-04-11 | package.json | Modified | Bumped app version for the grouped tab spacing polish |
+| 2026-04-11 | public/version.txt | Modified | Synced runtime version display with the new app version |
+| 2026-04-11 | CHANGELOG.md | Modified | Added release note for the grouped tab spacing polish |
+| 2026-04-11 | public/changelog.txt | Modified | Added release note for the grouped tab spacing polish |
 | 2026-04-11 | src/components/Layout.tsx | Modified | Added per-vault tab persistence load/save |
 | 2026-04-11 | src/contexts/TabsContext.tsx | Modified | Made tab open dedupe use latest state and added restore helper |
 | 2026-04-11 | src/components/TabBar.tsx | Modified | Added tab context menu batch close actions |

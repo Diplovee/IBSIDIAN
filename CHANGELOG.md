@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.8] - 2026-04-11
+
+### Changed
+- Grouped browser tab blocks now keep a gap before standalone tabs while the internal connector lines stay flush to the tabs
+
 ## [2026.5.7] - 2026-04-11
 
 ### Added

@@ -93,7 +93,7 @@ const GroupConnector: React.FC<{ dashed?: boolean }> = ({ dashed = false }) => (
       flexShrink: 0,
       alignSelf: 'center',
       borderTop: `3px ${dashed ? 'dotted' : 'solid'} ${GROUP_CONNECTOR_COLOR}`,
-      margin: '0 4px',
+      margin: 0,
       opacity: 0.95,
     }}
   />
@@ -402,6 +402,7 @@ const TabItem: React.FC<{
   isActive: boolean;
   icon: React.ReactNode;
   groupBadge?: { name: string; color: string; collapsed?: boolean } | null;
+  grouped?: boolean;
   dragging?: boolean;
   dropTarget?: boolean;
   onSelect: () => void;
@@ -411,7 +412,7 @@ const TabItem: React.FC<{
   onDragEnd?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
-}> = ({ tab, isActive, icon, groupBadge, dragging, dropTarget, onSelect, onClose, onContextMenu, onDragStart, onDragEnd, onDragOver, onDrop }) => {
+}> = ({ tab, isActive, icon, groupBadge, grouped, dragging, dropTarget, onSelect, onClose, onContextMenu, onDragStart, onDragEnd, onDragOver, onDrop }) => {
   const [hovered, setHovered] = useState(false);
   const [closeHovered, setCloseHovered] = useState(false);
   const isBrowser = tab.type === 'browser';
@@ -440,7 +441,7 @@ const TabItem: React.FC<{
         height: 'calc(100% - 8px)',
         marginTop: 4,
         marginBottom: 4,
-        marginRight: 12,
+        marginRight: grouped ? 0 : 12,
         display: 'flex',
         alignItems: 'center',
         cursor: 'pointer',
@@ -642,6 +643,7 @@ export const TabBar: React.FC = () => {
                     isActive={activeTabId === tab.id}
                     icon={getIcon(tab.type)}
                     groupBadge={browserGroupBadgeForTab(tab)}
+                    grouped
                     dragging={draggedTabId === tab.id}
                     dropTarget={dropGroupId === tab.groupId}
                     onSelect={() => setActiveTabId(tab.id)}
@@ -661,7 +663,7 @@ export const TabBar: React.FC = () => {
               const firstGroupedTab = groupTabs[0];
               const isDropTarget = dropGroupId === group.id;
               return (
-                <div key={group.id} style={{ display: 'flex', alignItems: 'stretch', marginRight: 0 }}>
+                <div key={group.id} style={{ display: 'flex', alignItems: 'stretch', marginRight: 12 }}>
                   <button
                     onClick={() => toggleBrowserGroupCollapsed(group.id)}
                     onContextMenu={(e) => handleContextMenu(e, firstGroupedTab ?? { id: group.id, type: 'browser', title: group.name, customTitle: group.name, groupId: group.id } as Tab)}
@@ -702,6 +704,7 @@ export const TabBar: React.FC = () => {
                             isActive={activeTabId === groupTab.id}
                             icon={getIcon(groupTab.type)}
                             groupBadge={browserGroupBadgeForTab(groupTab)}
+                            grouped
                             dragging={draggedTabId === groupTab.id}
                             dropTarget={dropGroupId === groupTab.groupId}
                             onSelect={() => setActiveTabId(groupTab.id)}
@@ -728,6 +731,7 @@ export const TabBar: React.FC = () => {
                 isActive={activeTabId === tab.id}
                 icon={getIcon(tab.type)}
                 groupBadge={browserGroupBadgeForTab(tab)}
+                grouped={false}
                 dragging={draggedTabId === tab.id}
                 dropTarget={dropGroupId === tab.groupId}
                 onSelect={() => setActiveTabId(tab.id)}
