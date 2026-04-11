@@ -12,15 +12,15 @@
 
 ## ✅ Last Session
 - Date: 2026-04-11
-- Summary: Adjusted grouped browser tab spacing so the internal connector lines stay flush to the grouped tabs while the whole group block keeps a gap before standalone tabs. Bumped the app version and changelog to capture the UI polish.
-- Files touched: `src/components/TabBar.tsx`, `package.json`, `public/version.txt`, `CHANGELOG.md`, `public/changelog.txt`, `AGENT_MEMORY.md`
+- Summary: Fixed grouped browser tab rendering so the group pill stays visible when collapsed and clicking it correctly toggles collapse/expand instead of making the whole group disappear, then committed and pushed the change.
+- Files touched: `src/components/TabBar.tsx`, `AGENT_MEMORY.md`
 
 ---
 
 ## 📋 Next Steps
 1. If anything still looks off, do a quick visual check of the browser group strip in `bun run dev`.
-2. Keep an eye on the release notes/version files if more UI polish lands.
-3. Keep AGENT_MEMORY.md updated at the next milestone.
+2. Keep AGENT_MEMORY.md updated at the next milestone.
+3. No immediate follow-up needed unless more tab-strip polish is requested.
 
 ---
 
@@ -61,6 +61,11 @@
 | 2026-04-11 | AGENT_MEMORY.md | Modified | Session log refresh |
 | 2026-04-11 | src/components/TabBar.tsx | Modified | Made grouped browser tab connectors touch tab edges by removing extra connector/tab spacing |
 | 2026-04-11 | src/components/TabBar.tsx | Modified | Restored the gap after grouped tab blocks while keeping the connector line flush to the tabs |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Added chevron + tooltip affordance to the group pill for collapse/expand state |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Removed the chevron and increased expanded group pill visibility |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Made the group pill expand-only so it no longer collapses an open group on click |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Restored group pill toggle behavior so clicks expand or collapse based on current state |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Kept the group pill visible while collapsed by rendering groups from the full tab list |
 | 2026-04-11 | package.json | Modified | Bumped app version for the grouped tab spacing polish |
 | 2026-04-11 | public/version.txt | Modified | Synced runtime version display with the new app version |
 | 2026-04-11 | CHANGELOG.md | Modified | Added release note for the grouped tab spacing polish |

@@ -4,7 +4,7 @@ import {
   Pin, Link2, Link, BookOpen, Code, ExternalLink, PanelLeft, PanelRight,
   PanelBottom, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, ArrowUpRight, FolderOpen, Trash2, RefreshCw,
-  ChevronRight, Image as ImageFileIcon,
+  Image as ImageFileIcon,
 } from 'lucide-react';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
@@ -624,15 +624,13 @@ export const TabBar: React.FC = () => {
     return group ? { name: group.name, color: group.color, collapsed: !!group.collapsed } : null;
   };
 
-  const collapsedGroupIds = new Set(browserGroups.filter(group => group.collapsed).map(group => group.id));
-  const visibleTabs = tabs.filter(tab => !(tab.type === 'browser' && tab.groupId && collapsedGroupIds.has(tab.groupId)));
   const renderedGroupIds = new Set<string>();
 
   return (
     <>
       <div style={{ height: 36, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'stretch', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', zIndex: 30, borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', height: '100%', alignItems: 'stretch', paddingLeft: 6 }}>
-          {visibleTabs.map((tab) => {
+          {tabs.map((tab) => {
             if (tab.type === 'browser' && tab.groupId) {
               const group = getBrowserGroup(tab.groupId);
               if (!group) {
@@ -659,13 +657,15 @@ export const TabBar: React.FC = () => {
 
               if (renderedGroupIds.has(group.id)) return null;
               renderedGroupIds.add(group.id);
-              const groupTabs = visibleTabs.filter(t => t.type === 'browser' && t.groupId === group.id);
+              const groupTabs = tabs.filter(t => t.type === 'browser' && t.groupId === group.id);
               const firstGroupedTab = groupTabs[0];
               const isDropTarget = dropGroupId === group.id;
               return (
                 <div key={group.id} style={{ display: 'flex', alignItems: 'stretch', marginRight: 12 }}>
                   <button
                     onClick={() => toggleBrowserGroupCollapsed(group.id)}
+                    title={group.collapsed ? 'Expand group' : 'Collapse group'}
+                    aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
                     onContextMenu={(e) => handleContextMenu(e, firstGroupedTab ?? { id: group.id, type: 'browser', title: group.name, customTitle: group.name, groupId: group.id } as Tab)}
                     onDragOver={(e) => handleGroupDragOver(e, group.id)}
                     onDragLeave={() => setDropGroupId(null)}
@@ -684,10 +684,10 @@ export const TabBar: React.FC = () => {
                         ? tintHex(group.color, 0.22)
                         : isDropTarget
                           ? tintHex(group.color, 0.22)
-                          : tintHex(group.color, 0.18),
+                          : tintHex(group.color, 0.24),
                       color: GROUP_TEXT_COLOR,
                       cursor: 'pointer',
-                      boxShadow: 'none',
+                      boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.04)',
                       transition: 'box-shadow 0.12s, border-color 0.12s, background 0.12s, transform 0.12s',
                       flexShrink: 0,
                     }}
