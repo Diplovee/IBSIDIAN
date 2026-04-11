@@ -6,21 +6,21 @@
 
 ## 🗂 Current State
 - Status: Stable
-- Active branch / area: Renderer tab bar / browser groups
+- Active branch / area: File-tree rename sync across tabs/editor
 
 ---
 
 ## ✅ Last Session
 - Date: 2026-04-11
-- Summary: Completed editor-wide tab grouping (including new-tab group inheritance for groupable tabs), improved browser favicon reliability/speed with layered fallbacks and cache, and updated release docs/version metadata.
-- Files touched: `src/contexts/TabsContext.tsx`, `src/components/TabBar.tsx`, `src/components/Canvas.tsx`, `src/types.ts`, `README.md`, `CHANGELOG.md`, `public/changelog.txt`, `package.json`, `public/version.txt`, `AGENT_MEMORY.md
+- Summary: Fixed file-tree rename flow so open tabs and active editor stay synced after file/folder renames; added changelog notes for the fix.
+- Files touched: `src/contexts/TabsContext.tsx`, `src/components/SidePanel.tsx`, `CHANGELOG.md`, `public/changelog.txt`, `AGENT_MEMORY.md`
 
 ---
 
 ## 📋 Next Steps
-1. Smoke-test grouped note/draw/image/browser tabs in `bun run dev`.
-2. Verify favicon behavior on a few websites with and without native favicon events.
-3. Triage any remaining UX tweaks from user feedback.
+1. Smoke-test file and folder rename from SidePanel while note/draw/image tabs are open.
+2. Verify active tab title/path updates immediately and editor save continues to the renamed file.
+3. Triage any follow-up edge cases from user feedback.
 
 ---
 
@@ -56,6 +56,10 @@
 | 2026-04-11 | src/components/Canvas.tsx | Modified | Keyed active tab panels by tab id to prevent browser/tab state bleed between same-type tabs |
 | 2026-04-11 | src/components/TabBar.tsx | Modified | Added browser tab context menu actions for reload, duplicate, copy URL, rename, and reset title |
 | 2026-04-11 | src/contexts/TabsContext.tsx | Modified | Added helpers to close tabs left/right/all |
+| 2026-04-11 | src/contexts/TabsContext.tsx | Modified | Added rename path sync helper to remap open tab paths/titles after file-tree renames |
+| 2026-04-11 | src/components/SidePanel.tsx | Modified | Wired file-tree rename action to sync renamed paths into tabs before refreshing tree |
+| 2026-04-11 | CHANGELOG.md | Modified | Added release note for rename sync fix |
+| 2026-04-11 | public/changelog.txt | Modified | Synced public changelog with rename sync fix |
 | 2026-04-09 | electron/main.ts | Modified | Added active-vault file watcher and IPC event relay |
 | 2026-04-09 | electron/preload.ts | Modified | Exposed `files.onChange` to renderer |
 | 2026-04-09 | src/contexts/VaultContext.tsx | Modified | Auto-refresh file tree on filesystem events |

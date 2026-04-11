@@ -18,6 +18,7 @@ interface TabsContextType {
   updateTabFilePath: (id: string, filePath: string) => void;
   updateTabUrl: (id: string, url: string) => void;
   updateTabFavicon: (id: string, faviconUrl?: string) => void;
+  syncRenamedPath: (oldPath: string, newPath: string) => void;
   reorderTabs: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   moveTabToGroup: (tabId: string, groupId?: string | null) => void;
   createBrowserGroup: (name: string, color?: string) => string;
@@ -35,6 +36,7 @@ const DEFAULT_GROUP_COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc26
 
 const generateId = () => Math.random().toString(36).slice(2, 10);
 const isGroupableType = (type: Tab['type']) => type !== 'terminal' && type !== 'new-tab' && type !== 'claude' && type !== 'codex' && type !== 'pi';
+const stripFileExtension = (name: string) => name.replace(/\.[^.]+$/, '');
 
 export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -161,6 +163,31 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTabs(prev => prev.map(t => t.id === id ? { ...t, faviconUrl } : t));
   }, []);
 
+  const syncRenamedPath = useCallback((oldPath: string, newPath: string) => {
+    if (!oldPath || !newPath || oldPath === newPath) return;
+
+    const oldPrefix = `${oldPath}/`;
+    setTabs(prev => prev.map(tab => {
+      if (!tab.filePath) return tab;
+
+      let nextFilePath: string | null = null;
+      if (tab.filePath === oldPath) {
+        nextFilePath = newPath;
+      } else if (tab.filePath.startsWith(oldPrefix)) {
+        nextFilePath = `${newPath}/${tab.filePath.slice(oldPrefix.length)}`;
+      }
+
+      if (!nextFilePath) return tab;
+
+      if (tab.filePath === oldPath) {
+        const nextFileName = nextFilePath.split('/').pop() ?? nextFilePath;
+        return { ...tab, filePath: nextFilePath, title: stripFileExtension(nextFileName) };
+      }
+
+      return { ...tab, filePath: nextFilePath };
+    }));
+  }, []);
+
   const reorderTabs = useCallback((sourceId: string, targetId: string, position: 'before' | 'after') => {
     setTabs(prev => {
       const srcIdx = prev.findIndex(t => t.id === sourceId);
@@ -252,6 +279,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateTabFilePath,
       updateTabUrl,
       updateTabFavicon,
+      syncRenamedPath,
       moveTabToGroup,
       createBrowserGroup,
       updateBrowserGroup,

@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - Browser tabs now use empty URL instead of chrome://newtab or about:blank
 - Browser shortcuts open internally in the webview instead of external browser
 
+### Fixed
+- Renaming files/folders from the file tree now keeps open tabs and the active editor synced to the new path/title instead of going stale
+
 ## [2026.5.9] - 2026-04-11
 
 ### Added

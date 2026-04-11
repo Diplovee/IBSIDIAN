@@ -114,7 +114,7 @@ const CtxSep = () => <div style={{ height: 1, background: 'var(--border)', margi
 
 const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, onClose }) => {
   const { deleteItem, renameItem, refreshFileTree } = useVault();
-  const { openTab } = useTabs();
+  const { openTab, syncRenamedPath } = useTabs();
   const { confirm, prompt } = useModal();
   const ref = useRef<HTMLDivElement>(null);
   const isFile = menu.node.type === 'file';
@@ -141,7 +141,13 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
     prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => {
       if (n) {
         const newName = ext ? (n.endsWith(ext) ? n : `${n}${ext}`) : n;
-        renameItem(menu.node.id, newName).then(() => refreshFileTree(undefined, { showLoading: false }));
+        const oldPath = menu.node.id;
+        const dirPath = oldPath.includes('/') ? oldPath.slice(0, oldPath.lastIndexOf('/')) : '';
+        const newPath = dirPath ? `${dirPath}/${newName}` : newName;
+        renameItem(oldPath, newName).then(() => {
+          syncRenamedPath(oldPath, newPath);
+          refreshFileTree(undefined, { showLoading: false });
+        });
       }
     });
   };

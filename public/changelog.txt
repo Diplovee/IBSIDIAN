@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 - Drag-to-reorder agent cards in settings — bar order reflects card order
 - Enable-order logic: enabling an agent appends it to the end of the bar sequence, so the order you enable them is the order they appear
 
+### Fixed
+- Renaming files/folders from the file tree now keeps open tabs and the active editor synced to the new path/title instead of going stale
+
 ## [2026.5.9] - 2026-04-11
 
 ### Added
