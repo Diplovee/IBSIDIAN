@@ -419,14 +419,7 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
       )}
       {isGroupable && <TabCtxSep />}
       {isGroupable && (group ? (
-        <>
-          <TabCtxItem icon={<FolderInput size={14} />} label="Rename group..." onClick={handleRenameGroup} />
-          <TabCtxItem icon={<Search size={14} />} label="Change group color..." onClick={handleChangeGroupColor} />
-          <TabCtxItem icon={<BookOpen size={14} />} label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={handleToggleGroupCollapsed} />
-          <TabCtxItem icon={<PlusCircle size={14} />} label="Duplicate group" disabled={!canDuplicateGroup} onClick={handleDuplicateGroup} />
-          <TabCtxItem icon={<Trash2 size={14} />} label="Close group" danger disabled={!canCloseGroup} onClick={handleCloseGroup} />
-          <TabCtxItem icon={<Link size={14} />} label="Remove from group" onClick={handleRemoveFromGroup} />
-        </>
+        <TabCtxItem icon={<Link size={14} />} label="Remove from group" onClick={handleRemoveFromGroup} />
       ) : (
         <TabCtxItem icon={<FolderInput size={14} />} label="Create group from tab..." onClick={handleCreateGroupFromTab} />
       ))}
