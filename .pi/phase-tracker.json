@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "phases": [
+    {
+      "id": 1,
+      "name": "Phase 1 - Assess existing grouping and tab metadata",
+      "goal": "Understand current browser-only grouping implementation and identify minimal integration points for all tab types plus favicon metadata",
+      "status": "in_progress",
+      "todos": [
+        {
+          "id": 1,
+          "text": "Inspect TabsContext and TabBar grouping logic",
+          "done": true
+        },
+        {
+          "id": 2,
+          "text": "Inspect browser tab lifecycle for title/url updates and favicon events",
+          "done": true
+        },
+        {
+          "id": 3,
+          "text": "Identify persistence touchpoints in Layout restore/save",
+          "done": true
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    },
+    {
+      "id": 2,
+      "name": "Phase 2 - Implement editor-wide grouping behavior",
+      "goal": "Extend grouping operations and UI so file/editor tabs can be grouped, grouped tabs can accept drag/drop additions, and new tabs can inherit the active group when appropriate",
+      "status": "not_started",
+      "todos": [
+        {
+          "id": 4,
+          "text": "Update tab/group data model and TabsContext helpers",
+          "done": false
+        },
+        {
+          "id": 5,
+          "text": "Update TabBar context menu, drag-drop, and rendering to treat groups as generic tab groups",
+          "done": false
+        },
+        {
+          "id": 6,
+          "text": "Keep persistence compatible with existing saved browserGroups",
+          "done": false
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    },
+    {
+      "id": 3,
+      "name": "Phase 3 - Add website favicon tab icons",
+      "goal": "Capture webview favicon updates and render favicon images in browser tab headers",
+      "status": "not_started",
+      "todos": [
+        {
+          "id": 7,
+          "text": "Store per-tab favicon URL in tab state",
+          "done": false
+        },
+        {
+          "id": 8,
+          "text": "Listen for favicon updates in BrowserTab and clear stale icons on navigation",
+          "done": false
+        },
+        {
+          "id": 9,
+          "text": "Render favicon image in TabBar with globe fallback",
+          "done": false
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    },
+    {
+      "id": 4,
+      "name": "Phase 4 - Validate and document",
+      "goal": "Run lint/build checks, then log memory updates with concise rollout notes",
+      "status": "not_started",
+      "todos": [
+        {
+          "id": 10,
+          "text": "Run bun run lint (and build if needed)",
+          "done": false
+        },
+        {
+          "id": 11,
+          "text": "Update AGENT_MEMORY.md with files changed and decisions/errors",
+          "done": false
+        },
+        {
+          "id": 12,
+          "text": "Prepare phase-by-phase summary for user review",
+          "done": false
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    }
+  ],
+  "nextPhaseId": 5,
+  "nextTodoId": 13,
+  "planTitle": "General tab grouping + browser favicon support",
+  "currentPhaseId": 1,
+  "lastUpdatedAt": "2026-04-11T19:21:43.188Z"
+}

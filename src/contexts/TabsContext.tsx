@@ -18,6 +18,7 @@ interface TabsContextType {
   updateTabFilePath: (id: string, filePath: string) => void;
   updateTabUrl: (id: string, url: string) => void;
   updateTabFavicon: (id: string, faviconUrl?: string) => void;
+  reorderTabs: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   moveTabToGroup: (tabId: string, groupId?: string | null) => void;
   createBrowserGroup: (name: string, color?: string) => string;
   updateBrowserGroup: (groupId: string, patch: Partial<Omit<BrowserTabGroup, 'id'>>) => void;
@@ -160,14 +161,26 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTabs(prev => prev.map(t => t.id === id ? { ...t, faviconUrl } : t));
   }, []);
 
+  const reorderTabs = useCallback((sourceId: string, targetId: string, position: 'before' | 'after') => {
+    setTabs(prev => {
+      const srcIdx = prev.findIndex(t => t.id === sourceId);
+      const tgtIdx = prev.findIndex(t => t.id === targetId);
+      if (srcIdx === -1 || tgtIdx === -1 || srcIdx === tgtIdx) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(srcIdx, 1);
+      const insertAt = next.findIndex(t => t.id === targetId);
+      next.splice(position === 'after' ? insertAt + 1 : insertAt, 0, moved);
+      return next;
+    });
+  }, []);
+
   const moveTabToGroup = useCallback((tabId: string, groupId?: string | null) => {
-    const hasTargetGroup = !!groupId && browserGroups.some(group => group.id === groupId);
     setTabs(prev => prev.map(tab => {
       if (tab.id !== tabId) return tab;
       if (!isGroupableType(tab.type)) return { ...tab, groupId: undefined };
-      return { ...tab, groupId: hasTargetGroup ? groupId : undefined };
+      return { ...tab, groupId: groupId ?? undefined };
     }));
-  }, [browserGroups]);
+  }, []);
 
   const createBrowserGroup = useCallback((name: string, color?: string) => {
     const groupId = generateId();
@@ -227,6 +240,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       activeTabId,
       openTab,
       closeTab,
+      reorderTabs,
       closeTabsToLeft,
       closeTabsToRight,
       closeOtherTabs,

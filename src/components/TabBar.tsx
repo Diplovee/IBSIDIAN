@@ -130,19 +130,38 @@ const tintHex = (value: string, alpha: number) => {
 const GROUP_TEXT_COLOR = '#111827';
 const GROUP_CONNECTOR_COLOR = '#2b2b2b';
 
-const GroupConnector: React.FC<{ dashed?: boolean }> = ({ dashed = false }) => (
-  <div
-    aria-hidden
-    style={{
-      width: dashed ? 18 : 16,
-      flexShrink: 0,
-      alignSelf: 'center',
-      borderTop: `3px ${dashed ? 'dotted' : 'solid'} ${GROUP_CONNECTOR_COLOR}`,
-      margin: 0,
-      opacity: 0.95,
-    }}
-  />
-);
+const GroupConnector: React.FC<{ dashed?: boolean; cracking?: boolean; connecting?: boolean }> = ({
+  dashed = false, cracking = false, connecting = false,
+}) => {
+  const w = dashed ? 18 : 16;
+  const half = Math.floor(w / 2);
+  const color = cracking ? '#93c5fd' : connecting ? 'var(--accent)' : GROUP_CONNECTOR_COLOR;
+
+  if (cracking) {
+    // Two halves that pull apart from the midpoint
+    return (
+      <div aria-hidden style={{ width: w, flexShrink: 0, alignSelf: 'center', display: 'flex', alignItems: 'center', height: 3, position: 'relative', overflow: 'visible' }}>
+        <div style={{ width: half, height: 3, background: color, borderRadius: '1px 0 0 1px', transformOrigin: 'right center', animation: 'crack-left 0.5s ease-in-out infinite' }} />
+        <div style={{ width: w - half, height: 3, background: color, borderRadius: '0 1px 1px 0', transformOrigin: 'left center', animation: 'crack-right 0.5s ease-in-out infinite' }} />
+      </div>
+    );
+  }
+
+  if (connecting) {
+    // Grows from left (group side) toward the new tab
+    return (
+      <div aria-hidden style={{ width: w, flexShrink: 0, alignSelf: 'center', height: 3, background: color, borderRadius: 1, transformOrigin: 'left center', animation: 'connect-grow 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards', opacity: 0.9 }} />
+    );
+  }
+
+  return (
+    <div aria-hidden style={{
+      width: w, flexShrink: 0, alignSelf: 'center',
+      borderTop: `3px ${dashed ? 'dotted' : 'solid'} ${color}`,
+      margin: 0, opacity: 0.95,
+    }} />
+  );
+};
 
 const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ menu, onClose }) => {
   const {
@@ -539,7 +558,7 @@ const BrowserGroupContextMenu: React.FC<{ menu: GroupCtxMenu; onClose: () => voi
                   border: selected ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.20)',
                   background: color,
                   boxShadow: selected ? '0 0 0 2px rgba(99, 102, 241, 0.24)' : 'none',
-                  cursor: 'pointer',
+                  cursor: 'default',
                   flexShrink: 0,
                 }}
               />
@@ -573,7 +592,7 @@ const NewTabButton: React.FC<{ openTab: any }> = ({ openTab }) => {
         marginLeft: 8, marginRight: 8, marginTop: 5, marginBottom: 5,
         padding: '0 8px', height: 'calc(100% - 10px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        borderRadius: 6, border: 'none', cursor: 'pointer',
+        borderRadius: 6, border: 'none', cursor: 'default',
         background: pressed ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent',
         color: hovered ? 'var(--text-secondary)' : 'var(--text-muted)',
         transition: 'background 0.1s, color 0.1s',
@@ -598,9 +617,7 @@ const TabItem: React.FC<{
   onContextMenu: (e: React.MouseEvent) => void;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent) => void;
-}> = ({ tab, isActive, icon, groupBadge, grouped, dragging, dropTarget, onSelect, onClose, onContextMenu, onDragStart, onDragEnd, onDragOver, onDrop }) => {
+}> = ({ tab, isActive, icon, groupBadge, grouped, dragging, dropTarget, onSelect, onClose, onContextMenu, onDragStart, onDragEnd }) => {
   const [hovered, setHovered] = useState(false);
   const [closeHovered, setCloseHovered] = useState(false);
   const isBrowserTab = tab.type === 'browser';
@@ -608,7 +625,7 @@ const TabItem: React.FC<{
   const isCollapsedGroup = !!groupBadge?.collapsed;
   const showTitle = !isCollapsedGroup;
   const showGroupBadge = false;
-  const showIcon = !isGroupedTab;
+  const showIcon = true;
   const groupColor = groupBadge?.color ?? null;
   const minWidth = isCollapsedGroup ? 94 : isBrowserTab ? 190 : 118;
   const maxWidth = isCollapsedGroup ? 124 : isBrowserTab ? 300 : 210;
@@ -616,11 +633,10 @@ const TabItem: React.FC<{
 
   return (
     <div
-      draggable={tab.type !== 'terminal' && tab.type !== 'new-tab' && tab.type !== 'claude' && tab.type !== 'codex' && tab.type !== 'pi'}
+      data-tab-id={tab.id}
+      draggable={tab.type !== 'new-tab'}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
       onClick={onSelect}
       onContextMenu={onContextMenu}
       onMouseEnter={() => setHovered(true)}
@@ -635,10 +651,9 @@ const TabItem: React.FC<{
         marginRight: grouped ? 0 : 12,
         display: 'flex',
         alignItems: 'center',
-        cursor: 'pointer',
         border: groupColor ? `2px solid ${groupColor}` : `1px solid var(--border)`,
         borderRadius: 7,
-        transition: 'background 0.1s, color 0.1s, box-shadow 0.1s, border-color 0.1s',
+        transition: 'background 0.1s, color 0.1s, box-shadow 0.1s, border-color 0.1s, opacity 0.12s, transform 0.12s',
         position: 'relative',
         paddingLeft: isCollapsedGroup ? 12 : 14,
         paddingRight,
@@ -659,7 +674,8 @@ const TabItem: React.FC<{
               ? 'var(--bg-hover)'
               : 'var(--bg-primary)',
         color: groupColor ? GROUP_TEXT_COLOR : (isActive ? 'var(--text-primary)' : hovered ? 'var(--text-secondary)' : 'var(--text-muted)'),
-        opacity: dragging ? 0.45 : 1,
+        opacity: dragging ? 0.4 : 1,
+        transform: dragging ? 'scale(0.94)' : 'scale(1)',
         boxShadow: 'none',
         outline: dropTarget && groupBadge ? `1px solid ${groupBadge.color}` : 'none',
         outlineOffset: -1,
@@ -708,7 +724,7 @@ const TabItem: React.FC<{
           background: closeHovered ? (groupColor ? tintHex(groupColor, 0.14) : 'var(--bg-active)') : 'transparent',
           color: closeHovered ? GROUP_TEXT_COLOR : (groupColor ? GROUP_TEXT_COLOR : 'var(--text-muted)'),
           opacity: isBrowserTab ? (closeHovered ? 1 : 0.78) : (isActive ? (closeHovered ? 1 : 0.75) : hovered ? (closeHovered ? 1 : 0.7) : 0),
-          cursor: 'pointer',
+          cursor: 'default',
           transition: 'background 0.1s, color 0.1s, opacity 0.1s',
           position: 'absolute',
           right: 6,
@@ -735,12 +751,16 @@ export const TabBar: React.FC = () => {
     getBrowserGroup,
     toggleBrowserGroupCollapsed,
     moveTabToGroup,
+    reorderTabs,
     createBrowserGroup,
   } = useTabs();
   const [ctxMenu, setCtxMenu] = useState<TabCtxMenu | null>(null);
   const [groupCtxMenu, setGroupCtxMenu] = useState<GroupCtxMenu | null>(null);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const draggedTabIdRef = useRef<string | null>(null);
   const [dropGroupId, setDropGroupId] = useState<string | null>(null);
+  // insertBefore: tab id = show line before that tab, 'end' = after all tabs, null = none
+  const [insertBefore, setInsertBefore] = useState<string | 'end' | null>(null);
 
   const getIcon = (tab: Tab) => {
     switch (tab.type) {
@@ -763,22 +783,24 @@ export const TabBar: React.FC = () => {
   }, []);
 
   const clearDragState = useCallback(() => {
+    draggedTabIdRef.current = null;
     setDraggedTabId(null);
     setDropGroupId(null);
+    setInsertBefore(null);
   }, []);
 
   const getDraggedTabId = useCallback((e: React.DragEvent) => {
-    return e.dataTransfer.getData('application/x-ibsidian-tab-id')
+    return draggedTabIdRef.current
+      || e.dataTransfer.getData('application/x-ibsidian-tab-id')
       || e.dataTransfer.getData('text/plain')
-      || draggedTabId
       || null;
-  }, [draggedTabId]);
+  }, []);
 
   const handleTabDragStart = useCallback((e: React.DragEvent, tab: Tab) => {
-    if (!isGroupableTab(tab)) return;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/x-ibsidian-tab-id', tab.id);
     e.dataTransfer.setData('text/plain', tab.id);
+    draggedTabIdRef.current = tab.id;
     setDraggedTabId(tab.id);
   }, []);
 
@@ -786,29 +808,91 @@ export const TabBar: React.FC = () => {
     clearDragState();
   }, [clearDragState]);
 
-  const handleTabDropToTarget = useCallback((e: React.DragEvent, targetTab: Tab) => {
+  const handleContainerDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    const sourceTabId = getDraggedTabId(e);
-    if (!sourceTabId || sourceTabId === targetTab.id) return;
-    if (!isGroupableTab(targetTab)) return;
+    e.dataTransfer.dropEffect = 'move';
+    const sourceId = draggedTabIdRef.current;
+    if (!sourceId) return;
+    const sourceTab = tabs.find(t => t.id === sourceId);
 
-    const sourceTab = tabs.find(t => t.id === sourceTabId);
-    if (!sourceTab || !isGroupableTab(sourceTab)) return;
+    const tabEl = (e.target as HTMLElement).closest('[data-tab-id]') as HTMLElement | null;
 
-    const targetGroup = getBrowserGroup(targetTab.groupId);
-    if (targetGroup) {
-      moveTabToGroup(sourceTabId, targetGroup.id);
+    if (!tabEl) {
+      // Check if hovering over a group wrapper (connectors, padding, etc.)
+      const groupEl = (e.target as HTMLElement).closest('[data-group-id]') as HTMLElement | null;
+      if (groupEl) {
+        const gId = groupEl.dataset.groupId!;
+        if (sourceTab?.groupId !== gId && isGroupableTab(sourceTab!)) {
+          setDropGroupId(gId);
+          setInsertBefore(null);
+          return;
+        }
+      }
+      setInsertBefore('end');
+      setDropGroupId(null);
+      return;
+    }
+
+    const targetId = tabEl.dataset.tabId!;
+    if (targetId === sourceId) return;
+
+    const targetTab = tabs.find(t => t.id === targetId);
+    const rect = tabEl.getBoundingClientRect();
+    const idx = tabs.findIndex(t => t.id === targetId);
+
+    // Hovering over a grouped tab from a different (or no) group → magnetic group join
+    if (targetTab?.groupId && sourceTab?.groupId !== targetTab.groupId && isGroupableTab(sourceTab!)) {
+      setDropGroupId(targetTab.groupId);
+      setInsertBefore(null);
+    } else {
+      setDropGroupId(null);
+      if (e.clientX < rect.left + rect.width / 2) {
+        setInsertBefore(targetId);
+      } else {
+        const next = tabs[idx + 1];
+        setInsertBefore(next ? next.id : 'end');
+      }
+    }
+  }, [tabs]);
+
+  const handleContainerDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const sourceId = draggedTabIdRef.current;
+    if (!sourceId) { clearDragState(); return; }
+    const sourceTab = tabs.find(t => t.id === sourceId);
+
+    const tabEl = (e.target as HTMLElement).closest('[data-tab-id]') as HTMLElement | null;
+
+    if (!tabEl) {
+      // Drop on group wrapper (connectors, etc.) — add to that group
+      const groupEl = (e.target as HTMLElement).closest('[data-group-id]') as HTMLElement | null;
+      if (groupEl && sourceTab && isGroupableTab(sourceTab)) {
+        const gId = groupEl.dataset.groupId!;
+        if (sourceTab.groupId !== gId) moveTabToGroup(sourceId, gId);
+      }
       clearDragState();
       return;
     }
 
-    const groupName = targetTab.customTitle ?? targetTab.title;
-    const newGroupId = createBrowserGroup(groupName);
-    moveTabToGroup(targetTab.id, newGroupId);
-    moveTabToGroup(sourceTabId, newGroupId);
+    const targetId = tabEl.dataset.tabId!;
+    if (targetId === sourceId) { clearDragState(); return; }
+
+    const targetTab = tabs.find(t => t.id === targetId);
+    if (!sourceTab || !targetTab) { clearDragState(); return; }
+
+    const rect = tabEl.getBoundingClientRect();
+    const position: 'before' | 'after' = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+
+    // Cross-group membership change
+    if (targetTab.groupId && sourceTab.groupId !== targetTab.groupId && isGroupableTab(sourceTab)) {
+      moveTabToGroup(sourceId, targetTab.groupId);
+    } else if (!targetTab.groupId && sourceTab.groupId) {
+      // Drop grouped tab onto ungrouped tab → leave group
+      moveTabToGroup(sourceId, null);
+    }
+    reorderTabs(sourceId, targetId, position);
     clearDragState();
-  }, [clearDragState, createBrowserGroup, getBrowserGroup, getDraggedTabId, moveTabToGroup, tabs]);
+  }, [clearDragState, moveTabToGroup, reorderTabs, tabs]);
 
   const handleGroupDrop = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
@@ -824,8 +908,10 @@ export const TabBar: React.FC = () => {
 
   const handleGroupDragOver = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     setDropGroupId(groupId);
+    setInsertBefore(null);
   }, []);
 
   const browserGroupBadgeForTab = (tab: Tab) => {
@@ -835,33 +921,50 @@ export const TabBar: React.FC = () => {
   };
 
   const renderedGroupIds = new Set<string>();
+  const draggedTab = draggedTabId ? tabs.find(t => t.id === draggedTabId) : null;
+  const draggingFromGroupId = draggedTab?.groupId ?? null;
 
   return (
     <>
       <div style={{ height: 36, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'stretch', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', zIndex: 30, borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', height: '100%', alignItems: 'stretch', paddingLeft: 6 }}>
+        <div
+          style={{ display: 'flex', height: '100%', alignItems: 'stretch', paddingLeft: 6 }}
+          onDragOver={handleContainerDragOver}
+          onDrop={handleContainerDrop}
+        >
           {tabs.map((tab) => {
+            const insertLine = (
+              <div style={{
+                width: insertBefore === tab.id ? 2 : 0,
+                minWidth: insertBefore === tab.id ? 2 : 0,
+                alignSelf: 'stretch', margin: '4px 0',
+                borderRadius: 1, background: 'var(--accent)',
+                transition: 'width 0.08s, min-width 0.08s',
+                flexShrink: 0,
+              }} />
+            );
+
             if (tab.groupId && isGroupableTab(tab)) {
               const group = getBrowserGroup(tab.groupId);
               if (!group) {
                 return (
-                  <TabItem
-                    key={tab.id}
-                    tab={tab}
-                    isActive={activeTabId === tab.id}
-                    icon={getIcon(tab)}
-                    groupBadge={browserGroupBadgeForTab(tab)}
-                    grouped
-                    dragging={draggedTabId === tab.id}
-                    dropTarget={dropGroupId === tab.groupId}
-                    onSelect={() => setActiveTabId(tab.id)}
-                    onContextMenu={(e) => handleContextMenu(e, tab)}
-                    onDragStart={(e) => handleTabDragStart(e, tab)}
-                    onDragEnd={handleTabDragEnd}
-                    onDragOver={(e) => handleTabDropToTarget(e, tab)}
-                    onDrop={(e) => handleTabDropToTarget(e, tab)}
-                    onClose={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                  />
+                  <React.Fragment key={tab.id}>
+                    {insertLine}
+                    <TabItem
+                      tab={tab}
+                      isActive={activeTabId === tab.id}
+                      icon={getIcon(tab)}
+                      groupBadge={browserGroupBadgeForTab(tab)}
+                      grouped
+                      dragging={draggedTabId === tab.id}
+                      dropTarget={false}
+                      onSelect={() => setActiveTabId(tab.id)}
+                      onContextMenu={(e) => handleContextMenu(e, tab)}
+                      onDragStart={(e) => handleTabDragStart(e, tab)}
+                      onDragEnd={handleTabDragEnd}
+                      onClose={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                    />
+                  </React.Fragment>
                 );
               }
 
@@ -869,46 +972,56 @@ export const TabBar: React.FC = () => {
               renderedGroupIds.add(group.id);
               const groupTabs = tabs.filter(t => t.groupId === group.id);
               const isDropTarget = dropGroupId === group.id;
+              const firstTab = groupTabs[0];
+              // Which connector cracks: find the dragged tab's index within this group
+              const crackedIdx = draggingFromGroupId === group.id
+                ? groupTabs.findIndex(t => t.id === draggedTabId)
+                : -1;
               return (
-                <div key={group.id} style={{ display: 'flex', alignItems: 'stretch', marginRight: 12 }}>
-                  <button
-                    onClick={() => toggleBrowserGroupCollapsed(group.id)}
-                    title={group.collapsed ? 'Expand group' : 'Collapse group'}
-                    aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setGroupCtxMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
-                    }}
-                    onDragOver={(e) => handleGroupDragOver(e, group.id)}
-                    onDragLeave={() => setDropGroupId(null)}
-                    onDrop={(e) => handleGroupDrop(e, group.id)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      margin: '4px 0 4px 0',
-                    marginRight: group.collapsed ? 12 : 0,
-                      padding: '0 18px',
-                      height: 'calc(100% - 8px)',
-                      borderRadius: 7,
-                      border: `2px solid ${group.color}`,
-                      background: group.collapsed
-                        ? tintHex(group.color, 0.22)
-                        : isDropTarget
-                          ? tintHex(group.color, 0.22)
-                          : tintHex(group.color, 0.24),
-                      color: GROUP_TEXT_COLOR,
-                      cursor: 'pointer',
-                      boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.04)',
-                      transition: 'box-shadow 0.12s, border-color 0.12s, background 0.12s, transform 0.12s',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{ fontWeight: 700, fontSize: 13, lineHeight: 1, letterSpacing: '0.01em' }}>{group.name}</span>
-                  </button>
-                  {!group.collapsed && groupTabs.length > 0 && (
-                    <>
-                      <GroupConnector dashed />
+                <React.Fragment key={group.id}>
+                  {firstTab && insertBefore === firstTab.id && (
+                    <div style={{ width: 2, alignSelf: 'stretch', margin: '4px 0', borderRadius: 1, background: 'var(--accent)', flexShrink: 0 }} />
+                  )}
+                  <div data-group-id={group.id} style={{ display: 'flex', alignItems: 'stretch', marginRight: 12 }}>
+                    <button
+                      onClick={() => toggleBrowserGroupCollapsed(group.id)}
+                      title={group.collapsed ? 'Expand group' : 'Collapse group'}
+                      aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setGroupCtxMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
+                      }}
+                      onDragOver={(e) => handleGroupDragOver(e, group.id)}
+                      onDragLeave={() => setDropGroupId(null)}
+                      onDrop={(e) => handleGroupDrop(e, group.id)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        margin: '4px 0 4px 0', marginRight: group.collapsed ? 12 : 0,
+                        padding: '0 18px', height: 'calc(100% - 8px)', borderRadius: 7,
+                        border: `2px solid ${group.color}`,
+                        background: isDropTarget
+                          ? tintHex(group.color, 0.38)
+                          : tintHex(group.color, group.collapsed ? 0.22 : 0.24),
+                        color: GROUP_TEXT_COLOR, cursor: 'default',
+                        boxShadow: isDropTarget ? `0 0 0 3px ${tintHex(group.color, 0.4)}` : '0 0 0 1px rgba(0,0,0,0.04)',
+                        transform: isDropTarget ? 'scale(1.04)' : 'scale(1)',
+                        transition: 'box-shadow 0.12s, background 0.12s, transform 0.12s, margin-right 0.2s ease',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: 13, lineHeight: 1, letterSpacing: '0.01em' }}>{group.name}</span>
+                    </button>
+                    {/* Always mounted — animated with max-width + opacity for smooth collapse/expand */}
+                    <div style={{
+                      display: 'flex', alignItems: 'stretch',
+                      maxWidth: group.collapsed ? 0 : 3000,
+                      overflow: 'hidden',
+                      opacity: group.collapsed ? 0 : 1,
+                      pointerEvents: group.collapsed ? 'none' : undefined,
+                      transition: 'max-width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease',
+                    }}>
+                      {/* connecting line grows from group toward incoming tab */}
+                      <GroupConnector dashed cracking={crackedIdx === 0} connecting={isDropTarget && crackedIdx === -1} />
                       {groupTabs.map((groupTab, index) => (
                         <React.Fragment key={groupTab.id}>
                           <TabItem
@@ -923,39 +1036,43 @@ export const TabBar: React.FC = () => {
                             onContextMenu={(e) => handleContextMenu(e, groupTab)}
                             onDragStart={(e) => handleTabDragStart(e, groupTab)}
                             onDragEnd={handleTabDragEnd}
-                            onDragOver={(e) => handleTabDropToTarget(e, groupTab)}
-                            onDrop={(e) => handleTabDropToTarget(e, groupTab)}
                             onClose={(e) => { e.stopPropagation(); closeTab(groupTab.id); }}
                           />
-                          {index < groupTabs.length - 1 && <GroupConnector />}
+                          {index < groupTabs.length - 1 && (
+                            <GroupConnector cracking={crackedIdx === index + 1} />
+                          )}
                         </React.Fragment>
                       ))}
-                    </>
-                  )}
-                </div>
+                      {/* extra connecting line at the end when dropping into group */}
+                      {isDropTarget && crackedIdx === -1 && <GroupConnector connecting />}
+                    </div>
+                  </div>
+                </React.Fragment>
               );
             }
 
             return (
-              <TabItem
-                key={tab.id}
-                tab={tab}
-                isActive={activeTabId === tab.id}
-                icon={getIcon(tab)}
-                groupBadge={browserGroupBadgeForTab(tab)}
-                grouped={false}
-                dragging={draggedTabId === tab.id}
-                dropTarget={dropGroupId === tab.groupId}
-                onSelect={() => setActiveTabId(tab.id)}
-                onContextMenu={(e) => handleContextMenu(e, tab)}
-                onDragStart={(e) => handleTabDragStart(e, tab)}
-                onDragEnd={handleTabDragEnd}
-                onDragOver={(e) => handleTabDropToTarget(e, tab)}
-                onDrop={(e) => handleTabDropToTarget(e, tab)}
-                onClose={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-              />
+              <React.Fragment key={tab.id}>
+                {insertLine}
+                <TabItem
+                  tab={tab}
+                  isActive={activeTabId === tab.id}
+                  icon={getIcon(tab)}
+                  groupBadge={browserGroupBadgeForTab(tab)}
+                  grouped={false}
+                  dragging={draggedTabId === tab.id}
+                  dropTarget={false}
+                  onSelect={() => setActiveTabId(tab.id)}
+                  onContextMenu={(e) => handleContextMenu(e, tab)}
+                  onDragStart={(e) => handleTabDragStart(e, tab)}
+                  onDragEnd={handleTabDragEnd}
+                  onClose={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                />
+              </React.Fragment>
             );
           })}
+          {/* trailing insert line when dragging past all tabs */}
+          <div style={{ width: insertBefore === 'end' ? 2 : 0, minWidth: insertBefore === 'end' ? 2 : 0, alignSelf: 'stretch', margin: '4px 0', borderRadius: 1, background: 'var(--accent)', flexShrink: 0, transition: 'width 0.08s, min-width 0.08s' }} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', marginLeft: 2, paddingLeft: 2 }}>

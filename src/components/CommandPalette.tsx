@@ -100,7 +100,7 @@ export const CommandPalette: React.FC = () => {
           />
           <button
             onClick={close}
-            style={{ flexShrink: 0, margin: '0 12px', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+            style={{ flexShrink: 0, margin: '0 12px', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--text-muted)', cursor: 'default', border: 'none' }}
           >
             <X size={14} color="var(--bg-primary)" />
           </button>
@@ -113,7 +113,7 @@ export const CommandPalette: React.FC = () => {
               key={cmd.label}
               onMouseEnter={() => setSelectedIndex(i)}
               onClick={() => run(i)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20, paddingRight: 20, paddingTop: 14, paddingBottom: 14, cursor: 'pointer', background: i === selectedIndex ? 'var(--bg-hover)' : 'transparent' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20, paddingRight: 20, paddingTop: 14, paddingBottom: 14, cursor: 'default', background: i === selectedIndex ? 'var(--bg-hover)' : 'transparent' }}
             >
               <span style={{ fontSize: 15, color: 'var(--text-primary)' }}>{cmd.label}</span>
               {cmd.shortcut && (

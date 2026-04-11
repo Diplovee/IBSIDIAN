@@ -52,7 +52,7 @@ const SidebarBtn: React.FC<{ icon: React.ReactNode; title: string; onClick?: () 
   return (
     <button onClick={onClick} title={title}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: 'none', cursor: 'pointer', background: active ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: active || hovered ? 'var(--text-primary)' : 'var(--text-muted)', transition: 'background 0.1s, color 0.1s' }}
+      style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: 'none', cursor: 'default', background: active ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: active || hovered ? 'var(--text-primary)' : 'var(--text-muted)', transition: 'background 0.1s, color 0.1s' }}
     >{icon}</button>
   );
 };
@@ -270,7 +270,7 @@ const FileTreeView: React.FC = () => {
               <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12, lineHeight: 1.5 }}>{error}</p>
               <button
                 onClick={() => refreshFileTree()}
-                style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: '1px solid var(--accent)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}
+                style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: '1px solid var(--accent)', borderRadius: 6, padding: '4px 12px', cursor: 'default' }}
               >
                 Retry
               </button>
@@ -353,7 +353,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   return (
     <div
       ref={dragHandle}
-      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none', position: 'relative', boxSizing: 'border-box' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'default', userSelect: 'none', position: 'relative', boxSizing: 'border-box' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={(e) => handleTreeNodeClick(node, e)}
@@ -429,7 +429,7 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
   return (
     <div
       ref={dragHandle}
-      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none', boxSizing: 'border-box' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'default', userSelect: 'none', boxSizing: 'border-box' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={(e) => handleTreeNodeClick(node, e)}
@@ -473,14 +473,14 @@ const SearchView: React.FC = () => {
           <button
             onClick={() => setCaseSensitive(v => !v)}
             title="Match case"
-            style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '0 4px', borderRadius: 4, border: 'none', cursor: 'pointer', background: caseSensitive ? 'var(--accent-soft)' : 'transparent', color: caseSensitive ? 'var(--accent)' : 'var(--text-muted)' }}
+            style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '0 4px', borderRadius: 4, border: 'none', cursor: 'default', background: caseSensitive ? 'var(--accent-soft)' : 'transparent', color: caseSensitive ? 'var(--accent)' : 'var(--text-muted)' }}
           >
             Aa
           </button>
         </div>
         <button
           title="Search filters"
-          style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+          style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'default', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
         >
           <SlidersHorizontal size={16} />
         </button>

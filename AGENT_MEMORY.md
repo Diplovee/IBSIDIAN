@@ -33,6 +33,7 @@
 | 2026-04-11 | src/components/Canvas.tsx | Modified | Wired browser favicon capture (`page-favicon-updated`) with fast domain fallback |
 | 2026-04-11 | src/components/TabBar.tsx | Modified | Added second-stage favicon fallback to `${origin}/favicon.ico` before globe fallback |
 | 2026-04-11 | src/components/Canvas.tsx | Modified | Added in-memory origin-based favicon cache so reopened/switched website tabs reuse known icons instantly |
+| 2026-04-11 | src/components/TabBar.tsx | Modified | Made browser tabs wider with reserved close-button space and fade-out title edge instead of hard ellipsis |
 | 2026-04-11 | README.md | Modified | Documented cross-editor tab grouping and favicon-aware browser tabs |
 | 2026-04-11 | CHANGELOG.md | Modified | Added 2026.5.9 release notes for generic grouping and favicon reliability |
 | 2026-04-11 | public/changelog.txt | Modified | Synced public release notes with 2026.5.9 entry |

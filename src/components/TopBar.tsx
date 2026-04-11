@@ -28,7 +28,7 @@ export const TopBar: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           onClick={() => setSidebarCollapsed(!isSidebarCollapsed)}
-          style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
+          style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'default', transition: 'background 0.15s, color 0.15s' }}
         >
           <Sidebar size={16} />
         </button>
