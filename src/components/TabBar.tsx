@@ -33,6 +33,8 @@ const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string }> = 
   const [iconSrc, setIconSrc] = useState<string | undefined>(faviconUrl);
   const [triedIcoFallback, setTriedIcoFallback] = useState(false);
 
+  const isNewTab = !pageUrl || pageUrl === 'about:blank' || pageUrl === 'chrome://newtab';
+
   useEffect(() => {
     setLoadFailed(false);
     setTriedIcoFallback(false);
@@ -40,7 +42,7 @@ const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string }> = 
   }, [faviconUrl]);
 
   const handleError = () => {
-    if (!triedIcoFallback && pageUrl) {
+    if (!triedIcoFallback && pageUrl && !isNewTab) {
       try {
         const origin = new URL(pageUrl).origin;
         const icoFallback = `${origin}/favicon.ico`;
@@ -56,7 +58,7 @@ const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string }> = 
     setLoadFailed(true);
   };
 
-  if (!iconSrc || loadFailed) return <Globe size={14} />;
+  if (isNewTab || !iconSrc || loadFailed) return <Globe size={14} />;
 
   return (
     <img

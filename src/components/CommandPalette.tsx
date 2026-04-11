@@ -23,7 +23,7 @@ export const CommandPalette: React.FC = () => {
       });
     }},
     { label: 'New Folder', shortcut: 'F', action: () => createFolderRemote('', 'New Folder').then(() => refreshFileTree(undefined, { showLoading: false })) },
-    { label: 'Open Browser',   shortcut: 'B', action: () => openTab({ type: 'browser', title: 'New Tab', url: 'chrome://newtab', groupId: '' }) },
+    { label: 'Open Browser',   shortcut: 'B', action: () => openTab({ type: 'browser', title: 'New Tab', url: 'about:blank', groupId: '' }) },
     { label: 'Open Drawing',   shortcut: 'D', action: () => {
       const name = nextUntitledName();
       createFileRemote('', name, 'excalidraw').then(() => {

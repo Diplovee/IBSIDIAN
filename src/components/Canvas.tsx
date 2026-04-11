@@ -1194,11 +1194,9 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
 // ── Browser tab ──────────────────────────────────────────────────────
 
-const DEFAULT_BROWSER_URL = 'chrome://newtab';
-
 const resolveBrowserUrl = (target: string) => {
   const trimmed = target.trim();
-  if (!trimmed) return DEFAULT_BROWSER_URL;
+  if (!trimmed) return '';
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return trimmed;
   if (trimmed.startsWith('//')) return `https:${trimmed}`;
 
@@ -1256,14 +1254,61 @@ const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
 
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
-  const { updateTabTitle, updateTabUrl, updateTabFavicon } = useTabs();
+  const { updateTabTitle, updateTabUrl, updateTabFavicon, openTab } = useTabs();
   const { theme } = useActivity();
   const bgColor = theme === 'dark' ? '#1e1e1e' : '#ffffff';
-  const [inputUrl, setInputUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
-  const [currentUrl, setCurrentUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
+  const textColor = theme === 'dark' ? '#ffffff' : '#1e1e1e';
+  const dimColor = theme === 'dark' ? '#a3a3a3' : '#737373';
+  const isNewTab = !tab.url || tab.url === 'about:blank' || tab.url === 'chrome://newtab';
+  const [inputUrl, setInputUrl] = useState('');
+  const [currentUrl, setCurrentUrl] = useState('');
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [clock, setClock] = useState('00:00');
+  const [greeting, setGreeting] = useState('Good evening');
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; url: string } | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, url: string) => {
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY, url });
+  };
+
+  useEffect(() => {
+    const handleClick = () => setCtxMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      setClock(`${h}:${m}`);
+      const hour = now.getHours();
+      let greet = 'Good evening';
+      if (hour < 12) greet = 'Good morning';
+      else if (hour < 18) greet = 'Good afternoon';
+      setGreeting(`${greet}, explorer`);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const query = inputUrl.trim();
+    if (!query) return;
+    const urlPattern = /^(https?:\/\/)?([\w\d-]+\.)+[\w-]+(\/.*)?$/i;
+    if (urlPattern.test(query)) {
+      const dest = query.startsWith('http') ? query : `https://${query}`;
+      navigate(dest);
+    } else {
+      navigate(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
+    }
+  };
 
   // Stable refs so event handlers never go stale and the effect runs once
   const currentUrlRef = useRef(currentUrl);
@@ -1298,14 +1343,16 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   };
 
   useEffect(() => {
-    const nextUrl = tab.url || DEFAULT_BROWSER_URL;
-    setInputUrl(nextUrl);
+    const nextUrl = tab.url || '';
+    setInputUrl(isNewTab ? '' : nextUrl);
     setCurrentUrl(nextUrl);
     if (!tab.url) updateTabUrl(tab.id, nextUrl);
     if (tab.faviconUrl) {
       cacheBrowserFavicon(nextUrl, tab.faviconUrl);
-    } else {
+    } else if (nextUrl) {
       updateTabFavicon(tab.id, getBrowserFaviconForUrl(nextUrl));
+    } else {
+      updateTabFavicon(tab.id, '');
     }
   }, [tab.faviconUrl, tab.id, tab.url, updateTabFavicon, updateTabUrl]);
 
@@ -1379,7 +1426,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     try { webviewRef.current?.setBackgroundColor?.(bgColor); } catch {}
   }, [bgColor]);
 
-  const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNode) => (
+const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNode) => (
     <button
       onClick={onClick}
       disabled={disabled}
@@ -1388,13 +1435,133 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
         borderRadius: 4, border: 'none', background: 'transparent',
         color: disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
         cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.35 : 1,
-        transition: 'opacity 0.1s, color 0.1s',
+        opacity: disabled ? 0.4 : 1,
       }}
     >
       {children}
     </button>
   );
+
+  if (isNewTab) {
+    const shortcuts = [
+      { label: 'GitHub', url: 'https://github.com', icon: 'G' },
+      { label: 'YouTube', url: 'https://youtube.com', icon: 'Y' },
+      { label: 'Reddit', url: 'https://reddit.com', icon: 'R' },
+      { label: 'Notion', url: 'https://notion.so', icon: 'N' },
+    ];
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+        <div style={{ height: 36, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {navBtn(true, () => {}, <ArrowLeft size={14} />)}
+            {navBtn(true, () => {}, <ArrowRight size={14} />)}
+            {navBtn(false, () => {}, <RefreshCw size={14} />)}
+          </div>
+          <form onSubmit={handleSearch} style={{ flex: 1 }}>
+            <div style={{ width: '100%', height: 28, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 9999, padding: '0 12px' }}>
+              <span style={{ fontSize: 16, fontWeight: 500, color: '#4285f4', flexShrink: 0 }}>G</span>
+              <input
+                type="text"
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder="Search the web or enter URL..."
+                style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+              />
+            </div>
+          </form>
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          <div style={{ fontSize: '5rem', fontWeight: 300, letterSpacing: '-2px', marginBottom: 8, color: textColor }}>{clock}</div>
+          <div style={{ fontSize: '1.5rem', color: dimColor, marginBottom: 40, fontWeight: 400 }}>{greeting}</div>
+          <form onSubmit={handleSearch} style={{ width: '100%', maxWidth: 600, padding: '0 20px', zIndex: 10 }}>
+            <div style={{
+              width: '100%', padding: '4px 4px 4px 16px', borderRadius: 24,
+              background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+              border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+              display: 'flex', alignItems: 'center',
+            }}>
+              <input
+                type="text"
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder="Search the web or enter URL..."
+                style={{
+                  flex: 1, background: 'transparent', border: 'none', padding: '12px 0',
+                  fontSize: '1rem', color: textColor, outline: 'none',
+                }}
+                autoFocus
+              />
+              <button type="submit" style={{
+                width: 36, height: 36, borderRadius: 18, border: 'none',
+                background: '#4285f4', color: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+              </button>
+            </div>
+          </form>
+          <div style={{ marginTop: 48, display: 'flex', gap: 24 }}>
+            {shortcuts.map(s => (
+              <button
+                key={s.url}
+                onClick={() => navigate(s.url)}
+                onContextMenu={(e) => handleContextMenu(e, s.url)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  textDecoration: 'none', color: dimColor,
+                  transition: 'transform 0.2s, color 0.2s', cursor: 'pointer',
+                  background: 'transparent', border: 'none',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.color = textColor; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.color = dimColor; }}
+              >
+                <div style={{
+                  width: 48, height: 48,
+                  background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                  border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                  borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 8, fontSize: '1.2rem', color: textColor,
+                }}>{s.icon}</div>
+                <span style={{ fontSize: '0.75rem' }}>{s.label}</span>
+              </button>
+            ))}
+          </div>
+          {ctxMenu && (
+            <div style={{
+              position: 'fixed', left: ctxMenu.x, top: ctxMenu.y,
+              background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+              borderRadius: 6, boxShadow: 'var(--shadow-md)', zIndex: 1000,
+              padding: '4px 0', minWidth: 160,
+            }}>
+              <button
+                onClick={() => { navigate(ctxMenu.url); setCtxMenu(null); }}
+                style={{
+                  display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
+                  background: 'transparent', border: 'none', fontSize: 13,
+                  color: 'var(--text-primary)', cursor: 'pointer',
+                }}
+              >
+                Open in this tab
+              </button>
+              <button
+                onClick={() => { openTab({ type: 'browser', title: 'New Tab', url: ctxMenu.url, groupId: '' }); setCtxMenu(null); }}
+                style={{
+                  display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
+                  background: 'transparent', border: 'none', fontSize: 13,
+                  color: 'var(--text-primary)', cursor: 'pointer',
+                }}
+              >
+                Open in new tab
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>

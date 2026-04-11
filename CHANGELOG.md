@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.10] - 2026-04-12
+
+### Added
+- Browser new tab page with clock, greeting, and search bar matching app theme
+- Context menu on browser shortcuts to open in new tab
+
+### Changed
+- Browser tabs now use empty URL instead of chrome://newtab or about:blank
+- Browser shortcuts open internally in the webview instead of external browser
+
 ## [2026.5.9] - 2026-04-11
 
 ### Added
