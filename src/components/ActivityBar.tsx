@@ -22,7 +22,7 @@ export const ActivityBar: React.FC = () => {
   const agents = settings.agents ?? { claude: true, codex: true, pi: true, order: ['claude', 'codex', 'pi'] as AgentKey[] };
   const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi'];
 
-  const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' });
+  const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'chrome://newtab', groupId: '' });
   const handleOpenDraw = () => {
     const name = nextUntitledName();
     createFileRemote('', name, 'excalidraw').then(() => {

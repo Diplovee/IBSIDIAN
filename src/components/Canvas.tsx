@@ -1194,13 +1194,23 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
 // ── Browser tab ──────────────────────────────────────────────────────
 
-const DEFAULT_BROWSER_URL = 'https://www.google.com';
+const DEFAULT_BROWSER_URL = 'chrome://newtab';
 
 const resolveBrowserUrl = (target: string) => {
   const trimmed = target.trim();
   if (!trimmed) return DEFAULT_BROWSER_URL;
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+
+  const hasWhitespace = /\s/.test(trimmed);
+  const looksLikeLocalhost = /^localhost(?::\d+)?(?:[/?#].*)?$/i.test(trimmed);
+  const looksLikeIPv4 = /^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:[/?#].*)?$/.test(trimmed);
+  const looksLikeDomain = /^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+(?::\d+)?(?:[/?#].*)?$/.test(trimmed);
+
+  if (!hasWhitespace && (looksLikeLocalhost || looksLikeIPv4)) return `http://${trimmed}`;
+  if (!hasWhitespace && looksLikeDomain) return `https://${trimmed}`;
+
+  return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
 };
 
 const deriveBrowserTitle = (url: string) => {
@@ -1398,12 +1408,16 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
           )}
         </div>
         <form onSubmit={handleNavigate} style={{ flex: 1 }}>
-          <input
-            type="text"
-            value={inputUrl}
-            onChange={(e) => setInputUrl(e.target.value)}
-            style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 9999, padding: '2px 16px', fontSize: 12, color: 'var(--text-primary)', transition: 'border-color 0.15s' }}
-          />
+          <div style={{ width: '100%', height: 28, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 9999, padding: '0 12px' }}>
+            <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <input
+              type="text"
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              placeholder="Search Google or type a URL"
+              style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+            />
+          </div>
         </form>
       </div>
       {/* @ts-ignore - webview is an Electron-specific tag */}

@@ -754,6 +754,36 @@ export const TabBar: React.FC = () => {
   const [dropGroupId, setDropGroupId] = useState<string | null>(null);
   // insertBefore: tab id = show line before that tab, 'end' = after all tabs, null = none
   const [insertBefore, setInsertBefore] = useState<string | 'end' | null>(null);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activeTabId) return;
+    const strip = tabStripRef.current;
+    if (!strip) return;
+
+    const activeTab = tabs.find(tab => tab.id === activeTabId);
+    if (!activeTab) return;
+
+    const activeIndex = tabs.findIndex(tab => tab.id === activeTabId);
+    if (activeIndex === tabs.length - 1) {
+      strip.scrollTo({ left: strip.scrollWidth, behavior: 'smooth' });
+      return;
+    }
+
+    const tabEl = strip.querySelector(`[data-tab-id="${activeTabId}"]`) as HTMLElement | null;
+    const groupEl = activeTab.groupId
+      ? strip.querySelector(`[data-group-id="${activeTab.groupId}"]`) as HTMLElement | null
+      : null;
+    const target = tabEl ?? groupEl;
+    if (!target) return;
+
+    const stripRect = strip.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const isOutOfView = targetRect.left < stripRect.left || targetRect.right > stripRect.right;
+    if (isOutOfView) {
+      target.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }
+  }, [activeTabId, tabs, browserGroups]);
 
   const getIcon = (tab: Tab) => {
     switch (tab.type) {
@@ -919,7 +949,7 @@ export const TabBar: React.FC = () => {
 
   return (
     <>
-      <div style={{ height: 36, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'stretch', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', zIndex: 30, borderBottom: '1px solid var(--border)' }}>
+      <div ref={tabStripRef} style={{ height: 36, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'stretch', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', zIndex: 30, borderBottom: '1px solid var(--border)' }}>
         <div
           style={{ display: 'flex', height: '100%', alignItems: 'stretch', paddingLeft: 6 }}
           onDragOver={handleContainerDragOver}
