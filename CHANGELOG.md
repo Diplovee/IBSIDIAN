@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.5] - 2026-04-09
+
+### Added
+- Settings now show app version and an About section
+- A changelog button in Settings opens the project changelog in a modal
+- Image attachments now open in dedicated image tabs with image file icons in the sidebar and tab bar
+
+### Changed
+- Pasted image attachments hide their file extensions in the file tree like notes and drawings
+- Settings modal now includes release information directly instead of only theme controls
+- Excalidraw now loads its bundled font assets from the app's local `public/excalidraw` directory instead of the hosted CDN
+
+### Fixed
+- Pasted image attachments no longer open as Excalidraw files
+- Local image attachments render through Electron-safe data URLs instead of blocked `file://` paths
+- Image attachments preview correctly when opened from the sidebar after an app restart
+- Opening or creating `.excalidraw` files no longer leaves the sidebar file tree stuck in a loading loop
+- Draw tabs no longer immediately resave unchanged scenes when a drawing is opened
+
 ## [2026.5.4] - 2026-04-09
 
 ### Added

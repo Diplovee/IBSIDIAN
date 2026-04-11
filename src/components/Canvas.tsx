@@ -1276,6 +1276,7 @@ const DRAW_SAVE_DEBOUNCE_MS = 400;
 const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
   const { readFile, writeFile } = useVault();
   const saveTimerRef = useRef<number | null>(null);
+  const lastSerializedRef = useRef<string>('');
   const [initialData, setInitialData] = useState<ExcalidrawSceneFile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -1288,6 +1289,7 @@ const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    lastSerializedRef.current = '';
 
     if (!tab.filePath) {
       setInitialData(null);
@@ -1307,6 +1309,12 @@ const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
       .then(content => {
         if (cancelled) return;
         const { scene, wasRecovered } = parseExcalidrawFileContent(content);
+        lastSerializedRef.current = serializeAsJSON(
+          scene.elements as never[],
+          scene.appState,
+          scene.files as never,
+          'local'
+        );
         setInitialData(scene);
         setNotice(wasRecovered ? 'This drawing file was invalid or legacy data, so Ibsidian opened a blank scene. Saving will replace it with a valid .excalidraw document.' : '');
         setIsLoading(false);
@@ -1329,10 +1337,14 @@ const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
 
   const scheduleSave = useCallback((serialized: string) => {
     if (!tab.filePath) return;
+    if (serialized === lastSerializedRef.current) return;
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
       writeFile(tab.filePath!, serialized)
-        .then(() => setSaveError(''))
+        .then(() => {
+          lastSerializedRef.current = serialized;
+          setSaveError('');
+        })
         .catch(err => setSaveError(err instanceof Error ? err.message : String(err)));
     }, DRAW_SAVE_DEBOUNCE_MS);
   }, [tab.filePath, writeFile]);

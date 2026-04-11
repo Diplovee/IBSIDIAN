@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { AppSettings } from '../src/types'
 
 contextBridge.exposeInMainWorld('api', {
   vault: {
@@ -14,6 +15,12 @@ contextBridge.exposeInMainWorld('api', {
   app: {
     homeDir: () => ipcRenderer.invoke('app:home-dir'),
   },
+  settings: {
+    load: (): Promise<AppSettings> =>
+      ipcRenderer.invoke('settings:load'),
+    save: (settings: AppSettings): Promise<AppSettings> =>
+      ipcRenderer.invoke('settings:save', settings),
+  },
 
   files: {
     tree: () =>
@@ -22,12 +29,23 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('files:read', path),
     write: (path: string, content: string) =>
       ipcRenderer.invoke('files:write', path, content),
+    writeBinary: (path: string, base64: string) =>
+      ipcRenderer.invoke('files:write-binary', path, base64),
     create: (path: string, type: 'file' | 'directory', content?: string) =>
       ipcRenderer.invoke('files:create', path, type, content),
     delete: (path: string) =>
       ipcRenderer.invoke('files:delete', path),
     rename: (oldPath: string, newPath: string) =>
       ipcRenderer.invoke('files:rename', oldPath, newPath),
+    url: (path: string) =>
+      ipcRenderer.invoke('files:url', path),
+    dataUrl: (path: string) =>
+      ipcRenderer.invoke('files:data-url', path),
+    onChange: (cb: (evt: { event: string; path: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, payload: { event: string; path: string }) => cb(payload)
+      ipcRenderer.on('files:changed', handler)
+      return () => ipcRenderer.removeListener('files:changed', handler)
+    },
   },
 
   terminal: {

@@ -1,7 +1,10 @@
 export {}
 
+import type { AppSettings } from '../types'
+
 declare global {
   interface Window {
+    EXCALIDRAW_ASSET_PATH?: string | string[]
     api: {
       vault: {
         selectFolder: () => Promise<string | null>
@@ -12,13 +15,21 @@ declare global {
       app: {
         homeDir: () => Promise<string>
       }
+      settings: {
+        load: () => Promise<AppSettings>
+        save: (settings: AppSettings) => Promise<AppSettings>
+      }
       files: {
         tree: () => Promise<FileNode>
         read: (path: string) => Promise<string>
         write: (path: string, content: string) => Promise<void>
+        writeBinary: (path: string, base64: string) => Promise<void>
         create: (path: string, type: 'file' | 'directory', content?: string) => Promise<void>
         delete: (path: string) => Promise<void>
         rename: (oldPath: string, newPath: string) => Promise<void>
+        url: (path: string) => Promise<string>
+        dataUrl: (path: string) => Promise<string>
+        onChange: (cb: (event: FileChangeEvent) => void) => () => void
       }
       terminal: {
         create: (cols: number, rows: number) => Promise<string>
@@ -37,5 +48,10 @@ declare global {
     isDirectory: boolean
     children?: FileNode[]
     content?: string
+  }
+
+  type FileChangeEvent = {
+    event: 'add' | 'addDir' | 'unlink' | 'unlinkDir' | 'change'
+    path: string
   }
 }

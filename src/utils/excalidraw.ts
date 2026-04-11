@@ -1,6 +1,6 @@
 import type { ExcalidrawSceneFile } from '../types';
 
-export const IBSIDIAN_EXCALIDRAW_SOURCE = 'https://ibsidian.app/excalidraw';
+export const IBSIDIAN_EXCALIDRAW_SOURCE = 'ibsidian://excalidraw';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return !!value && typeof value === 'object' && !Array.isArray(value);

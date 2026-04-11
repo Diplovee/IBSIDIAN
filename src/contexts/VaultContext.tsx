@@ -45,7 +45,7 @@ interface VaultContextType {
   // Vault management
   setActiveVault: (vault: Vault) => void;
   clearActiveVault: () => void;
-  refreshFileTree: (vaultOverride?: Vault) => Promise<void>;
+  refreshFileTree: (vaultOverride?: Vault, options?: { showLoading?: boolean }) => Promise<void>;
   
   // File operations
   getFileTree: () => Promise<FileNode | null>;
@@ -70,6 +70,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const untitledCounter = useRef(0);
+  const openedVaultKeyRef = useRef<string | null>(null);
   
   // Load last opened vault from main-process config file
   useEffect(() => {
@@ -87,6 +88,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setError(null);
     setVault(null);
     setNodes([]);
+    openedVaultKeyRef.current = null;
   }, []);
 
   const convertToVaultNodes = useCallback((fileNode: FileNode): VaultNode => {
@@ -101,14 +103,19 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  const refreshFileTree = useCallback(async (vaultOverride?: Vault) => {
+  const refreshFileTree = useCallback(async (vaultOverride?: Vault, options?: { showLoading?: boolean }) => {
     const activeVault = vaultOverride ?? vault;
     if (!activeVault) return;
+    const showLoading = options?.showLoading ?? true;
+    const vaultKey = `${activeVault.id}:${activeVault.path}`;
 
     try {
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       setError(null);
-      await window.api.vault.open(activeVault);
+      if (openedVaultKeyRef.current !== vaultKey) {
+        await window.api.vault.open(activeVault);
+        openedVaultKeyRef.current = vaultKey;
+      }
       const data = await window.api.files.tree();
       const root = convertToVaultNodes(data);
       setNodes(root.children || []);
@@ -117,7 +124,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error(message);
       setError(message);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, [vault, convertToVaultNodes]);
 
@@ -136,7 +143,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!vault) return;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        refreshFileTree().catch(() => {});
+        refreshFileTree(undefined, { showLoading: false }).catch(() => {});
         debounceTimer = null;
       }, 200);
     };

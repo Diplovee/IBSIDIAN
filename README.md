@@ -27,8 +27,8 @@ Features
 * File Tree          — browse, create, rename, and delete notes and folders
 * Markdown Editor    — CodeMirror 6 with automatic live preview while typing
 * Enhanced Markdown  — Markdown Guide basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
-* Settings Modal     — theme and appearance controls in a command-palette-style modal
-* Drawing Canvas     — visual notes via Excalidraw
+* Settings Modal     — theme, version, about, and changelog access in a command-palette-style modal
+* Drawing Canvas     — visual notes via Excalidraw with locally served editor assets
 * Browser Tab        — built-in web browser
 * Terminal           — real PTY shell starting in your vault root
 * Command Palette    — Ctrl+K for quick access to all commands
@@ -65,6 +65,13 @@ Documentation
 -------------
 
 * Markdown Guide support: `docs/markdown-basic-syntax.md`
+* Release notes: `CHANGELOG.md`
+
+Notes
+-----
+
+* Excalidraw font assets are served from `public/excalidraw/fonts` and synced from `@excalidraw/excalidraw` via `bun run sync:excalidraw-assets`
+* Opening or autosaving drawing files refreshes the sidebar in the background without replacing the file tree with a full loading state
 
 Project Structure
 -----------------

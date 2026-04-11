@@ -5,9 +5,10 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "sync:excalidraw-assets": "node scripts/sync-excalidraw-assets.mjs",
+    "dev": "bun run sync:excalidraw-assets && electron-vite dev",
+    "build": "bun run sync:excalidraw-assets && electron-vite build",
+    "preview": "bun run sync:excalidraw-assets && electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "clean": "rm -rf out dist",
     "lint": "tsc --noEmit"

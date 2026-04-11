@@ -8,6 +8,7 @@ interface TabsContextType {
   closeTab: (id: string) => void;
   setActiveTabId: (id: string) => void;
   updateTabTitle: (id: string, title: string) => void;
+  updateTabFilePath: (id: string, filePath: string) => void;
 }
 
 const TabsContext = createContext<TabsContextType | undefined>(undefined);
@@ -48,8 +49,12 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTabs(prev => prev.map(t => t.id === id ? { ...t, title } : t));
   }, []);
 
+  const updateTabFilePath = useCallback((id: string, filePath: string) => {
+    setTabs(prev => prev.map(t => t.id === id ? { ...t, filePath } : t));
+  }, []);
+
   return (
-    <TabsContext.Provider value={{ tabs, activeTabId, openTab, closeTab, setActiveTabId, updateTabTitle }}>
+    <TabsContext.Provider value={{ tabs, activeTabId, openTab, closeTab, setActiveTabId, updateTabTitle, updateTabFilePath }}>
       {children}
     </TabsContext.Provider>
   );

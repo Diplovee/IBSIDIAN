@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Tree } from 'react-arborist';
 import {
-  Folder, FileText, ChevronRight, ChevronDown, FolderPlus,
-  Search as SearchIcon, Sun, Moon, FilePen, ArrowUpNarrowWide, LayoutList,
+  Folder, FileText, FolderPlus,
+  Search as SearchIcon, FilePen, ArrowUpNarrowWide, LayoutList,
   ChevronsUpDown, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
-  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, SlidersHorizontal,
+  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, SlidersHorizontal, Image as ImageFileIcon,
 } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useActivity } from '../contexts/ActivityContext';
+import { useAppSettings } from '../contexts/AppSettingsContext';
 import { useModal } from './Modal';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { VaultNode } from '../types';
@@ -19,6 +20,20 @@ interface TreeCtx {
   openTab: (opts: any) => void;
 }
 const TreeContext = React.createContext<TreeCtx>({ openContextMenu: () => {}, openTab: () => {} });
+
+const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']);
+
+const isImageExt = (ext?: string) => !!ext && imageExtensions.has(ext.toLowerCase());
+
+const getDisplayName = (name: string) => name.replace(/\.[^.]+$/, '');
+
+const getTabForNode = (node: VaultNode) => {
+  if (node.type !== 'file') return null;
+  if (node.ext === 'md') return { type: 'note', title: getDisplayName(node.name), filePath: node.id } as const;
+  if (node.ext === 'excalidraw') return { type: 'draw', title: getDisplayName(node.name), filePath: node.id } as const;
+  if (isImageExt(node.ext)) return { type: 'image', title: getDisplayName(node.name), filePath: node.id } as const;
+  return null;
+};
 
 // ── SidePanel shell ───────────────────────────────────────────────────────
 export const SidePanel: React.FC = () => {
@@ -92,11 +107,14 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
 
   return (
     <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, minWidth: 200, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', paddingTop: 4, paddingBottom: 4, visibility: visible ? 'visible' : 'hidden' }}>
-      {isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => openTab({ type: (menu.node as any).ext === 'md' ? 'note' : 'draw', title: menu.node.name, filePath: menu.node.id }))} />}
+      {isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => {
+        const target = getTabForNode(menu.node);
+        if (target) openTab(target);
+      })} />}
       <CtxSep />
       <CtxMenuItem icon={<Copy size={14} />} label="Copy path" onClick={() => act(() => navigator.clipboard.writeText(menu.node.id).catch(() => {}))} />
       <CtxSep />
-      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); const name = menu.node.name; const isMd = name.endsWith('.md'); const isEx = name.endsWith('.excalidraw'); const ext = isMd ? '.md' : isEx ? '.excalidraw' : ''; const displayName = ext ? name.slice(0, -ext.length) : name; prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) { const newName = ext ? (n.endsWith(ext) ? n : `${n}${ext}`) : n; renameItem(menu.node.id, newName).then(() => refreshFileTree()); } }); }} />
+      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); const name = menu.node.name; const isFileNode = menu.node.type === 'file'; const dot = isFileNode ? name.lastIndexOf('.') : -1; const ext = dot > 0 ? name.slice(dot) : ''; const displayName = dot > 0 ? name.slice(0, dot) : name; prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) { const newName = ext ? (n.endsWith(ext) ? n : `${n}${ext}`) : n; renameItem(menu.node.id, newName).then(() => refreshFileTree()); } }); }} />
       <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteItem(menu.node.id).then(() => refreshFileTree()); }); }} />
     </div>
   );
@@ -106,10 +124,13 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
 const FileTreeView: React.FC = () => {
   const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree } = useVault();
   const { openTab } = useTabs();
+  const { settings } = useAppSettings();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const headerHeight = 44;
+  const rowHeight = settings.appearance?.compactMode ? 28 : 36;
+  const TreeRenderer = settings.fileTree.style === 'hierarchy' ? TreeNode : OriginalTreeNode;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -159,10 +180,10 @@ const FileTreeView: React.FC = () => {
               width={dimensions.width}
               height={dimensions.height - headerHeight}
               indent={16}
-              rowHeight={36}
+              rowHeight={rowHeight}
               onMove={handleMove}
             >
-              {TreeNode}
+              {TreeRenderer}
             </Tree>
           ) : null}
         </div>
@@ -192,10 +213,105 @@ const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 13, 
 const TreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
   const { openContextMenu, openTab } = React.useContext(TreeContext);
+  const { settings } = useAppSettings();
   const isMd = node.data.type === 'file' && node.data.ext === 'md';
   const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
+  const isImage = node.data.type === 'file' && isImageExt(node.data.ext);
   const isFile = node.data.type === 'file';
-  const Icon = node.data.type === 'folder' ? Folder : isMd ? MarkdownIcon : isExcalidraw ? null : FileText;
+  const basePadding = 10;
+  const indentStep = 16;
+  const rowHeight = settings.appearance?.compactMode ? 28 : 36;
+  const rowMid = rowHeight / 2;
+  const fontSizeMap = { small: 12, medium: 14, large: 15 } as const;
+  const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
+  const contentPaddingLeft = basePadding + (node.level * indentStep) + 18;
+  const currentLineX = basePadding + (node.level * indentStep) + 8;
+  const parentLineX = basePadding + ((node.level - 1) * indentStep) + 8;
+
+  const ancestorLines: number[] = [];
+  let ancestor = node.parent;
+  while (ancestor && !ancestor.isRoot) {
+    if (ancestor.nextSibling) {
+      ancestorLines.push(basePadding + (ancestor.level * indentStep) + 8);
+    }
+    ancestor = ancestor.parent;
+  }
+
+  return (
+    <div
+      ref={dragHandle}
+      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none', position: 'relative' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => {
+        if (node.data.type === 'folder') node.toggle();
+        else {
+          const target = getTabForNode(node.data);
+          if (target) openTab(target);
+        }
+      }}
+      onContextMenu={(e) => openContextMenu(e, node.data)}
+    >
+      <svg
+        aria-hidden
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
+      >
+        {ancestorLines.map((x, index) => (
+          <line
+            key={`${node.id}-anc-${index}`}
+            x1={x} y1={0}
+            x2={x} y2={rowHeight}
+            stroke="var(--border)"
+            strokeWidth={1}
+            strokeOpacity={0.6}
+          />
+        ))}
+        {node.level > 0 && (
+          <line
+            x1={parentLineX} y1={0}
+            x2={parentLineX} y2={node.nextSibling ? rowHeight : rowMid}
+            stroke="var(--border)"
+            strokeWidth={1}
+            strokeOpacity={0.6}
+          />
+        )}
+        {!isFile && node.isOpen && node.children?.length > 0 && (
+          <line
+            x1={currentLineX} y1={rowMid}
+            x2={currentLineX} y2={rowHeight}
+            stroke="var(--border)"
+            strokeWidth={1}
+            strokeOpacity={0.6}
+          />
+        )}
+      </svg>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', paddingLeft: contentPaddingLeft, paddingRight: 8, borderRadius: 6, background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+      {isFile
+        ? isExcalidraw
+          ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+          : isImage
+            ? <ImageFileIcon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+          : isMd
+            ? <MarkdownIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} />
+            : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+        : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+      }
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
+      </div>
+    </div>
+  );
+};
+
+const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
+  const [hovered, setHovered] = useState(false);
+  const { openContextMenu, openTab } = React.useContext(TreeContext);
+  const { settings } = useAppSettings();
+  const isMd = node.data.type === 'file' && node.data.ext === 'md';
+  const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
+  const isImage = node.data.type === 'file' && isImageExt(node.data.ext);
+  const isFile = node.data.type === 'file';
+  const fontSizeMap = { small: 12, medium: 14, large: 15 } as const;
+  const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
 
   return (
     <div
@@ -203,24 +319,27 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
       style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => { if (node.data.type === 'folder') node.toggle(); else openTab({ type: node.data.ext === 'md' ? 'note' : 'draw', title: node.data.name, filePath: node.data.id }); }}
+      onClick={() => {
+        if (node.data.type === 'folder') node.toggle();
+        else {
+          const target = getTabForNode(node.data);
+          if (target) openTab(target);
+        }
+      }}
       onContextMenu={(e) => openContextMenu(e, node.data)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', paddingLeft: 8, paddingRight: 8, borderRadius: 6, background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: 14, transition: 'background 0.1s' }}>
-      {node.data.type === 'folder' && (
-        <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-          {node.isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </span>
-      )}
-      {isFile
-        ? isExcalidraw
-          ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
-          : isMd
-            ? <MarkdownIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} />
-            : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-        : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-      }
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.name.endsWith('.md') ? node.data.name.slice(0, -3) : node.data.name.endsWith('.excalidraw') ? node.data.name.slice(0, -11) : node.data.name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', paddingLeft: 8, paddingRight: 8, borderRadius: 6, background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+        {isFile
+          ? isExcalidraw
+            ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+            : isImage
+              ? <ImageFileIcon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+              : isMd
+                ? <MarkdownIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} />
+                : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+          : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+        }
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
       </div>
     </div>
   );
@@ -260,29 +379,6 @@ const SearchView: React.FC = () => {
       </div>
       <div style={{ flex: 1, color: 'var(--text-muted)', fontSize: 13, paddingTop: 8, paddingLeft: 4 }}>
         <p>No matches found.</p>
-      </div>
-    </div>
-  );
-};
-
-// ── Settings ──────────────────────────────────────────────────────────────
-export const SettingsView: React.FC<{ showTitle?: boolean }> = ({ showTitle = true }) => {
-  const { theme, setTheme } = useActivity();
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16, boxSizing: 'border-box' }}>
-      {showTitle && <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>Settings</h3>}
-      <div>
-        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Appearance</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {(['light', 'dark'] as const).map(t => (
-            <button key={t} onClick={() => setTheme(t)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--border)'}`, background: theme === t ? 'var(--accent-soft)' : 'transparent', color: theme === t ? 'var(--accent)' : 'var(--text-secondary)', transition: 'all 0.1s' }}
-            >
-              {t === 'light' ? <Sun size={13} /> : <Moon size={13} />}
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );

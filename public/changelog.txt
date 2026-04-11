@@ -1,0 +1,48 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [2026.5.5] - 2026-04-09
+
+### Added
+- Settings now show app version and an About section
+- A changelog button in Settings opens the project changelog in a modal
+- Image attachments now open in dedicated image tabs with image file icons in the sidebar and tab bar
+
+### Changed
+- Pasted image attachments hide their file extensions in the file tree like notes and drawings
+- Settings modal now includes release information directly instead of only theme controls
+- Excalidraw now loads its bundled font assets from the app's local `public/excalidraw` directory instead of the hosted CDN
+
+### Fixed
+- Pasted image attachments no longer open as Excalidraw files
+- Local image attachments render through Electron-safe data URLs instead of blocked `file://` paths
+- Image attachments preview correctly when opened from the sidebar after an app restart
+- Opening or creating `.excalidraw` files no longer leaves the sidebar file tree stuck in a loading loop
+- Draw tabs no longer immediately resave unchanged scenes when a drawing is opened
+
+## [2026.5.4] - 2026-04-09
+
+### Added
+- `docs/markdown-basic-syntax.md` as an Ibsidian support reference for the Markdown Guide basic syntax
+- `docs/markdown-basic-syntax-example.md` as a single example note covering every Markdown Guide basic syntax section
+- Shared markdown support types for tracking basic syntax coverage in code and docs
+
+### Changed
+- Reading view now renders Markdown Guide basic syntax more completely, including raw HTML, indented code blocks, linked images, reference-style links, and hard line breaks
+- Editor Enter behavior now continues Markdown list and blockquote markup while typing in live preview
+- README now links to the dedicated Markdown syntax documentation page
+
+## [2026.5.3] - 2026-04-09
+
+### Added
+- Vault-aware Obsidian markdown helpers shared across preview and editor logic
+- Wikilink autocomplete in the editor for notes, headings, block refs, and callout types
+- Embedded note and drawing cards in markdown preview for `![[...]]`
+
+### Changed
+- Settings now open in a modal instead of taking over the side panel
+- Top-right settings and overflow buttons removed from the title bar
+- Note editor now defaults to automatic live preview instead of manual source/split/reading/live mode toggles
+- Live preview unordered list markers render as bullet points while preserving raw markdown text
+- Markdown preview handles Obsidian-style internal links, embeds, callouts, and task checkboxes more cleanly

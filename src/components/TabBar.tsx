@@ -4,7 +4,7 @@ import {
   Pin, Link2, Link, BookOpen, Code, ExternalLink, PanelRight,
   PanelBottom, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, ArrowUpRight, FolderOpen, Trash2,
-  ChevronRight,
+  ChevronRight, Image as ImageFileIcon,
 } from 'lucide-react';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
@@ -241,6 +241,7 @@ export const TabBar: React.FC = () => {
       case 'note': return <MarkdownIcon size={14} />;
       case 'browser': return <Globe size={14} />;
       case 'draw': return <ExcalidrawIcon size={14} />;
+      case 'image': return <ImageFileIcon size={14} />;
       case 'terminal': return <SquareTerminal size={14} />;
       case 'new-tab': return <Plus size={14} />;
       default: return <MarkdownIcon size={14} />;

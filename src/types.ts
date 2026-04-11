@@ -5,6 +5,7 @@ export type VaultNode =
 export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab';
 export type AttachmentLocation = 'same-folder-as-note' | 'specific-folder';
 export type FileTreeStyle = 'original' | 'hierarchy';
+export type FontSize = 'small' | 'medium' | 'large';
 
 export interface ExcalidrawSceneFile {
   type: string;
@@ -24,6 +25,10 @@ export interface AppSettings {
   attachments: AttachmentSettings;
   fileTree: {
     style: FileTreeStyle;
+  };
+  appearance: {
+    fontSize: FontSize;
+    compactMode: boolean;
   };
 }
 

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import type { AppSettings } from '../src/types'
 
 // Suppress GPU/vaapi warnings on Linux
 app.commandLine.appendSwitch('disable-gpu-sandbox')
@@ -13,6 +14,8 @@ if (process.platform === 'linux') {
 import { join, relative } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm, stat, rename } from 'fs/promises'
 import { randomBytes } from 'crypto'
+import { pathToFileURL } from 'url'
+import chokidar from 'chokidar'
 import * as nodePty from 'node-pty'
 
 const isDev = !app.isPackaged
@@ -21,11 +24,30 @@ const isDev = !app.isPackaged
 type Vault = { id: string; name: string; path: string }
 const vaults: Vault[] = []
 let activeVaultId: string | null = null
+let vaultWatcher: chokidar.FSWatcher | null = null
+let watchedVaultPath: string | null = null
 const generateId = () => randomBytes(8).toString('hex')
+const DEFAULT_SETTINGS: AppSettings = {
+  attachments: {
+    attachmentLocation: 'specific-folder',
+    attachmentFolderPath: 'attachments/images',
+  },
+  fileTree: {
+    style: 'original',
+  },
+  appearance: {
+    fontSize: 'medium',
+    compactMode: false,
+  },
+}
 
 // ── Persistent vault config ────────────────────────────────────────────────
 function vaultConfigPath() {
   return join(app.getPath('userData'), 'vault.json')
+}
+
+function settingsConfigPath() {
+  return join(app.getPath('userData'), 'settings.json')
 }
 
 async function saveVaultConfig(vault: Vault) {
@@ -42,6 +64,80 @@ async function loadVaultConfig(): Promise<Vault | null> {
   } catch {
     return null
   }
+}
+
+async function saveSettingsConfig(settings: AppSettings) {
+  try {
+    await mkdir(app.getPath('userData'), { recursive: true })
+    await writeFile(settingsConfigPath(), JSON.stringify(settings), 'utf8')
+  } catch { /* ignore */ }
+}
+
+async function loadSettingsConfig(): Promise<AppSettings> {
+  try {
+    const raw = await readFile(settingsConfigPath(), 'utf8')
+    const parsed = JSON.parse(raw) as Partial<AppSettings>
+    return {
+      attachments: {
+        attachmentLocation: parsed.attachments?.attachmentLocation ?? DEFAULT_SETTINGS.attachments.attachmentLocation,
+        attachmentFolderPath: parsed.attachments?.attachmentFolderPath ?? DEFAULT_SETTINGS.attachments.attachmentFolderPath,
+      },
+      fileTree: {
+        style: parsed.fileTree?.style === 'hierarchy' ? 'hierarchy' : DEFAULT_SETTINGS.fileTree.style,
+      },
+      appearance: {
+        fontSize: (['small', 'medium', 'large'] as const).includes(parsed.appearance?.fontSize as 'small' | 'medium' | 'large')
+          ? (parsed.appearance!.fontSize as 'small' | 'medium' | 'large')
+          : DEFAULT_SETTINGS.appearance.fontSize,
+        compactMode: typeof parsed.appearance?.compactMode === 'boolean'
+          ? parsed.appearance.compactMode
+          : DEFAULT_SETTINGS.appearance.compactMode,
+      },
+    }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+// ── File watcher ───────────────────────────────────────────────────────────
+function stopVaultWatcher() {
+  if (vaultWatcher) {
+    vaultWatcher.close().catch(() => {})
+    vaultWatcher = null
+  }
+  watchedVaultPath = null
+}
+
+function startVaultWatcher(vaultPath: string) {
+  if (vaultWatcher && watchedVaultPath === vaultPath) return
+  stopVaultWatcher()
+
+  const shouldIgnore = (p: string) => {
+    const rel = relative(vaultPath, p).replace(/\\/g, '/')
+    return rel.startsWith('..') || rel.startsWith('.git/') || rel.startsWith('node_modules/') || rel.includes('/.git/') || rel.includes('/node_modules/')
+  }
+
+  vaultWatcher = chokidar.watch(vaultPath, {
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
+    ignored: shouldIgnore,
+  })
+  watchedVaultPath = vaultPath
+
+  const relay = (event: string, filePath: string) => {
+    if (shouldIgnore(filePath)) return
+    const rel = relative(vaultPath, filePath).replace(/\\/g, '/')
+    if (rel.startsWith('..')) return
+    mainWindow?.webContents.send('files:changed', { event, path: rel })
+  }
+
+  vaultWatcher
+    .on('add', p => relay('add', p))
+    .on('addDir', p => relay('addDir', p))
+    .on('unlink', p => relay('unlink', p))
+    .on('unlinkDir', p => relay('unlinkDir', p))
+    .on('change', p => relay('change', p))
+    .on('error', err => console.warn('Vault watcher error', err))
 }
 
 // ── PTY sessions ───────────────────────────────────────────────────────────
@@ -85,6 +181,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   for (const term of ptySessions.values()) term.kill()
+  stopVaultWatcher()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -121,6 +218,7 @@ ipcMain.handle('vault:create', async (_, { name, path: vaultPath }: { name: stri
   const vault: Vault = { id: generateId(), name, path: fullPath }
   vaults.push(vault)
   activeVaultId = vault.id
+  startVaultWatcher(fullPath)
   await saveVaultConfig(vault)
   return vault
 })
@@ -134,6 +232,7 @@ ipcMain.handle('vault:open', async (_, vault: Vault) => {
   }
   if (!vaults.find(v => v.id === vault.id)) vaults.push(vault)
   activeVaultId = vault.id
+  startVaultWatcher(vault.path)
   await saveVaultConfig(vault)
   return true
 })
@@ -143,6 +242,28 @@ ipcMain.handle('vault:load-saved', async () => {
 })
 
 ipcMain.handle('app:home-dir', () => app.getPath('home'))
+ipcMain.handle('settings:load', async () => loadSettingsConfig())
+ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
+  const normalized: AppSettings = {
+    attachments: {
+      attachmentLocation: settings.attachments?.attachmentLocation === 'same-folder-as-note' ? 'same-folder-as-note' : 'specific-folder',
+      attachmentFolderPath: settings.attachments?.attachmentFolderPath?.trim() || DEFAULT_SETTINGS.attachments.attachmentFolderPath,
+    },
+    fileTree: {
+      style: settings.fileTree?.style === 'hierarchy' ? 'hierarchy' : DEFAULT_SETTINGS.fileTree.style,
+    },
+    appearance: {
+      fontSize: (['small', 'medium', 'large'] as const).includes(settings.appearance?.fontSize as 'small' | 'medium' | 'large')
+        ? (settings.appearance!.fontSize as 'small' | 'medium' | 'large')
+        : DEFAULT_SETTINGS.appearance.fontSize,
+      compactMode: typeof settings.appearance?.compactMode === 'boolean'
+        ? settings.appearance.compactMode
+        : DEFAULT_SETTINGS.appearance.compactMode,
+    },
+  }
+  await saveSettingsConfig(normalized)
+  return normalized
+})
 
 // ── File IPC ───────────────────────────────────────────────────────────────
 function getVault(): Vault {
@@ -186,6 +307,13 @@ ipcMain.handle('files:write', async (_, filePath: string, content: string) => {
   await writeFile(fullPath, content, 'utf8')
 })
 
+ipcMain.handle('files:write-binary', async (_, filePath: string, base64: string) => {
+  const vault = getVault()
+  const fullPath = join(vault.path, filePath)
+  await mkdir(join(fullPath, '..'), { recursive: true })
+  await writeFile(fullPath, Buffer.from(base64, 'base64'))
+})
+
 ipcMain.handle('files:create', async (_, filePath: string, type: 'file' | 'directory', content = '') => {
   const vault = getVault()
   const fullPath = join(vault.path, filePath)
@@ -205,6 +333,28 @@ ipcMain.handle('files:delete', async (_, filePath: string) => {
 ipcMain.handle('files:rename', async (_, oldPath: string, newPath: string) => {
   const vault = getVault()
   await rename(join(vault.path, oldPath), join(vault.path, newPath))
+})
+
+ipcMain.handle('files:url', async (_, filePath: string) => {
+  const vault = getVault()
+  return pathToFileURL(join(vault.path, filePath)).href
+})
+
+ipcMain.handle('files:data-url', async (_, filePath: string) => {
+  const vault = getVault()
+  const fullPath = join(vault.path, filePath)
+  const buffer = await readFile(fullPath)
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? 'png'
+  const mimeType =
+    ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+    ext === 'gif' ? 'image/gif' :
+    ext === 'webp' ? 'image/webp' :
+    ext === 'svg' ? 'image/svg+xml' :
+    ext === 'bmp' ? 'image/bmp' :
+    ext === 'ico' ? 'image/x-icon' :
+    ext === 'avif' ? 'image/avif' :
+    'image/png'
+  return `data:${mimeType};base64,${buffer.toString('base64')}`
 })
 
 // ── Terminal IPC ───────────────────────────────────────────────────────────
