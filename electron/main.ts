@@ -39,6 +39,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontSize: 'medium',
     compactMode: false,
   },
+  agents: {
+    claude: true,
+    codex: true,
+    pi: true,
+    order: ['claude', 'codex', 'pi'] as ('claude' | 'codex' | 'pi')[],
+  },
 }
 
 // ── Persistent vault config ────────────────────────────────────────────────
@@ -92,6 +98,12 @@ async function loadSettingsConfig(): Promise<AppSettings> {
         compactMode: typeof parsed.appearance?.compactMode === 'boolean'
           ? parsed.appearance.compactMode
           : DEFAULT_SETTINGS.appearance.compactMode,
+      },
+      agents: {
+        claude: typeof parsed.agents?.claude === 'boolean' ? parsed.agents.claude : DEFAULT_SETTINGS.agents.claude,
+        codex: typeof parsed.agents?.codex === 'boolean' ? parsed.agents.codex : DEFAULT_SETTINGS.agents.codex,
+        pi: typeof parsed.agents?.pi === 'boolean' ? parsed.agents.pi : DEFAULT_SETTINGS.agents.pi,
+        order: (Array.isArray(parsed.agents?.order) && parsed.agents.order.length ? parsed.agents.order : DEFAULT_SETTINGS.agents.order) as ('claude' | 'codex' | 'pi')[],
       },
     }
   } catch {
@@ -259,6 +271,12 @@ ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
       compactMode: typeof settings.appearance?.compactMode === 'boolean'
         ? settings.appearance.compactMode
         : DEFAULT_SETTINGS.appearance.compactMode,
+    },
+    agents: {
+      claude: typeof settings.agents?.claude === 'boolean' ? settings.agents.claude : DEFAULT_SETTINGS.agents.claude,
+      codex: typeof settings.agents?.codex === 'boolean' ? settings.agents.codex : DEFAULT_SETTINGS.agents.codex,
+      pi: typeof settings.agents?.pi === 'boolean' ? settings.agents.pi : DEFAULT_SETTINGS.agents.pi,
+      order: (Array.isArray(settings.agents?.order) && settings.agents.order.length ? settings.agents.order : DEFAULT_SETTINGS.agents.order) as ('claude' | 'codex' | 'pi')[],
     },
   }
   await saveSettingsConfig(normalized)

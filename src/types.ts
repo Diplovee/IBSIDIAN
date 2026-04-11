@@ -2,7 +2,7 @@ export type VaultNode =
   | { id: string; type: 'folder'; name: string; children: VaultNode[]; isOpen?: boolean }
   | { id: string; type: 'file'; name: string; ext?: string; content?: string };
 
-export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab';
+export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab' | 'claude' | 'codex' | 'pi';
 export type AttachmentLocation = 'same-folder-as-note' | 'specific-folder';
 export type FileTreeStyle = 'original' | 'hierarchy';
 export type FontSize = 'small' | 'medium' | 'large';
@@ -21,6 +21,15 @@ export interface AttachmentSettings {
   attachmentFolderPath: string;
 }
 
+export type AgentKey = 'claude' | 'codex' | 'pi';
+
+export interface AgentSettings {
+  claude: boolean;
+  codex: boolean;
+  pi: boolean;
+  order: AgentKey[];
+}
+
 export interface AppSettings {
   attachments: AttachmentSettings;
   fileTree: {
@@ -30,6 +39,7 @@ export interface AppSettings {
     fontSize: FontSize;
     compactMode: boolean;
   };
+  agents: AgentSettings;
 }
 
 export interface BrowserTabGroup {
@@ -48,6 +58,7 @@ export interface Tab {
   customTitle?: string;
   groupId?: string;
   faviconUrl?: string;
+  command?: string;
 }
 
 export type ActivityType = 'files' | 'search';

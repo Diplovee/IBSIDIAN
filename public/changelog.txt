@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.10] - 2026-04-11
+
+### Added
+- AI agent buttons in the activity bar: Claude (Anthropic), Codex (OpenAI), and Pi — each opens a dedicated terminal tab and auto-launches the respective CLI
+- Agents settings panel with toggle cards per agent (brand-colored when enabled, gray when disabled)
+- Drag-to-reorder agent cards in settings — bar order reflects card order
+- Enable-order logic: enabling an agent appends it to the end of the bar sequence, so the order you enable them is the order they appear
+
 ## [2026.5.9] - 2026-04-11
 
 ### Added

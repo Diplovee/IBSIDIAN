@@ -1,14 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FolderOpen, Search, Globe, SquareTerminal, Settings } from 'lucide-react';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
+import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
 import { useActivity } from '../contexts/ActivityContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
+import { useAppSettings } from '../contexts/AppSettingsContext';
+import type { AgentKey } from '../types';
+
+const AGENT_META: Record<AgentKey, { icon: React.ReactNode; title: string; command: string }> = {
+  claude: { icon: <ClaudeIcon size={18} />, title: 'Claude', command: 'claude\n' },
+  codex:  { icon: <CodexIcon size={18} />,  title: 'Codex',  command: 'codex\n'  },
+  pi:     { icon: <PiIcon size={18} />,     title: 'Pi',     command: 'pi\n'     },
+};
 
 export const ActivityBar: React.FC = () => {
   const { activeActivity, toggleActivity, isSettingsOpen, openSettings } = useActivity();
   const { openTab } = useTabs();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
+  const { settings } = useAppSettings();
+  const agents = settings.agents ?? { claude: true, codex: true, pi: true, order: ['claude', 'codex', 'pi'] as AgentKey[] };
+  const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi'];
 
   const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' });
   const handleOpenDraw = () => {
@@ -29,6 +41,16 @@ export const ActivityBar: React.FC = () => {
         <ActivityButton icon={<Globe size={18} />} onClick={handleOpenBrowser} />
         <ActivityButton icon={<ExcalidrawIcon size={18} />} onClick={handleOpenDraw} />
         <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
+        {order.filter(k => agents[k]).map(key => {
+          const a = AGENT_META[key];
+          return (
+            <ActivityButton
+              key={key}
+              icon={a.icon}
+              onClick={() => openTab({ type: key, title: a.title, command: a.command })}
+            />
+          );
+        })}
       </div>
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
         <ActivityButton icon={<Settings size={18} />} active={isSettingsOpen} onClick={openSettings} />
@@ -44,7 +66,7 @@ interface ActivityButtonProps {
 }
 
 const ActivityButton: React.FC<ActivityButtonProps> = ({ icon, active, onClick }) => {
-  const [hovered, setHovered] = React.useState(false);
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={onClick}

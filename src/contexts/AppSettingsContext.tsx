@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { AppSettings } from '../types';
+import type { AppSettings, AgentSettings, AgentKey } from '../types';
 
 const DEFAULT_SETTINGS: AppSettings = {
   attachments: {
@@ -13,6 +13,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontSize: 'medium',
     compactMode: false,
   },
+  agents: {
+    claude: true,
+    codex: true,
+    pi: true,
+    order: ['claude', 'codex', 'pi'] as AgentKey[],
+  },
 };
 
 interface AppSettingsContextType {
@@ -21,6 +27,7 @@ interface AppSettingsContextType {
   updateAttachmentSettings: (next: Partial<AppSettings['attachments']>) => Promise<void>;
   updateFileTreeSettings: (next: Partial<AppSettings['fileTree']>) => Promise<void>;
   updateAppearanceSettings: (next: Partial<AppSettings['appearance']>) => Promise<void>;
+  updateAgentSettings: (next: Partial<AgentSettings>) => Promise<void>;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -31,7 +38,14 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     window.api.settings.load()
-      .then(loaded => setSettings(loaded))
+      .then(loaded => setSettings({
+        ...DEFAULT_SETTINGS, ...loaded,
+        agents: {
+          ...DEFAULT_SETTINGS.agents,
+          ...loaded.agents,
+          order: (loaded.agents?.order?.length ? loaded.agents.order : DEFAULT_SETTINGS.agents.order) as AgentKey[],
+        },
+      }))
       .catch(() => {})
       .finally(() => setIsLoaded(true));
   }, []);
@@ -75,8 +89,17 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setSettings(saved);
   }, [settings]);
 
+  const updateAgentSettings = useCallback(async (next: Partial<AgentSettings>) => {
+    const merged: AppSettings = {
+      ...settings,
+      agents: { ...settings.agents, ...next },
+    };
+    setSettings(merged);
+    window.api.settings.save(merged).catch(() => {});
+  }, [settings]);
+
   return (
-    <AppSettingsContext.Provider value={{ settings, isLoaded, updateAttachmentSettings, updateFileTreeSettings, updateAppearanceSettings }}>
+    <AppSettingsContext.Provider value={{ settings, isLoaded, updateAttachmentSettings, updateFileTreeSettings, updateAppearanceSettings, updateAgentSettings }}>
       {children}
     </AppSettingsContext.Provider>
   );

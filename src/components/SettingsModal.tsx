@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Sun, Moon } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
+import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
+import type { AgentKey } from '../types';
 
 const CATEGORIES = [
   { id: 'general',    label: 'General' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'editor',     label: 'Editor' },
   { id: 'files',      label: 'Files & Links' },
+  { id: 'agents',     label: 'Agents' },
 ] as const;
 
 type CategoryId = typeof CATEGORIES[number]['id'];
@@ -131,6 +134,146 @@ const FilesPanel: React.FC = () => {
   );
 };
 
+const AGENT_DEFS: Record<AgentKey, { label: string; description: string; color?: string; hasGradient?: boolean; Icon: React.FC<{ size?: number }> }> = {
+  claude: { label: 'Claude', description: "Anthropic's Claude Code CLI", color: '#D97757', Icon: ClaudeIcon },
+  codex:  { label: 'Codex',  description: 'OpenAI Codex CLI', hasGradient: true, Icon: CodexIcon },
+  pi:     { label: 'Pi',     description: 'Pi agent CLI', color: '#3B82F6', Icon: PiIcon },
+};
+
+const ALL_KEYS: AgentKey[] = ['claude', 'codex', 'pi'];
+
+const AgentsPanel: React.FC = () => {
+  const { settings, updateAgentSettings } = useAppSettings();
+  const agents = settings.agents ?? { claude: true, codex: true, pi: true, order: ALL_KEYS as AgentKey[] };
+  const order: AgentKey[] = agents.order?.length ? agents.order : ALL_KEYS;
+
+  const dragSrc = useRef<AgentKey | null>(null);
+  const [activeGap, setActiveGap] = useState<number | null>(null); // gap index: 0=before first, 1=between 0&1, etc.
+
+  const handleDragStart = (e: React.DragEvent, key: AgentKey) => {
+    dragSrc.current = key;
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleGapDragOver = (e: React.DragEvent, gapIdx: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveGap(gapIdx);
+  };
+
+  const handleGapDrop = (e: React.DragEvent, gapIdx: number) => {
+    e.preventDefault();
+    const src = dragSrc.current;
+    if (!src) { cleanup(); return; }
+    const srcIdx = order.indexOf(src);
+    // gapIdx is the position to insert before; adjust for removal
+    const insertAt = gapIdx > srcIdx ? gapIdx - 1 : gapIdx;
+    if (insertAt === srcIdx) { cleanup(); return; }
+    const next = [...order];
+    next.splice(srcIdx, 1);
+    next.splice(insertAt, 0, src);
+    updateAgentSettings({ order: next });
+    cleanup();
+  };
+
+  const cleanup = () => { dragSrc.current = null; setActiveGap(null); };
+
+  const handleToggle = (key: AgentKey) => {
+    if (!agents[key]) {
+      // Append to end of order so bar position = enable order
+      const newOrder = [...order.filter(k => k !== key), key];
+      updateAgentSettings({ [key]: true, order: newOrder });
+    } else {
+      updateAgentSettings({ [key]: false });
+    }
+  };
+
+  // A gap zone between / around cards
+  const Gap: React.FC<{ idx: number }> = ({ idx }) => (
+    <div
+      onDragOver={e => handleGapDragOver(e, idx)}
+      onDrop={e => handleGapDrop(e, idx)}
+      style={{ width: 16, alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+    >
+      <div style={{
+        width: 2, height: '80%', borderRadius: 1,
+        background: activeGap === idx ? 'var(--accent)' : 'transparent',
+        transition: 'background 0.1s',
+      }} />
+    </div>
+  );
+
+  return (
+    <div onDragEnd={cleanup}>
+      <SectionLabel first>Activity bar agents</SectionLabel>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
+        Click to toggle — agents are added to the bar in the order you enable them. Drag to reorder.
+      </p>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        {order.map((key, idx) => {
+          const { label, description, color, hasGradient, Icon } = AGENT_DEFS[key];
+          const enabled = agents[key];
+          const accentColor = color ?? '#888';
+          const isDragging = dragSrc.current === key;
+
+          return (
+            <React.Fragment key={key}>
+              <Gap idx={idx} />
+              <div
+                draggable
+                onDragStart={e => handleDragStart(e, key)}
+                style={{
+                  width: 130, flexShrink: 0,
+                  padding: '16px 12px',
+                  borderRadius: 10,
+                  border: `1.5px solid ${enabled ? accentColor : 'var(--border)'}`,
+                  background: enabled
+                    ? hasGradient
+                      ? 'linear-gradient(135deg,rgba(244,114,182,.08) 0%,rgba(251,146,60,.08) 40%,rgba(251,191,36,.08) 70%,rgba(147,197,253,.10) 100%)'
+                      : `color-mix(in srgb,${accentColor} 8%,var(--bg-secondary))`
+                    : 'var(--bg-secondary)',
+                  cursor: 'grab',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                  transition: 'border-color .15s, background .15s, opacity .15s',
+                  position: 'relative',
+                  opacity: isDragging ? 0.4 : 1,
+                  userSelect: 'none',
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 8, right: 8,
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: enabled ? accentColor : 'var(--text-muted)',
+                  opacity: enabled ? 1 : 0.4,
+                  transition: 'background .15s',
+                }} />
+                <button
+                  onClick={() => handleToggle(key)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 0 }}
+                >
+                  <div style={{ filter: enabled ? 'none' : 'grayscale(1) opacity(0.35)', transition: 'filter .15s', display: 'flex' }}>
+                    <Icon size={28} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: enabled ? 'var(--text-primary)' : 'var(--text-muted)', marginBottom: 2, transition: 'color .15s' }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      {description}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </React.Fragment>
+          );
+        })}
+        {/* trailing gap */}
+        <Gap idx={order.length} />
+      </div>
+    </div>
+  );
+};
+
 export const SettingsModal: React.FC = () => {
   const { isSettingsOpen, closeSettings } = useActivity();
   const [activeCategory, setActiveCategory] = useState<CategoryId>('appearance');
@@ -205,6 +348,7 @@ export const SettingsModal: React.FC = () => {
             {activeCategory === 'appearance' && <AppearancePanel />}
             {activeCategory === 'editor' && <EditorPanel />}
             {activeCategory === 'files' && <FilesPanel />}
+            {activeCategory === 'agents' && <AgentsPanel />}
           </div>
         </div>
       </div>

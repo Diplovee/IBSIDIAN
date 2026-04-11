@@ -33,7 +33,7 @@ const TabsContext = createContext<TabsContextType | undefined>(undefined);
 const DEFAULT_GROUP_COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#0f766e', '#db2777'];
 
 const generateId = () => Math.random().toString(36).slice(2, 10);
-const isGroupableType = (type: Tab['type']) => type !== 'terminal' && type !== 'new-tab';
+const isGroupableType = (type: Tab['type']) => type !== 'terminal' && type !== 'new-tab' && type !== 'claude' && type !== 'codex' && type !== 'pi';
 
 export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);

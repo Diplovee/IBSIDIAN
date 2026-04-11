@@ -19,6 +19,7 @@ import { useActivity } from '../contexts/ActivityContext';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
+import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
 import {
   Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
   MoreHorizontal, Code, PanelRight, PanelBottom,
@@ -335,7 +336,7 @@ export const Canvas: React.FC = () => {
   // Always render all browser and terminal tabs so their embedded state survives tab switches.
   // Only unmount when the tab is closed (removed from tabs array).
   const browserTabs = tabs.filter(t => t.type === 'browser');
-  const terminalTabs = tabs.filter(t => t.type === 'terminal');
+  const terminalTabs = tabs.filter(t => t.type === 'terminal' || t.type === 'claude' || t.type === 'codex' || t.type === 'pi');
 
   const renderActiveTab = () => {
     if (!activeTab) {
@@ -357,7 +358,7 @@ export const Canvas: React.FC = () => {
       );
     }
     // Browser and terminal tabs are rendered persistently below; hide this slot when either is active.
-    if (activeTab.type === 'terminal' || activeTab.type === 'browser') return null;
+    if (activeTab.type === 'terminal' || activeTab.type === 'claude' || activeTab.type === 'codex' || activeTab.type === 'pi' || activeTab.type === 'browser') return null;
     switch (activeTab.type) {
       case 'note': return <EditorTab key={activeTab.id} tab={activeTab} />;
       case 'draw': return <DrawTab key={activeTab.id} tab={activeTab} />;
@@ -398,7 +399,7 @@ export const Canvas: React.FC = () => {
         </div>
       ))}
       {/* Non-browser, non-terminal active tab */}
-      {activeTab?.type !== 'terminal' && activeTab?.type !== 'browser' && (
+      {activeTab?.type !== 'terminal' && activeTab?.type !== 'claude' && activeTab?.type !== 'codex' && activeTab?.type !== 'pi' && activeTab?.type !== 'browser' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {renderActiveTab()}
         </div>
@@ -1576,6 +1577,9 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
     // Create PTY session via IPC
     window.api.terminal.create(term.cols, term.rows).then(sessionId => {
       sessionIdRef.current = sessionId;
+      if (tab.command) {
+        window.api.terminal.input(sessionId, tab.command);
+      }
     });
 
     // Forward output from main process to xterm
@@ -1633,8 +1637,8 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
       <div style={{ height: 32, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-        <SquareTerminal size={12} />
-        <span>bash — {cols}×{rows}</span>
+        {tab.type === 'claude' ? <ClaudeIcon size={12} /> : tab.type === 'codex' ? <CodexIcon size={12} /> : tab.type === 'pi' ? <PiIcon size={12} /> : <SquareTerminal size={12} />}
+        <span>{tab.type === 'claude' ? 'claude' : tab.type === 'codex' ? 'codex' : tab.type === 'pi' ? 'pi' : 'bash'} — {cols}×{rows}</span>
       </div>
       <div ref={terminalRef} style={{ flex: 1, padding: 8 }} />
     </div>

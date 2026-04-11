@@ -20,6 +20,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     fontSize: 'medium',
     compactMode: false,
   },
+  agents: {
+    claude: true,
+    codex: true,
+    pi: true,
+    order: ['claude', 'codex', 'pi'],
+  },
 };
 
 export const normalizeVaultPath = (value: string) =>

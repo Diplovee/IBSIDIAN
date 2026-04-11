@@ -10,6 +10,7 @@ import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { toast } from './ui/sonner';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
+import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
 
 // ── Markdown icon (custom SVG) ───────────────────────────────────────────────
 const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = 'var(--text-muted)' }) => (
@@ -106,7 +107,7 @@ const TabCtxSep = () => <div style={{ height: 1, background: 'var(--border)', ma
 
 const GROUP_COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#0f766e', '#db2777'];
 const GROUP_COLOR_SWATCHES = ['#232323', '#dc2626', '#16a34a', '#2563eb', '#f59e0b', '#7c3aed'];
-const isGroupableTab = (tab: Tab) => tab.type !== 'terminal' && tab.type !== 'new-tab';
+const isGroupableTab = (tab: Tab) => tab.type !== 'terminal' && tab.type !== 'new-tab' && tab.type !== 'claude' && tab.type !== 'codex' && tab.type !== 'pi';
 
 const hexToRgb = (value: string) => {
   const hex = value.replace('#', '').trim();
@@ -169,7 +170,7 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
   const tab = menu.tab;
   const isNote = tab.type === 'note';
   const isBrowser = tab.type === 'browser';
-  const isGroupable = tab.type !== 'terminal' && tab.type !== 'new-tab';
+  const isGroupable = tab.type !== 'terminal' && tab.type !== 'new-tab' && tab.type !== 'claude' && tab.type !== 'codex' && tab.type !== 'pi';
   const node = isNote && tab.filePath ? getNodeById(tab.filePath) : null;
   const tabIndex = tabs.findIndex(t => t.id === tab.id);
   const canCloseLeft = tabIndex > 0;
@@ -602,16 +603,20 @@ const TabItem: React.FC<{
 }> = ({ tab, isActive, icon, groupBadge, grouped, dragging, dropTarget, onSelect, onClose, onContextMenu, onDragStart, onDragEnd, onDragOver, onDrop }) => {
   const [hovered, setHovered] = useState(false);
   const [closeHovered, setCloseHovered] = useState(false);
+  const isBrowserTab = tab.type === 'browser';
   const isGroupedTab = !!groupBadge;
   const isCollapsedGroup = !!groupBadge?.collapsed;
   const showTitle = !isCollapsedGroup;
   const showGroupBadge = false;
   const showIcon = !isGroupedTab;
   const groupColor = groupBadge?.color ?? null;
+  const minWidth = isCollapsedGroup ? 94 : isBrowserTab ? 190 : 118;
+  const maxWidth = isCollapsedGroup ? 124 : isBrowserTab ? 300 : 210;
+  const paddingRight = isCollapsedGroup ? 28 : isBrowserTab ? 36 : 12;
 
   return (
     <div
-      draggable={tab.type !== 'terminal' && tab.type !== 'new-tab'}
+      draggable={tab.type !== 'terminal' && tab.type !== 'new-tab' && tab.type !== 'claude' && tab.type !== 'codex' && tab.type !== 'pi'}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
@@ -636,10 +641,10 @@ const TabItem: React.FC<{
         transition: 'background 0.1s, color 0.1s, box-shadow 0.1s, border-color 0.1s',
         position: 'relative',
         paddingLeft: isCollapsedGroup ? 12 : 14,
-        paddingRight: isCollapsedGroup ? 28 : 12,
+        paddingRight,
         gap: isCollapsedGroup ? 6 : 8,
-        minWidth: isCollapsedGroup ? 94 : 118,
-        maxWidth: isCollapsedGroup ? 124 : 210,
+        minWidth,
+        maxWidth,
         background: groupColor
           ? (dropTarget
             ? tintHex(groupColor, 0.24)
@@ -666,7 +671,21 @@ const TabItem: React.FC<{
     >
       {showIcon && <span style={{ flexShrink: 0, color: groupColor ? GROUP_TEXT_COLOR : (isActive ? 'var(--text-secondary)' : 'var(--text-muted)') }}>{icon}</span>}
       {showTitle && (
-        <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: groupColor ? 600 : 400, color: groupColor ? GROUP_TEXT_COLOR : undefined }}>{tab.customTitle ?? tab.title}</span>
+        <span
+          style={{
+            fontSize: 13,
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: isBrowserTab ? 'clip' : 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontWeight: groupColor ? 600 : 400,
+            color: groupColor ? GROUP_TEXT_COLOR : undefined,
+            maskImage: isBrowserTab ? 'linear-gradient(to right, black 0%, black calc(100% - 22px), transparent 100%)' : undefined,
+            WebkitMaskImage: isBrowserTab ? 'linear-gradient(to right, black 0%, black calc(100% - 22px), transparent 100%)' : undefined,
+          }}
+        >
+          {tab.customTitle ?? tab.title}
+        </span>
       )}
       {showGroupBadge && groupBadge && (
         <span style={{
@@ -688,7 +707,7 @@ const TabItem: React.FC<{
           border: 'none',
           background: closeHovered ? (groupColor ? tintHex(groupColor, 0.14) : 'var(--bg-active)') : 'transparent',
           color: closeHovered ? GROUP_TEXT_COLOR : (groupColor ? GROUP_TEXT_COLOR : 'var(--text-muted)'),
-          opacity: isActive ? (closeHovered ? 1 : 0.75) : hovered ? (closeHovered ? 1 : 0.7) : 0,
+          opacity: isBrowserTab ? (closeHovered ? 1 : 0.78) : (isActive ? (closeHovered ? 1 : 0.75) : hovered ? (closeHovered ? 1 : 0.7) : 0),
           cursor: 'pointer',
           transition: 'background 0.1s, color 0.1s, opacity 0.1s',
           position: 'absolute',
@@ -730,6 +749,9 @@ export const TabBar: React.FC = () => {
       case 'draw': return <ExcalidrawIcon size={14} />;
       case 'image': return <ImageFileIcon size={14} />;
       case 'terminal': return <SquareTerminal size={14} />;
+      case 'claude': return <ClaudeIcon size={14} />;
+      case 'codex': return <CodexIcon size={14} />;
+      case 'pi': return <PiIcon size={14} />;
       case 'new-tab': return <Plus size={14} />;
       default: return <MarkdownIcon size={14} />;
     }
@@ -936,7 +958,10 @@ export const TabBar: React.FC = () => {
           })}
         </div>
 
-        <NewTabButton openTab={openTab} />
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 2, paddingLeft: 2 }}>
+          {tabs.length > 0 && <div aria-hidden style={{ width: 1, height: 14, background: 'var(--border)', marginRight: 4, opacity: 0.9 }} />}
+          <NewTabButton openTab={openTab} />
+        </div>
       </div>
 
       {ctxMenu && <TabContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />}
