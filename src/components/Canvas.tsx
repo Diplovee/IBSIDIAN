@@ -1249,6 +1249,20 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { updateTabTitle, updateTabUrl, updateTabFavicon } = useTabs();
   const [inputUrl, setInputUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
   const [currentUrl, setCurrentUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Stable refs so event handlers never go stale and the effect runs once
+  const currentUrlRef = useRef(currentUrl);
+  const tabIdRef = useRef(tab.id);
+  const updateTabTitleRef = useRef(updateTabTitle);
+  const updateTabUrlRef = useRef(updateTabUrl);
+  const updateTabFaviconRef = useRef(updateTabFavicon);
+  useEffect(() => { currentUrlRef.current = currentUrl; }, [currentUrl]);
+  useEffect(() => { updateTabTitleRef.current = updateTabTitle; }, [updateTabTitle]);
+  useEffect(() => { updateTabUrlRef.current = updateTabUrl; }, [updateTabUrl]);
+  useEffect(() => { updateTabFaviconRef.current = updateTabFavicon; }, [updateTabFavicon]);
 
   const navigate = (target: string) => {
     const nextUrl = resolveBrowserUrl(target);
@@ -1264,6 +1278,13 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     navigate(inputUrl);
   };
 
+  const updateNavState = (wv: any) => {
+    try {
+      setCanGoBack(wv.canGoBack?.() ?? false);
+      setCanGoForward(wv.canGoForward?.() ?? false);
+    } catch { /* webview not ready */ }
+  };
+
   useEffect(() => {
     const nextUrl = tab.url || DEFAULT_BROWSER_URL;
     setInputUrl(nextUrl);
@@ -1276,55 +1297,98 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     }
   }, [tab.faviconUrl, tab.id, tab.url, updateTabFavicon, updateTabUrl]);
 
+  // Mount-once effect — uses refs so listeners are never torn down mid-load
   useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
+
     const onNav = (e: any) => {
-      const nextUrl = e?.url || wv.getURL?.() || currentUrl;
+      const nextUrl = e?.url || wv.getURL?.() || currentUrlRef.current;
       if (!nextUrl) return;
       setInputUrl(nextUrl);
       setCurrentUrl(nextUrl);
-      updateTabUrl(tab.id, nextUrl);
-      updateTabFavicon(tab.id, getBrowserFaviconForUrl(nextUrl));
+      currentUrlRef.current = nextUrl;
+      updateTabUrlRef.current(tabIdRef.current, nextUrl);
+      updateTabFaviconRef.current(tabIdRef.current, getBrowserFaviconForUrl(nextUrl));
+      updateNavState(wv);
     };
     const onTitle = (e: any) => {
       const nextTitle = typeof e?.title === 'string' && e.title.trim()
         ? e.title.trim()
-        : deriveBrowserTitle(currentUrl);
-      updateTabTitle(tab.id, nextTitle);
+        : deriveBrowserTitle(currentUrlRef.current);
+      updateTabTitleRef.current(tabIdRef.current, nextTitle);
     };
     const onFavicon = (e: any) => {
       const favicons = Array.isArray(e?.favicons) ? e.favicons.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0) : [];
       const favicon = favicons[0];
-      cacheBrowserFavicon(currentUrl, favicon);
-      updateTabFavicon(tab.id, favicon);
+      cacheBrowserFavicon(currentUrlRef.current, favicon);
+      updateTabFaviconRef.current(tabIdRef.current, favicon);
     };
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    const done = () => { if (stopTimer) clearTimeout(stopTimer); stopTimer = null; setIsLoading(false); updateNavState(wv); };
+    const onStartLoad   = () => { if (stopTimer) clearTimeout(stopTimer); setIsLoading(true);  updateNavState(wv); };
+    const onFinishLoad  = () => done();
+    const onFailLoad    = () => done();
+    const onStopLoad    = () => { stopTimer = setTimeout(done, 300); };
+    const onDomReady    = () => { updateNavState(wv); };
     const onReload = (e: Event) => {
       const detail = (e as CustomEvent<{ tabId?: string }>).detail;
-      if (detail?.tabId !== tab.id) return;
+      if (detail?.tabId !== tabIdRef.current) return;
       wv.reload();
     };
+
     wv.addEventListener('did-navigate', onNav);
     wv.addEventListener('did-navigate-in-page', onNav);
     wv.addEventListener('page-title-updated', onTitle);
     wv.addEventListener('page-favicon-updated', onFavicon);
+    wv.addEventListener('did-start-loading', onStartLoad);
+    wv.addEventListener('did-finish-load', onFinishLoad);
+    wv.addEventListener('did-fail-load', onFailLoad);
+    wv.addEventListener('did-stop-loading', onStopLoad);
+    wv.addEventListener('dom-ready', onDomReady);
     window.addEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     return () => {
       wv.removeEventListener('did-navigate', onNav);
       wv.removeEventListener('did-navigate-in-page', onNav);
       wv.removeEventListener('page-title-updated', onTitle);
       wv.removeEventListener('page-favicon-updated', onFavicon);
+      wv.removeEventListener('did-start-loading', onStartLoad);
+      wv.removeEventListener('did-finish-load', onFinishLoad);
+      wv.removeEventListener('did-fail-load', onFailLoad);
+      wv.removeEventListener('did-stop-loading', onStopLoad);
+      wv.removeEventListener('dom-ready', onDomReady);
+      if (stopTimer) clearTimeout(stopTimer);
       window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     };
-  }, [currentUrl, tab.id, updateTabFavicon, updateTabTitle, updateTabUrl]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNode) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 4, border: 'none', background: 'transparent',
+        color: disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.35 : 1,
+        transition: 'opacity 0.1s, color 0.1s',
+      }}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       <div style={{ height: 36, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <button style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => webviewRef.current?.goBack()}><ArrowLeft size={14} /></button>
-          <button style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => webviewRef.current?.goForward()}><ArrowRight size={14} /></button>
-          <button style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => webviewRef.current?.reload()}><RefreshCw size={14} /></button>
+          {navBtn(!canGoBack,    () => webviewRef.current?.goBack(),    <ArrowLeft size={14} />)}
+          {navBtn(!canGoForward, () => webviewRef.current?.goForward(), <ArrowRight size={14} />)}
+          {navBtn(false, () => webviewRef.current?.reload(),
+            <RefreshCw size={14} style={isLoading ? { animation: 'spin 0.7s linear infinite' } : undefined} />
+          )}
         </div>
         <form onSubmit={handleNavigate} style={{ flex: 1 }}>
           <input
