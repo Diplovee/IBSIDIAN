@@ -26,10 +26,12 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
     document.documentElement.setAttribute('data-theme', t);
+    window.api.theme.set(t).catch(() => {});
   }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    window.api.theme.set(theme).catch(() => {});
   }, []);
 
   const toggleActivity = useCallback((activity: ActivityType) => {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, nativeTheme } from 'electron'
 import type { AppSettings } from '../src/types'
 
 // Suppress GPU/vaapi warnings on Linux
@@ -254,6 +254,10 @@ ipcMain.handle('vault:load-saved', async () => {
 })
 
 ipcMain.handle('app:home-dir', () => app.getPath('home'))
+ipcMain.handle('theme:set', (_: Electron.IpcMainInvokeEvent, theme: 'light' | 'dark') => {
+  nativeTheme.themeSource = theme
+})
+
 ipcMain.handle('settings:load', async () => loadSettingsConfig())
 ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
   const normalized: AppSettings = {

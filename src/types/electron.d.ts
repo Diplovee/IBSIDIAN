@@ -15,6 +15,9 @@ declare global {
       app: {
         homeDir: () => Promise<string>
       }
+      theme: {
+        set: (theme: 'light' | 'dark') => Promise<void>
+      }
       settings: {
         load: () => Promise<AppSettings>
         save: (settings: AppSettings) => Promise<AppSettings>

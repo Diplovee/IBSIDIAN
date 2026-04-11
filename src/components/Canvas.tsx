@@ -1247,6 +1247,8 @@ const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
   const { updateTabTitle, updateTabUrl, updateTabFavicon } = useTabs();
+  const { theme } = useActivity();
+  const bgColor = theme === 'dark' ? '#1e1e1e' : '#ffffff';
   const [inputUrl, setInputUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
   const [currentUrl, setCurrentUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -1330,7 +1332,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     const onFinishLoad  = () => done();
     const onFailLoad    = () => done();
     const onStopLoad    = () => { stopTimer = setTimeout(done, 300); };
-    const onDomReady    = () => { updateNavState(wv); };
+    const onDomReady    = () => { updateNavState(wv); try { wv.setBackgroundColor?.(bgColor); } catch {} };
     const onReload = (e: Event) => {
       const detail = (e as CustomEvent<{ tabId?: string }>).detail;
       if (detail?.tabId !== tabIdRef.current) return;
@@ -1361,6 +1363,11 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep webview background in sync with theme changes
+  useEffect(() => {
+    try { webviewRef.current?.setBackgroundColor?.(bgColor); } catch {}
+  }, [bgColor]);
 
   const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNode) => (
     <button
@@ -1400,7 +1407,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
         </form>
       </div>
       {/* @ts-ignore - webview is an Electron-specific tag */}
-      <webview ref={webviewRef} src={currentUrl} style={{ flex: 1, border: 'none' }} />
+      <webview ref={webviewRef} src={currentUrl} style={{ flex: 1, border: 'none', background: bgColor }} />
     </div>
   );
 };

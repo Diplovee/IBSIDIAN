@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('api', {
   app: {
     homeDir: () => ipcRenderer.invoke('app:home-dir'),
   },
+  theme: {
+    set: (theme: 'light' | 'dark'): Promise<void> =>
+      ipcRenderer.invoke('theme:set', theme),
+  },
   settings: {
     load: (): Promise<AppSettings> =>
       ipcRenderer.invoke('settings:load'),
