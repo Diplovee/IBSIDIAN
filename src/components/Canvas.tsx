@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { autocompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete';
 import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
@@ -332,8 +332,9 @@ export const Canvas: React.FC = () => {
   const { activeTabId, tabs } = useTabs();
   const activeTab = tabs.find(t => t.id === activeTabId);
 
-  // Always render all terminal tabs so PTY sessions survive tab switches.
+  // Always render all browser and terminal tabs so their embedded state survives tab switches.
   // Only unmount when the tab is closed (removed from tabs array).
+  const browserTabs = tabs.filter(t => t.type === 'browser');
   const terminalTabs = tabs.filter(t => t.type === 'terminal');
 
   const renderActiveTab = () => {
@@ -355,20 +356,33 @@ export const Canvas: React.FC = () => {
         </div>
       );
     }
-    // Terminal tabs are rendered persistently below; hide this slot when active tab is terminal
-    if (activeTab.type === 'terminal') return null;
+    // Browser and terminal tabs are rendered persistently below; hide this slot when either is active.
+    if (activeTab.type === 'terminal' || activeTab.type === 'browser') return null;
     switch (activeTab.type) {
-      case 'note': return <EditorTab tab={activeTab} />;
-      case 'browser': return <BrowserTab tab={activeTab} />;
-      case 'draw': return <DrawTab tab={activeTab} />;
-      case 'image': return <ImageTab tab={activeTab} />;
-      case 'new-tab': return <NewTabScreen tab={activeTab} />;
+      case 'note': return <EditorTab key={activeTab.id} tab={activeTab} />;
+      case 'draw': return <DrawTab key={activeTab.id} tab={activeTab} />;
+      case 'image': return <ImageTab key={activeTab.id} tab={activeTab} />;
+      case 'new-tab': return <NewTabScreen key={activeTab.id} tab={activeTab} />;
       default: return <div style={{ flex: 1, background: 'var(--bg-primary)' }} />;
     }
   };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      {/* Always-mounted browser tabs — hidden when not active */}
+      {browserTabs.map(t => (
+        <div
+          key={t.id}
+          style={{
+            display: activeTab?.id === t.id ? 'flex' : 'none',
+            flex: 1,
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <BrowserTab tab={t} />
+        </div>
+      ))}
       {/* Always-mounted terminal tabs — hidden when not active */}
       {terminalTabs.map(t => (
         <div
@@ -383,8 +397,8 @@ export const Canvas: React.FC = () => {
           <TerminalTab tab={t} />
         </div>
       ))}
-      {/* Non-terminal active tab */}
-      {activeTab?.type !== 'terminal' && (
+      {/* Non-browser, non-terminal active tab */}
+      {activeTab?.type !== 'terminal' && activeTab?.type !== 'browser' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {renderActiveTab()}
         </div>
@@ -402,7 +416,7 @@ const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
   const handleNewNote = useCallback(() => {
     const name = nextUntitledName();
     createFileRemote('', name, 'md').then(() => {
-      refreshFileTree();
+      refreshFileTree(undefined, { showLoading: false });
       closeTab(tab.id);
       openTab({ type: 'note', title: name, filePath: `${name}.md` });
     });
@@ -748,7 +762,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         ? `The file or folder could not be found. It may have been moved or deleted.\n\n${msg}`
         : msg,
     });
-    if (isNotFound) refreshFileTree().catch(() => {});
+    if (isNotFound) refreshFileTree(undefined, { showLoading: false }).catch(() => {});
   }, [alert, refreshFileTree]);
   const node = getNodeById(tab.filePath);
 
@@ -839,7 +853,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         renameItem(tab.filePath, newName)
           .then(() => {
             updateTabFilePath(tab.id, newPath);
-            refreshFileTree();
+            refreshFileTree(undefined, { showLoading: false });
           })
           .catch(err => handleError(err, 'rename file'));
       }
@@ -873,7 +887,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           renameItem(tab.filePath, newName)
             .then(() => {
               updateTabFilePath(tab.id, newPath);
-              refreshFileTree();
+              refreshFileTree(undefined, { showLoading: false });
             })
             .catch(err => handleError(err, 'rename file'));
         }
@@ -923,7 +937,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         }
         insertTextAtSelection(view, fragments.join('\n\n'));
       }
-      refreshFileTree().catch(() => {});
+      refreshFileTree(undefined, { showLoading: false }).catch(() => {});
       return true;
     } catch (err) {
       handleError(err, 'insert image');
@@ -1179,15 +1193,35 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
 // ── Browser tab ──────────────────────────────────────────────────────
 
+const DEFAULT_BROWSER_URL = 'https://www.google.com';
+
+const resolveBrowserUrl = (target: string) => {
+  const trimmed = target.trim();
+  if (!trimmed) return DEFAULT_BROWSER_URL;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
+
+const deriveBrowserTitle = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '') || url;
+  } catch {
+    return url;
+  }
+};
+
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
-  const [inputUrl, setInputUrl] = useState(tab.url || 'https://www.google.com');
-  const [currentUrl, setCurrentUrl] = useState(tab.url || 'https://www.google.com');
+  const { updateTabTitle, updateTabUrl } = useTabs();
+  const [inputUrl, setInputUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
+  const [currentUrl, setCurrentUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
 
   const navigate = (target: string) => {
-    if (!target.startsWith('http')) target = 'https://' + target;
-    setCurrentUrl(target);
-    setInputUrl(target);
+    const nextUrl = resolveBrowserUrl(target);
+    setCurrentUrl(nextUrl);
+    setInputUrl(nextUrl);
+    updateTabUrl(tab.id, nextUrl);
+    updateTabTitle(tab.id, deriveBrowserTitle(nextUrl));
   };
 
   const handleNavigate = (e: React.FormEvent) => {
@@ -1196,16 +1230,44 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   };
 
   useEffect(() => {
+    const nextUrl = tab.url || DEFAULT_BROWSER_URL;
+    setInputUrl(nextUrl);
+    setCurrentUrl(nextUrl);
+    if (!tab.url) updateTabUrl(tab.id, nextUrl);
+  }, [tab.id, tab.url, updateTabUrl]);
+
+  useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
-    const onNav = (e: any) => setInputUrl(e.url);
+    const onNav = (e: any) => {
+      const nextUrl = e?.url || wv.getURL?.() || currentUrl;
+      if (!nextUrl) return;
+      setInputUrl(nextUrl);
+      setCurrentUrl(nextUrl);
+      updateTabUrl(tab.id, nextUrl);
+    };
+    const onTitle = (e: any) => {
+      const nextTitle = typeof e?.title === 'string' && e.title.trim()
+        ? e.title.trim()
+        : deriveBrowserTitle(currentUrl);
+      updateTabTitle(tab.id, nextTitle);
+    };
+    const onReload = (e: Event) => {
+      const detail = (e as CustomEvent<{ tabId?: string }>).detail;
+      if (detail?.tabId !== tab.id) return;
+      wv.reload();
+    };
     wv.addEventListener('did-navigate', onNav);
     wv.addEventListener('did-navigate-in-page', onNav);
+    wv.addEventListener('page-title-updated', onTitle);
+    window.addEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     return () => {
       wv.removeEventListener('did-navigate', onNav);
       wv.removeEventListener('did-navigate-in-page', onNav);
+      wv.removeEventListener('page-title-updated', onTitle);
+      window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     };
-  }, []);
+  }, [currentUrl, tab.id, updateTabTitle, updateTabUrl]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
@@ -1272,6 +1334,36 @@ const ImageTab: React.FC<{ tab: any }> = ({ tab }) => {
 // ── Draw tab ─────────────────────────────────────────────────────────
 
 const DRAW_SAVE_DEBOUNCE_MS = 400;
+const EXCALIDRAW_LINK_HREFS = [
+  'https://github.com/excalidraw/excalidraw',
+  'https://x.com/excalidraw',
+  'https://twitter.com/excalidraw',
+  'https://discord.gg/UexuTaE',
+  'https://docs.excalidraw.com',
+  'https://plus.excalidraw.com/blog',
+  'https://youtube.com/@excalidraw',
+  'https://github.com/excalidraw/excalidraw/issues',
+];
+
+const hideExcalidrawBrandLinks = () => {
+  const root = document.querySelector('.excalidraw');
+  if (!root) return;
+
+  root.querySelectorAll('a').forEach(anchor => {
+    const href = (anchor as HTMLAnchorElement).href;
+    if (!EXCALIDRAW_LINK_HREFS.some(target => href === target || href.startsWith(`${target}/`))) return;
+
+    const section = anchor.closest('.HelpDialog__island, .HelpDialog__header, .Socials') as HTMLElement | null;
+    (section ?? anchor).remove();
+  });
+
+  root.querySelectorAll('h1, h2, h3, h4, h5, h6, div, span, p').forEach(node => {
+    if (node.textContent?.trim() !== 'Excalidraw links') return;
+
+    const section = node.closest('.HelpDialog__island, .HelpDialog__header, .Socials') as HTMLElement | null;
+    (section ?? node).remove();
+  });
+};
 
 const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
   const { readFile, writeFile } = useVault();
@@ -1348,6 +1440,13 @@ const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
         .catch(err => setSaveError(err instanceof Error ? err.message : String(err)));
     }, DRAW_SAVE_DEBOUNCE_MS);
   }, [tab.filePath, writeFile]);
+
+  useLayoutEffect(() => {
+    hideExcalidrawBrandLinks();
+    const observer = new MutationObserver(() => hideExcalidrawBrandLinks());
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   if (isLoading) {
     return (

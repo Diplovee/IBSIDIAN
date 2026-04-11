@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.7] - 2026-04-11
+
+### Added
+- Browser tab groups with Chrome-like pill blocks, drag-and-drop grouping, and collapse/expand behavior
+- Sonner toast notifications themed to match the app
+
+### Changed
+- Browser tabs now support copy URL/title/domain, rename, duplicate, and reload actions
+- Grouped browser tabs render as ordered blocks with connector spacing; standalone tabs keep the normal gap
+
+### Fixed
+- Collapsed group pills keep their click-to-expand behavior cleanly inside the strip
+- Browser tab switching preserves per-tab state without reload bleed
+
+## [2026.5.6] - 2026-04-11
+
+### Added
+- File tree now supports multi-selection with Shift-click, Shift + ArrowUp/ArrowDown, and right-click actions for copying paths and deleting multiple items
+
+### Changed
+- File tree refreshes triggered by create, rename, delete, and attachment actions now run silently in the background instead of flashing a loading state
+
+### Fixed
+- Modal backdrops no longer use blur, which reduces rendering cost on older hardware
+- File tree context menus now operate on the current multi-selection when multiple items are selected
+
 ## [2026.5.5] - 2026-04-09
 
 ### Added

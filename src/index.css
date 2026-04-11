@@ -165,6 +165,20 @@ body {
   color: var(--text-primary);
 }
 
+/* Excalidraw branding/social links are hidden in the embedded editor */
+.excalidraw .HelpDialog__header,
+.excalidraw .Socials,
+.excalidraw a[href="https://github.com/excalidraw/excalidraw"],
+.excalidraw a[href="https://x.com/excalidraw"],
+.excalidraw a[href="https://twitter.com/excalidraw"],
+.excalidraw a[href="https://discord.gg/UexuTaE"],
+.excalidraw a[href="https://docs.excalidraw.com"],
+.excalidraw a[href="https://plus.excalidraw.com/blog"],
+.excalidraw a[href="https://youtube.com/@excalidraw"],
+.excalidraw a[href="https://github.com/excalidraw/excalidraw/issues"] {
+  display: none !important;
+}
+
 .markdown-body h1 {
   font-size: var(--text-2xl);
   font-weight: 800;

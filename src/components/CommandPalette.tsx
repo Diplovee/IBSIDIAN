@@ -18,16 +18,16 @@ export const CommandPalette: React.FC = () => {
     { label: 'New Note', shortcut: 'N', action: () => {
       const name = nextUntitledName();
       createFileRemote('', name, 'md').then(() => {
-        refreshFileTree();
+        refreshFileTree(undefined, { showLoading: false });
         openTab({ type: 'note', title: name, filePath: `${name}.md` });
       });
     }},
-    { label: 'New Folder', shortcut: 'F', action: () => createFolderRemote('', 'New Folder').then(() => refreshFileTree()) },
+    { label: 'New Folder', shortcut: 'F', action: () => createFolderRemote('', 'New Folder').then(() => refreshFileTree(undefined, { showLoading: false })) },
     { label: 'Open Browser',   shortcut: 'B', action: () => openTab({ type: 'browser', title: 'New Tab', url: 'https://www.google.com' }) },
     { label: 'Open Drawing',   shortcut: 'D', action: () => {
       const name = nextUntitledName();
       createFileRemote('', name, 'excalidraw').then(() => {
-        refreshFileTree();
+        refreshFileTree(undefined, { showLoading: false });
         openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
       });
     } },

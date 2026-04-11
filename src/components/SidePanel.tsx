@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Tree } from 'react-arborist';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Tree, TreeApi, NodeApi } from 'react-arborist';
 import {
   Folder, FileText, FolderPlus,
   Search as SearchIcon, FilePen, ArrowUpNarrowWide, LayoutList,
@@ -16,7 +16,7 @@ import { VaultNode } from '../types';
 
 // ── Shared context so Node (outside FileTreeView) can trigger actions ─────
 interface TreeCtx {
-  openContextMenu: (e: React.MouseEvent, data: VaultNode) => void;
+  openContextMenu: (e: React.MouseEvent, node: NodeApi<VaultNode>) => void;
   openTab: (opts: any) => void;
 }
 const TreeContext = React.createContext<TreeCtx>({ openContextMenu: () => {}, openTab: () => {} });
@@ -57,8 +57,43 @@ const SidebarBtn: React.FC<{ icon: React.ReactNode; title: string; onClick?: () 
   );
 };
 
+const toDisplayNameParts = (node: VaultNode) => {
+  const name = node.name;
+  const isFileNode = node.type === 'file';
+  const dot = isFileNode ? name.lastIndexOf('.') : -1;
+  const ext = dot > 0 ? name.slice(dot) : '';
+  const displayName = dot > 0 ? name.slice(0, dot) : name;
+  return { ext, displayName };
+};
+
+const getTopLevelPaths = (nodes: VaultNode[]) => {
+  const sorted = [...nodes].sort((a, b) => a.id.length - b.id.length);
+  return sorted
+    .filter(node => !sorted.some(other => other.id !== node.id && node.id.startsWith(`${other.id}/`)))
+    .map(node => node.id);
+};
+
+const handleTreeNodeClick = (node: NodeApi<VaultNode>, e: React.MouseEvent) => {
+  if ((e.metaKey || e.ctrlKey)) {
+    node.isSelected ? node.deselect() : node.selectMulti();
+  } else if (e.shiftKey) {
+    node.selectContiguous();
+  } else {
+    node.select();
+    node.activate();
+  }
+};
+
+const getSelectionRadius = (node: NodeApi<VaultNode>) => {
+  if (!node.isSelected) return 6;
+  if (node.isOnlySelection) return 6;
+  if (node.isSelectedStart) return '6px 6px 0 0';
+  if (node.isSelectedEnd) return '0 0 6px 6px';
+  return 0;
+};
+
 // ── Context menu ──────────────────────────────────────────────────────────
-interface CtxMenu { x: number; y: number; node: VaultNode }
+interface CtxMenu { x: number; y: number; node: VaultNode; selectedNodes: VaultNode[] }
 
 const CtxMenuItem: React.FC<{ icon: React.ReactNode; label: string; onClick?: () => void; disabled?: boolean; danger?: boolean; hasArrow?: boolean }> =
   ({ icon, label, onClick, disabled, danger, hasArrow }) => {
@@ -83,6 +118,33 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
   const { confirm, prompt } = useModal();
   const ref = useRef<HTMLDivElement>(null);
   const isFile = menu.node.type === 'file';
+  const isMulti = menu.selectedNodes.length > 1;
+  const deletePaths = getTopLevelPaths(menu.selectedNodes);
+
+  const handleCopyPaths = () => {
+    const text = menu.selectedNodes.map(node => node.id).join('\n');
+    navigator.clipboard.writeText(text).catch(() => {});
+    onClose();
+  };
+
+  const handleDelete = () => {
+    const title = isMulti ? `Delete ${deletePaths.length} items?` : `Delete "${menu.node.name}"?`;
+    onClose();
+    confirm({ title, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => {
+      if (ok) Promise.all(deletePaths.map(path => deleteItem(path))).then(() => refreshFileTree(undefined, { showLoading: false }));
+    });
+  };
+
+  const handleRename = () => {
+    const { ext, displayName } = toDisplayNameParts(menu.node);
+    onClose();
+    prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => {
+      if (n) {
+        const newName = ext ? (n.endsWith(ext) ? n : `${n}${ext}`) : n;
+        renameItem(menu.node.id, newName).then(() => refreshFileTree(undefined, { showLoading: false }));
+      }
+    });
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -107,25 +169,27 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
 
   return (
     <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, minWidth: 200, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', paddingTop: 4, paddingBottom: 4, visibility: visible ? 'visible' : 'hidden' }}>
-      {isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => {
+      {!isMulti && isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => {
         const target = getTabForNode(menu.node);
         if (target) openTab(target);
       })} />}
       <CtxSep />
-      <CtxMenuItem icon={<Copy size={14} />} label="Copy path" onClick={() => act(() => navigator.clipboard.writeText(menu.node.id).catch(() => {}))} />
+      <CtxMenuItem icon={<Copy size={14} />} label={isMulti ? 'Copy paths' : 'Copy path'} onClick={handleCopyPaths} />
       <CtxSep />
-      <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={() => { onClose(); const name = menu.node.name; const isFileNode = menu.node.type === 'file'; const dot = isFileNode ? name.lastIndexOf('.') : -1; const ext = dot > 0 ? name.slice(dot) : ''; const displayName = dot > 0 ? name.slice(0, dot) : name; prompt({ title: 'Rename', defaultValue: displayName, placeholder: 'Name', confirmLabel: 'Rename' }).then(n => { if (n) { const newName = ext ? (n.endsWith(ext) ? n : `${n}${ext}`) : n; renameItem(menu.node.id, newName).then(() => refreshFileTree()); } }); }} />
-      <CtxMenuItem icon={<Trash2 size={14} />} label="Delete" danger onClick={() => { onClose(); confirm({ title: `Delete "${menu.node.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }).then(ok => { if (ok) deleteItem(menu.node.id).then(() => refreshFileTree()); }); }} />
+      {!isMulti && <CtxMenuItem icon={<Pencil size={14} />} label="Rename..." onClick={handleRename} />}
+      <CtxMenuItem icon={<Trash2 size={14} />} label={isMulti ? 'Delete selected' : 'Delete'} danger onClick={handleDelete} />
     </div>
   );
 };
 
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
-  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree } = useVault();
+  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem } = useVault();
   const { openTab } = useTabs();
+  const { confirm } = useModal();
   const { settings } = useAppSettings();
   const containerRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<TreeApi<VaultNode> | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const headerHeight = 44;
@@ -146,14 +210,54 @@ const FileTreeView: React.FC = () => {
     moveNode(dragIds, parentId, index);
   };
 
+  const handleActivate = useCallback((node: NodeApi<VaultNode>) => {
+    if (node.data.type === 'folder') node.toggle();
+    else {
+      const target = getTabForNode(node.data);
+      if (target) openTab(target);
+    }
+  }, [openTab]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, node: NodeApi<VaultNode>) => {
+    e.preventDefault();
+    const tree = treeRef.current;
+    const keepSelection = node.isSelected && !!tree?.hasMultipleSelections;
+    if (!keepSelection) node.select();
+    setCtxMenu({
+      x: e.clientX,
+      y: e.clientY,
+      node: node.data,
+      selectedNodes: keepSelection ? (tree?.selectedNodes.map(item => item.data) ?? [node.data]) : [node.data],
+    });
+  }, []);
+
+  const handleTreeDelete = useCallback(({ ids }: { ids: string[] }) => {
+    const selected = ids
+      .map(id => treeRef.current?.get(id)?.data)
+      .filter((node): node is VaultNode => !!node);
+    const deletePaths = getTopLevelPaths(selected);
+    if (!deletePaths.length) return Promise.resolve();
+    return confirm({
+      title: deletePaths.length === 1 ? `Delete "${selected[0]?.name ?? 'item'}"?` : `Delete ${deletePaths.length} items?`,
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }).then(ok => {
+      if (!ok) return;
+      return Promise.all(deletePaths.map(path => deleteItem(path)))
+        .then(() => refreshFileTree(undefined, { showLoading: false }))
+        .then(() => treeRef.current?.deselectAll());
+    });
+  }, [confirm, deleteItem, refreshFileTree]);
+
   return (
-    <TreeContext.Provider value={{ openContextMenu: (e, data) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, node: data }); }, openTab }}>
+    <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'md').then(() => { refreshFileTree(); openTab({ type: 'note', title: name, filePath: `${name}.md` }); }); }} />
-          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'excalidraw').then(() => { refreshFileTree(); openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` }); }); }} />
-          <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolderRemote('', 'New Folder').then(() => refreshFileTree())} />
+          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'md').then(() => { refreshFileTree(undefined, { showLoading: false }); openTab({ type: 'note', title: name, filePath: `${name}.md` }); }); }} />
+          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'excalidraw').then(() => { refreshFileTree(undefined, { showLoading: false }); openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` }); }); }} />
+          <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolderRemote('', 'New Folder').then(() => refreshFileTree(undefined, { showLoading: false }))} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title="Sort" onClick={() => {}} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
           <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => {}} />
@@ -175,6 +279,7 @@ const FileTreeView: React.FC = () => {
             <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>Loading…</p>
           ) : dimensions ? (
             <Tree
+              ref={treeRef}
               data={nodes}
               openByDefault={true}
               width={dimensions.width}
@@ -182,6 +287,8 @@ const FileTreeView: React.FC = () => {
               indent={16}
               rowHeight={rowHeight}
               onMove={handleMove}
+              onActivate={handleActivate}
+              onDelete={handleTreeDelete}
             >
               {TreeRenderer}
             </Tree>
@@ -212,7 +319,7 @@ const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 13, 
 // ── Tree node row ─────────────────────────────────────────────────────────
 const TreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
-  const { openContextMenu, openTab } = React.useContext(TreeContext);
+  const { openContextMenu } = React.useContext(TreeContext);
   const { settings } = useAppSettings();
   const isMd = node.data.type === 'file' && node.data.ext === 'md';
   const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
@@ -222,7 +329,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   const indentStep = 16;
   const rowHeight = settings.appearance?.compactMode ? 28 : 36;
   const rowMid = rowHeight / 2;
-  const fontSizeMap = { small: 12, medium: 14, large: 15 } as const;
+  const fontSizeMap = { small: 13, medium: 14, large: 16 } as const;
   const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
   const contentPaddingLeft = basePadding + (node.level * indentStep) + 18;
   const currentLineX = basePadding + (node.level * indentStep) + 8;
@@ -237,20 +344,20 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
     ancestor = ancestor.parent;
   }
 
+  const badgeLabel = isExcalidraw ? 'CANVAS'
+    : isImage ? node.data.ext?.toUpperCase()
+    : (!isMd && isFile && node.data.ext) ? node.data.ext.toUpperCase()
+    : null;
+  const iconColor = node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)';
+
   return (
     <div
       ref={dragHandle}
-      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none', position: 'relative' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none', position: 'relative', boxSizing: 'border-box' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => {
-        if (node.data.type === 'folder') node.toggle();
-        else {
-          const target = getTabForNode(node.data);
-          if (target) openTab(target);
-        }
-      }}
-      onContextMenu={(e) => openContextMenu(e, node.data)}
+      onClick={(e) => handleTreeNodeClick(node, e)}
+      onContextMenu={(e) => openContextMenu(e, node)}
     >
       <svg
         aria-hidden
@@ -285,18 +392,19 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
           />
         )}
       </svg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', paddingLeft: contentPaddingLeft, paddingRight: 8, borderRadius: 6, background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
-      {isFile
-        ? isExcalidraw
-          ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
-          : isImage
-            ? <ImageFileIcon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-          : isMd
-            ? <MarkdownIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} />
-            : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-        : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-      }
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: '100%', paddingLeft: contentPaddingLeft, paddingRight: 10, borderRadius: 7, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+        {isFile
+          ? isExcalidraw
+            ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
+            : isImage
+              ? <ImageFileIcon size={14} style={{ flexShrink: 0, color: iconColor }} />
+              : isMd
+                ? <MarkdownIcon size={14} color={iconColor} />
+                : <FileText size={14} style={{ flexShrink: 0, color: iconColor }} />
+          : <Folder size={14} style={{ flexShrink: 0, color: iconColor }} />
+        }
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
+        {badgeLabel && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: 'var(--text-muted)', opacity: 0.8 }}>{badgeLabel}</span>}
       </div>
     </div>
   );
@@ -304,42 +412,42 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
 
 const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
-  const { openContextMenu, openTab } = React.useContext(TreeContext);
+  const { openContextMenu } = React.useContext(TreeContext);
   const { settings } = useAppSettings();
   const isMd = node.data.type === 'file' && node.data.ext === 'md';
   const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
   const isImage = node.data.type === 'file' && isImageExt(node.data.ext);
   const isFile = node.data.type === 'file';
-  const fontSizeMap = { small: 12, medium: 14, large: 15 } as const;
+  const fontSizeMap = { small: 13, medium: 14, large: 16 } as const;
   const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
+  const badgeLabel = isExcalidraw ? 'CANVAS'
+    : isImage ? node.data.ext?.toUpperCase()
+    : (!isMd && isFile && node.data.ext) ? node.data.ext.toUpperCase()
+    : null;
+  const iconColor = node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)';
 
   return (
     <div
       ref={dragHandle}
-      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'pointer', userSelect: 'none', boxSizing: 'border-box' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => {
-        if (node.data.type === 'folder') node.toggle();
-        else {
-          const target = getTabForNode(node.data);
-          if (target) openTab(target);
-        }
-      }}
-      onContextMenu={(e) => openContextMenu(e, node.data)}
+      onClick={(e) => handleTreeNodeClick(node, e)}
+      onContextMenu={(e) => openContextMenu(e, node)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', height: '100%', paddingLeft: 8, paddingRight: 8, borderRadius: 6, background: node.isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: '100%', paddingLeft: 10, paddingRight: 10, borderRadius: 7, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
         {isFile
           ? isExcalidraw
-            ? <ExcalidrawIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+            ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
             : isImage
-              ? <ImageFileIcon size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+              ? <ImageFileIcon size={14} style={{ flexShrink: 0, color: iconColor }} />
               : isMd
-                ? <MarkdownIcon size={13} color={node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)'} />
-                : <FileText size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-          : <Folder size={13} style={{ flexShrink: 0, color: node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+                ? <MarkdownIcon size={14} color={iconColor} />
+                : <FileText size={14} style={{ flexShrink: 0, color: iconColor }} />
+          : <Folder size={14} style={{ flexShrink: 0, color: iconColor }} />
         }
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
+        {badgeLabel && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: 'var(--text-muted)', opacity: 0.8 }}>{badgeLabel}</span>}
       </div>
     </div>
   );

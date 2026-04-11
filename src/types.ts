@@ -32,12 +32,21 @@ export interface AppSettings {
   };
 }
 
+export interface BrowserTabGroup {
+  id: string;
+  name: string;
+  color: string;
+  collapsed?: boolean;
+}
+
 export interface Tab {
   id: string;
   type: TabType;
   title: string;
   filePath?: string;
   url?: string;
+  customTitle?: string;
+  groupId?: string;
 }
 
 export type ActivityType = 'files' | 'search';

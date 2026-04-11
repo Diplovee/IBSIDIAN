@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ActivityBar } from './ActivityBar';
 import { TopBar } from './TopBar';
 import { SidePanel } from './SidePanel';
@@ -10,17 +10,57 @@ import { VaultSetup } from './VaultSetup';
 import { LoadingScreen } from './LoadingScreen';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
+import { useTabs } from '../contexts/TabsContext';
+import type { BrowserTabGroup, Tab } from '../types';
 import { FolderX } from 'lucide-react';
 
 const SIDEBAR_KEY = 'ibsidian-sidebar-width';
 const DEFAULT_WIDTH = 240;
+const TABS_KEY_PREFIX = 'ibsidian-tabs:';
 
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
   const { vault, isReady, error, clearActiveVault, refreshFileTree } = useVault();
+  const { tabs, activeTabId, restoreTabs, browserGroups } = useTabs();
+  const hydratedTabsKeyRef = useRef<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
   const vaultMissing = !!error && error.includes('not found');
+
+  const tabsStorageKey = vault ? `${TABS_KEY_PREFIX}${vault.path}` : null;
+
+  useEffect(() => {
+    if (!vault || !tabsStorageKey) {
+      hydratedTabsKeyRef.current = null;
+      restoreTabs([], null, []);
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem(tabsStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { tabs?: Tab[]; activeTabId?: string | null; browserGroups?: BrowserTabGroup[] };
+        const savedTabs = Array.isArray(parsed.tabs)
+          ? parsed.tabs.filter(tab => tab && typeof tab.id === 'string' && typeof tab.type === 'string' && typeof tab.title === 'string')
+          : [];
+        const savedGroups = Array.isArray(parsed.browserGroups)
+          ? parsed.browserGroups.filter(group => group && typeof group.id === 'string' && typeof group.name === 'string' && typeof group.color === 'string')
+          : [];
+        restoreTabs(savedTabs, typeof parsed.activeTabId === 'string' ? parsed.activeTabId : null, savedGroups);
+      } else {
+        restoreTabs([], null, []);
+      }
+    } catch {
+      restoreTabs([], null, []);
+    }
+
+    hydratedTabsKeyRef.current = tabsStorageKey;
+  }, [tabsStorageKey, vault, restoreTabs]);
+
+  useEffect(() => {
+    if (!tabsStorageKey || hydratedTabsKeyRef.current !== tabsStorageKey) return;
+    localStorage.setItem(tabsStorageKey, JSON.stringify({ tabs, activeTabId, browserGroups }));
+  }, [tabsStorageKey, tabs, activeTabId, browserGroups]);
 
   const handleRetry = useCallback(async () => {
     setRetrying(true);

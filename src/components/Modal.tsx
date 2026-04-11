@@ -75,7 +75,7 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               key="backdrop"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9000, backdropFilter: 'blur(1px)' }}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9000 }}
               onClick={() => { if (modal.type === 'confirm') modal.resolve(false); else modal.resolve(null); close(); }}
             />
             {/* Modal */}

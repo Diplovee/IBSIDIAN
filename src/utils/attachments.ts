@@ -16,6 +16,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   fileTree: {
     style: 'original',
   },
+  appearance: {
+    fontSize: 'medium',
+    compactMode: false,
+  },
 };
 
 export const normalizeVaultPath = (value: string) =>

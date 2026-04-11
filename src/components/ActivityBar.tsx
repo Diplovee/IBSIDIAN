@@ -14,7 +14,7 @@ export const ActivityBar: React.FC = () => {
   const handleOpenDraw = () => {
     const name = nextUntitledName();
     createFileRemote('', name, 'excalidraw').then(() => {
-      refreshFileTree();
+      refreshFileTree(undefined, { showLoading: false });
       openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
     });
   };
