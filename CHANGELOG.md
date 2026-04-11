@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.9] - 2026-04-11
+
+### Added
+- Tab grouping now works across the editor for all groupable tabs (notes, drawings, images, and browser tabs), including drag/drop grouping and group-level actions
+
+### Changed
+- New groupable tabs now inherit the currently active tab group when appropriate, so adding files keeps workflow context
+
+### Fixed
+- Browser tab favicons now appear faster and more reliably using a layered strategy: webview favicon event, domain fallback, `/favicon.ico`, plus in-memory origin caching
+
 ## [2026.5.8] - 2026-04-11
 
 ### Changed

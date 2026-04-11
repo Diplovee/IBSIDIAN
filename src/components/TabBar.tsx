@@ -4,7 +4,7 @@ import {
   Pin, Link2, Link, BookOpen, Code, ExternalLink, PanelLeft, PanelRight,
   PanelBottom, Pencil, FolderInput, Bookmark, GitMerge, PlusCircle,
   Download, Search, Copy, History, ArrowUpRight, FolderOpen, Trash2, RefreshCw,
-  Image as ImageFileIcon,
+  ChevronRight, Image as ImageFileIcon,
 } from 'lucide-react';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
@@ -26,12 +26,54 @@ const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, 
     />
   </svg>
 );
+
+const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string }> = ({ faviconUrl, pageUrl }) => {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [iconSrc, setIconSrc] = useState<string | undefined>(faviconUrl);
+  const [triedIcoFallback, setTriedIcoFallback] = useState(false);
+
+  useEffect(() => {
+    setLoadFailed(false);
+    setTriedIcoFallback(false);
+    setIconSrc(faviconUrl);
+  }, [faviconUrl]);
+
+  const handleError = () => {
+    if (!triedIcoFallback && pageUrl) {
+      try {
+        const origin = new URL(pageUrl).origin;
+        const icoFallback = `${origin}/favicon.ico`;
+        if (iconSrc !== icoFallback) {
+          setTriedIcoFallback(true);
+          setIconSrc(icoFallback);
+          return;
+        }
+      } catch {
+        // ignore URL parsing fallback errors
+      }
+    }
+    setLoadFailed(true);
+  };
+
+  if (!iconSrc || loadFailed) return <Globe size={14} />;
+
+  return (
+    <img
+      src={iconSrc}
+      alt=""
+      draggable={false}
+      onError={handleError}
+      style={{ width: 14, height: 14, borderRadius: 3, objectFit: 'cover' }}
+    />
+  );
+};
 import { useModal } from './Modal';
-import { Tab, TabType } from '../types';
+import { Tab } from '../types';
 
 // ── Tab context menu ──────────────────────────────────────────────────
 
 interface TabCtxMenu { x: number; y: number; tab: Tab }
+interface GroupCtxMenu { x: number; y: number; groupId: string }
 
 const TabCtxItem: React.FC<{
   icon: React.ReactNode; label: string;
@@ -63,6 +105,8 @@ const TabCtxItem: React.FC<{
 const TabCtxSep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />;
 
 const GROUP_COLORS = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#0f766e', '#db2777'];
+const GROUP_COLOR_SWATCHES = ['#232323', '#dc2626', '#16a34a', '#2563eb', '#f59e0b', '#7c3aed'];
+const isGroupableTab = (tab: Tab) => tab.type !== 'terminal' && tab.type !== 'new-tab';
 
 const hexToRgb = (value: string) => {
   const hex = value.replace('#', '').trim();
@@ -125,16 +169,17 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
   const tab = menu.tab;
   const isNote = tab.type === 'note';
   const isBrowser = tab.type === 'browser';
+  const isGroupable = tab.type !== 'terminal' && tab.type !== 'new-tab';
   const node = isNote && tab.filePath ? getNodeById(tab.filePath) : null;
   const tabIndex = tabs.findIndex(t => t.id === tab.id);
   const canCloseLeft = tabIndex > 0;
   const canCloseRight = tabIndex >= 0 && tabIndex < tabs.length - 1;
   const canCloseOther = tabs.length > 1;
-  const browserDisplayTitle = tab.customTitle ?? tab.title;
-  const group = isBrowser ? getBrowserGroup(tab.groupId) : null;
-  const groupedBrowserTabs = group ? tabs.filter(t => t.type === 'browser' && t.groupId === group.id) : [];
-  const canDuplicateGroup = group ? groupedBrowserTabs.length > 0 : false;
-  const canCloseGroup = group ? groupedBrowserTabs.length > 0 : false;
+  const tabDisplayTitle = tab.customTitle ?? tab.title;
+  const group = isGroupable ? getBrowserGroup(tab.groupId) : null;
+  const groupedTabs = group ? tabs.filter(t => t.groupId === group.id) : [];
+  const canDuplicateGroup = group ? groupedTabs.length > 0 : false;
+  const canCloseGroup = group ? groupedTabs.length > 0 : false;
 
   // Smart positioning — clamp within viewport
   const [pos, setPos] = useState({ x: menu.x, y: menu.y });
@@ -171,7 +216,7 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
     onClose();
     prompt({
       title: 'Rename tab',
-      defaultValue: browserDisplayTitle,
+      defaultValue: tabDisplayTitle,
       placeholder: 'Tab name',
       confirmLabel: 'Rename',
     }).then(n => {
@@ -254,10 +299,11 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
   };
 
   const handleCreateGroupFromTab = () => {
+    if (!isGroupable) return;
     onClose();
     prompt({
-      title: 'Create browser group',
-      defaultValue: browserDisplayTitle,
+      title: 'Create group',
+      defaultValue: tabDisplayTitle,
       placeholder: 'Group name',
       confirmLabel: 'Create',
     }).then(name => {
@@ -291,7 +337,7 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
   const handleRemoveFromGroup = () => {
     if (!group) return;
     act(() => moveTabToGroup(tab.id, null));
-    if (groupedBrowserTabs.length <= 1) deleteBrowserGroup(group.id);
+    if (groupedTabs.length <= 1) deleteBrowserGroup(group.id);
   };
 
   const handleDuplicateGroup = () => {
@@ -349,21 +395,162 @@ const TabContextMenu: React.FC<{ menu: TabCtxMenu; onClose: () => void }> = ({ m
           <TabCtxItem icon={<Link2 size={14} />} label="Copy domain" onClick={handleCopyBrowserDomain} />
           <TabCtxItem icon={<Pencil size={14} />} label="Rename tab..." onClick={handleRenameBrowser} />
           <TabCtxItem icon={<FileText size={14} />} label="Reset tab title" onClick={handleResetBrowserTitle} />
-          <TabCtxSep />
-          {group ? (
-            <>
-              <TabCtxItem icon={<FolderInput size={14} />} label="Rename group..." onClick={handleRenameGroup} />
-              <TabCtxItem icon={<Search size={14} />} label="Change group color..." onClick={handleChangeGroupColor} />
-              <TabCtxItem icon={<BookOpen size={14} />} label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={handleToggleGroupCollapsed} />
-              <TabCtxItem icon={<PlusCircle size={14} />} label="Duplicate group" disabled={!canDuplicateGroup} onClick={handleDuplicateGroup} />
-              <TabCtxItem icon={<Trash2 size={14} />} label="Close group" danger disabled={!canCloseGroup} onClick={handleCloseGroup} />
-              <TabCtxItem icon={<Link size={14} />} label="Remove from group" onClick={handleRemoveFromGroup} />
-            </>
-          ) : (
-            <TabCtxItem icon={<FolderInput size={14} />} label="Create group from tab..." onClick={handleCreateGroupFromTab} />
-          )}
         </>
       )}
+      {isGroupable && <TabCtxSep />}
+      {isGroupable && (group ? (
+        <>
+          <TabCtxItem icon={<FolderInput size={14} />} label="Rename group..." onClick={handleRenameGroup} />
+          <TabCtxItem icon={<Search size={14} />} label="Change group color..." onClick={handleChangeGroupColor} />
+          <TabCtxItem icon={<BookOpen size={14} />} label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={handleToggleGroupCollapsed} />
+          <TabCtxItem icon={<PlusCircle size={14} />} label="Duplicate group" disabled={!canDuplicateGroup} onClick={handleDuplicateGroup} />
+          <TabCtxItem icon={<Trash2 size={14} />} label="Close group" danger disabled={!canCloseGroup} onClick={handleCloseGroup} />
+          <TabCtxItem icon={<Link size={14} />} label="Remove from group" onClick={handleRemoveFromGroup} />
+        </>
+      ) : (
+        <TabCtxItem icon={<FolderInput size={14} />} label="Create group from tab..." onClick={handleCreateGroupFromTab} />
+      ))}
+    </div>
+  );
+};
+
+const BrowserGroupContextMenu: React.FC<{ menu: GroupCtxMenu; onClose: () => void }> = ({ menu, onClose }) => {
+  const {
+    deleteBrowserGroup,
+    toggleBrowserGroupCollapsed,
+    duplicateBrowserGroup,
+    closeBrowserGroup,
+    getBrowserGroup,
+    updateBrowserGroup,
+  } = useTabs();
+  const ref = useRef<HTMLDivElement>(null);
+  const group = getBrowserGroup(menu.groupId);
+
+  const [pos, setPos] = useState({ x: menu.x, y: menu.y });
+  const [visible, setVisible] = useState(false);
+  const [groupName, setGroupName] = useState('');
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const { width, height } = ref.current.getBoundingClientRect();
+    setPos({
+      x: Math.max(8, Math.min(menu.x, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(menu.y, window.innerHeight - height - 8)),
+    });
+    setVisible(true);
+  }, [menu]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!group) return;
+    setGroupName(group.name);
+  }, [group, menu]);
+
+  if (!group) return null;
+
+  const act = (fn: () => void) => { fn(); onClose(); };
+  const handleRenameGroupInline = () => {
+    const nextName = groupName.trim();
+    if (!nextName) {
+      setGroupName(group.name);
+      return;
+    }
+    if (nextName !== group.name) {
+      updateBrowserGroup(group.id, { name: nextName });
+    }
+  };
+  const handlePickGroupColor = (color: string) => {
+    updateBrowserGroup(group.id, { color });
+  };
+  const handleToggleGroupCollapsed = () => {
+    act(() => toggleBrowserGroupCollapsed(group.id));
+  };
+  const handleDuplicateGroup = () => {
+    act(() => duplicateBrowserGroup(group.id));
+  };
+  const handleUngroup = () => {
+    act(() => deleteBrowserGroup(group.id));
+  };
+  const handleDeleteGroup = () => {
+    act(() => closeBrowserGroup(group.id));
+  };
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999,
+        minWidth: 260, background: 'var(--bg-primary)',
+        border: '1px solid var(--border)', borderRadius: 8,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+        paddingTop: 4, paddingBottom: 4,
+        visibility: visible ? 'visible' : 'hidden',
+      }}
+    >
+      <div style={{ padding: '10px 12px 6px' }}>
+        <input
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          onBlur={handleRenameGroupInline}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleRenameGroupInline();
+            }
+          }}
+          placeholder="Group name"
+          style={{
+            width: '100%',
+            height: 40,
+            borderRadius: 10,
+            border: `2px solid ${group.color}`,
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            padding: '0 12px',
+            fontSize: 13,
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+      <div style={{ padding: '8px 12px 6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 18, background: 'var(--bg-secondary)' }}>
+          {GROUP_COLOR_SWATCHES.map(color => {
+            const selected = group.color === color;
+            return (
+              <button
+                key={color}
+                type="button"
+                onClick={() => handlePickGroupColor(color)}
+                aria-label={`Set group color ${color}`}
+                title={color}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  border: selected ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.20)',
+                  background: color,
+                  boxShadow: selected ? '0 0 0 2px rgba(99, 102, 241, 0.24)' : 'none',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+      <TabCtxSep />
+      <TabCtxItem icon={<BookOpen size={14} />} label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={handleToggleGroupCollapsed} />
+      <TabCtxItem icon={<PlusCircle size={14} />} label="Duplicate group" onClick={handleDuplicateGroup} />
+      <TabCtxItem icon={<Link size={14} />} label="Ungroup" onClick={handleUngroup} />
+      <TabCtxItem icon={<Trash2 size={14} />} label="Delete group" danger onClick={handleDeleteGroup} />
     </div>
   );
 };
@@ -415,17 +602,16 @@ const TabItem: React.FC<{
 }> = ({ tab, isActive, icon, groupBadge, grouped, dragging, dropTarget, onSelect, onClose, onContextMenu, onDragStart, onDragEnd, onDragOver, onDrop }) => {
   const [hovered, setHovered] = useState(false);
   const [closeHovered, setCloseHovered] = useState(false);
-  const isBrowser = tab.type === 'browser';
-  const isGroupedBrowser = isBrowser && !!groupBadge;
-  const isCollapsedGroup = !!(isBrowser && groupBadge?.collapsed);
+  const isGroupedTab = !!groupBadge;
+  const isCollapsedGroup = !!groupBadge?.collapsed;
   const showTitle = !isCollapsedGroup;
   const showGroupBadge = false;
-  const showIcon = !isGroupedBrowser;
+  const showIcon = !isGroupedTab;
   const groupColor = groupBadge?.color ?? null;
 
   return (
     <div
-      draggable={tab.type === 'browser'}
+      draggable={tab.type !== 'terminal' && tab.type !== 'new-tab'}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
@@ -533,13 +719,14 @@ export const TabBar: React.FC = () => {
     createBrowserGroup,
   } = useTabs();
   const [ctxMenu, setCtxMenu] = useState<TabCtxMenu | null>(null);
+  const [groupCtxMenu, setGroupCtxMenu] = useState<GroupCtxMenu | null>(null);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [dropGroupId, setDropGroupId] = useState<string | null>(null);
 
-  const getIcon = (type: TabType) => {
-    switch (type) {
+  const getIcon = (tab: Tab) => {
+    switch (tab.type) {
       case 'note': return <MarkdownIcon size={14} />;
-      case 'browser': return <Globe size={14} />;
+      case 'browser': return <BrowserFaviconIcon faviconUrl={tab.faviconUrl} pageUrl={tab.url} />;
       case 'draw': return <ExcalidrawIcon size={14} />;
       case 'image': return <ImageFileIcon size={14} />;
       case 'terminal': return <SquareTerminal size={14} />;
@@ -566,7 +753,7 @@ export const TabBar: React.FC = () => {
   }, [draggedTabId]);
 
   const handleTabDragStart = useCallback((e: React.DragEvent, tab: Tab) => {
-    if (tab.type !== 'browser') return;
+    if (!isGroupableTab(tab)) return;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/x-ibsidian-tab-id', tab.id);
     e.dataTransfer.setData('text/plain', tab.id);
@@ -582,8 +769,10 @@ export const TabBar: React.FC = () => {
     e.stopPropagation();
     const sourceTabId = getDraggedTabId(e);
     if (!sourceTabId || sourceTabId === targetTab.id) return;
+    if (!isGroupableTab(targetTab)) return;
 
-    if (targetTab.type !== 'browser') return;
+    const sourceTab = tabs.find(t => t.id === sourceTabId);
+    if (!sourceTab || !isGroupableTab(sourceTab)) return;
 
     const targetGroup = getBrowserGroup(targetTab.groupId);
     if (targetGroup) {
@@ -591,9 +780,6 @@ export const TabBar: React.FC = () => {
       clearDragState();
       return;
     }
-
-    const sourceTab = tabs.find(t => t.id === sourceTabId);
-    if (!sourceTab || sourceTab.type !== 'browser') return;
 
     const groupName = targetTab.customTitle ?? targetTab.title;
     const newGroupId = createBrowserGroup(groupName);
@@ -607,10 +793,12 @@ export const TabBar: React.FC = () => {
     e.stopPropagation();
     const sourceTabId = getDraggedTabId(e);
     if (!sourceTabId) return;
+    const sourceTab = tabs.find(t => t.id === sourceTabId);
+    if (!sourceTab || !isGroupableTab(sourceTab)) return;
     moveTabToGroup(sourceTabId, groupId);
     setDropGroupId(null);
     setDraggedTabId(null);
-  }, [getDraggedTabId, moveTabToGroup]);
+  }, [getDraggedTabId, moveTabToGroup, tabs]);
 
   const handleGroupDragOver = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
@@ -619,7 +807,7 @@ export const TabBar: React.FC = () => {
   }, []);
 
   const browserGroupBadgeForTab = (tab: Tab) => {
-    if (tab.type !== 'browser') return null;
+    if (!isGroupableTab(tab)) return null;
     const group = getBrowserGroup(tab.groupId);
     return group ? { name: group.name, color: group.color, collapsed: !!group.collapsed } : null;
   };
@@ -631,7 +819,7 @@ export const TabBar: React.FC = () => {
       <div style={{ height: 36, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'stretch', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', zIndex: 30, borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', height: '100%', alignItems: 'stretch', paddingLeft: 6 }}>
           {tabs.map((tab) => {
-            if (tab.type === 'browser' && tab.groupId) {
+            if (tab.groupId && isGroupableTab(tab)) {
               const group = getBrowserGroup(tab.groupId);
               if (!group) {
                 return (
@@ -639,7 +827,7 @@ export const TabBar: React.FC = () => {
                     key={tab.id}
                     tab={tab}
                     isActive={activeTabId === tab.id}
-                    icon={getIcon(tab.type)}
+                    icon={getIcon(tab)}
                     groupBadge={browserGroupBadgeForTab(tab)}
                     grouped
                     dragging={draggedTabId === tab.id}
@@ -657,8 +845,7 @@ export const TabBar: React.FC = () => {
 
               if (renderedGroupIds.has(group.id)) return null;
               renderedGroupIds.add(group.id);
-              const groupTabs = tabs.filter(t => t.type === 'browser' && t.groupId === group.id);
-              const firstGroupedTab = groupTabs[0];
+              const groupTabs = tabs.filter(t => t.groupId === group.id);
               const isDropTarget = dropGroupId === group.id;
               return (
                 <div key={group.id} style={{ display: 'flex', alignItems: 'stretch', marginRight: 12 }}>
@@ -666,7 +853,10 @@ export const TabBar: React.FC = () => {
                     onClick={() => toggleBrowserGroupCollapsed(group.id)}
                     title={group.collapsed ? 'Expand group' : 'Collapse group'}
                     aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
-                    onContextMenu={(e) => handleContextMenu(e, firstGroupedTab ?? { id: group.id, type: 'browser', title: group.name, customTitle: group.name, groupId: group.id } as Tab)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setGroupCtxMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
+                    }}
                     onDragOver={(e) => handleGroupDragOver(e, group.id)}
                     onDragLeave={() => setDropGroupId(null)}
                     onDrop={(e) => handleGroupDrop(e, group.id)}
@@ -702,7 +892,7 @@ export const TabBar: React.FC = () => {
                           <TabItem
                             tab={groupTab}
                             isActive={activeTabId === groupTab.id}
-                            icon={getIcon(groupTab.type)}
+                            icon={getIcon(groupTab)}
                             groupBadge={browserGroupBadgeForTab(groupTab)}
                             grouped
                             dragging={draggedTabId === groupTab.id}
@@ -729,7 +919,7 @@ export const TabBar: React.FC = () => {
                 key={tab.id}
                 tab={tab}
                 isActive={activeTabId === tab.id}
-                icon={getIcon(tab.type)}
+                icon={getIcon(tab)}
                 groupBadge={browserGroupBadgeForTab(tab)}
                 grouped={false}
                 dragging={draggedTabId === tab.id}
@@ -750,6 +940,7 @@ export const TabBar: React.FC = () => {
       </div>
 
       {ctxMenu && <TabContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />}
+      {groupCtxMenu && <BrowserGroupContextMenu menu={groupCtxMenu} onClose={() => setGroupCtxMenu(null)} />}
     </>
   );
 };

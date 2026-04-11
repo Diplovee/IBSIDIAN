@@ -1210,9 +1210,42 @@ const deriveBrowserTitle = (url: string) => {
   }
 };
 
+const browserFaviconCache = new Map<string, string>();
+
+const getUrlOrigin = (url: string) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+};
+
+const deriveBrowserFaviconFallback = (url: string) => {
+  const origin = getUrlOrigin(url);
+  if (!origin) return undefined;
+  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(origin)}`;
+};
+
+const getCachedBrowserFavicon = (url: string) => {
+  const origin = getUrlOrigin(url);
+  if (!origin) return undefined;
+  return browserFaviconCache.get(origin);
+};
+
+const getBrowserFaviconForUrl = (url: string) => {
+  return getCachedBrowserFavicon(url) ?? deriveBrowserFaviconFallback(url);
+};
+
+const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
+  if (!faviconUrl) return;
+  const origin = getUrlOrigin(url);
+  if (!origin) return;
+  browserFaviconCache.set(origin, faviconUrl);
+};
+
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
-  const { updateTabTitle, updateTabUrl } = useTabs();
+  const { updateTabTitle, updateTabUrl, updateTabFavicon } = useTabs();
   const [inputUrl, setInputUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
   const [currentUrl, setCurrentUrl] = useState(tab.url || DEFAULT_BROWSER_URL);
 
@@ -1222,6 +1255,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     setInputUrl(nextUrl);
     updateTabUrl(tab.id, nextUrl);
     updateTabTitle(tab.id, deriveBrowserTitle(nextUrl));
+    updateTabFavicon(tab.id, getBrowserFaviconForUrl(nextUrl));
   };
 
   const handleNavigate = (e: React.FormEvent) => {
@@ -1234,7 +1268,12 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     setInputUrl(nextUrl);
     setCurrentUrl(nextUrl);
     if (!tab.url) updateTabUrl(tab.id, nextUrl);
-  }, [tab.id, tab.url, updateTabUrl]);
+    if (tab.faviconUrl) {
+      cacheBrowserFavicon(nextUrl, tab.faviconUrl);
+    } else {
+      updateTabFavicon(tab.id, getBrowserFaviconForUrl(nextUrl));
+    }
+  }, [tab.faviconUrl, tab.id, tab.url, updateTabFavicon, updateTabUrl]);
 
   useEffect(() => {
     const wv = webviewRef.current;
@@ -1245,12 +1284,19 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       setInputUrl(nextUrl);
       setCurrentUrl(nextUrl);
       updateTabUrl(tab.id, nextUrl);
+      updateTabFavicon(tab.id, getBrowserFaviconForUrl(nextUrl));
     };
     const onTitle = (e: any) => {
       const nextTitle = typeof e?.title === 'string' && e.title.trim()
         ? e.title.trim()
         : deriveBrowserTitle(currentUrl);
       updateTabTitle(tab.id, nextTitle);
+    };
+    const onFavicon = (e: any) => {
+      const favicons = Array.isArray(e?.favicons) ? e.favicons.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+      const favicon = favicons[0];
+      cacheBrowserFavicon(currentUrl, favicon);
+      updateTabFavicon(tab.id, favicon);
     };
     const onReload = (e: Event) => {
       const detail = (e as CustomEvent<{ tabId?: string }>).detail;
@@ -1260,14 +1306,16 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     wv.addEventListener('did-navigate', onNav);
     wv.addEventListener('did-navigate-in-page', onNav);
     wv.addEventListener('page-title-updated', onTitle);
+    wv.addEventListener('page-favicon-updated', onFavicon);
     window.addEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     return () => {
       wv.removeEventListener('did-navigate', onNav);
       wv.removeEventListener('did-navigate-in-page', onNav);
       wv.removeEventListener('page-title-updated', onTitle);
+      wv.removeEventListener('page-favicon-updated', onFavicon);
       window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     };
-  }, [currentUrl, tab.id, updateTabTitle, updateTabUrl]);
+  }, [currentUrl, tab.id, updateTabFavicon, updateTabTitle, updateTabUrl]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>

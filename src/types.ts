@@ -47,6 +47,7 @@ export interface Tab {
   url?: string;
   customTitle?: string;
   groupId?: string;
+  faviconUrl?: string;
 }
 
 export type ActivityType = 'files' | 'search';

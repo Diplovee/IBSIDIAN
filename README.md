@@ -29,7 +29,8 @@ Features
 * Enhanced Markdown  — Markdown Guide basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
 * Settings Modal     — theme, version, about, and changelog access in a command-palette-style modal
 * Drawing Canvas     — visual notes via Excalidraw with locally served editor assets
-* Browser Tab        — built-in web browser
+* Browser Tab        — built-in web browser with favicon-aware tab icons
+* Tab Groups         — group notes, drawings, images, and browser tabs with drag/drop + collapse
 * Terminal           — real PTY shell starting in your vault root
 * Command Palette    — Ctrl+K for quick access to all commands
 * Light / Dark Theme — toggle in the Settings modal
