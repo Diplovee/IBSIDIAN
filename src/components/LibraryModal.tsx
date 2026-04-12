@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Trash2, RotateCcw, X, Clock, Layers, Globe, Pin } from 'lucide-react';
+import { Trash2, RotateCcw, X, Clock, Layers, Globe, Pin, History } from 'lucide-react';
 import { useLibrary } from '../contexts/LibraryContext';
 import { useTabs } from '../contexts/TabsContext';
 
-type ModalTab = 'active' | 'history' | 'forever';
+type ModalTab = 'active' | 'browser' | 'forever';
 
 const formatDate = (ts: number): string => {
   const d = new Date(ts);
@@ -105,7 +105,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
         </div>
 
         <div style={{ display: 'flex', gap: 4, padding: '12px 20px 0' }}>
-          {(['active', 'history', 'forever'] as ModalTab[]).map(tab => (
+          {(['active', 'browser', 'forever'] as ModalTab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -119,9 +119,9 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
               }}
             >
               {tab === 'active' && <Layers size={14} />}
-              {tab === 'history' && <Clock size={14} />}
+              {tab === 'browser' && <Globe size={14} />}
               {tab === 'forever' && <Pin size={14} />}
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'active' ? 'Active' : tab === 'browser' ? 'Browser History' : 'Forever'}
             </button>
           ))}
         </div>
@@ -136,7 +136,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
               onSave={handleSaveGroup}
             />
           )}
-          {activeTab === 'history' && (
+          {activeTab === 'browser' && (
             <HistoryTab
               historyByDate={historyByDate}
               onOpenEntry={(entry) => openTab({ type: 'browser', title: entry.title, url: entry.url })}

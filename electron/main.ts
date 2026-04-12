@@ -174,6 +174,7 @@ function startVaultWatcher(vaultPath: string) {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     ignored: shouldIgnore,
+    depth: 8,
   })
   watchedVaultPath = vaultPath
 
@@ -386,6 +387,25 @@ ipcMain.handle('app:restart', async () => {
   app.exit(0)
   return true
 })
+
+ipcMain.handle('app:version', async () => {
+  const rendererDir = join(__dirname, '../renderer')
+  try {
+    const text = await readFile(join(rendererDir, 'version.txt'), 'utf-8')
+    return text.trim()
+  } catch {
+    return 'Unknown'
+  }
+})
+
+ipcMain.handle('app:changelog', async () => {
+  const rendererDir = join(__dirname, '../renderer')
+  try {
+    return await readFile(join(rendererDir, 'changelog.txt'), 'utf-8')
+  } catch {
+    return null
+  }
+})
 ipcMain.handle('theme:set', (_: Electron.IpcMainInvokeEvent, theme: 'light' | 'dark') => {
   nativeTheme.themeSource = theme
 })
@@ -427,7 +447,8 @@ function getVault(): Vault {
   return v
 }
 
-async function readDirRecursive(dirPath: string, vaultPath: string): Promise<any[]> {
+async function readDirRecursive(dirPath: string, vaultPath: string, depth = 0): Promise<any[]> {
+  const MAX_DEPTH = 4
   const entries = await readdir(dirPath, { withFileTypes: true })
   return Promise.all(
     entries.map(async entry => {
@@ -437,7 +458,12 @@ async function readDirRecursive(dirPath: string, vaultPath: string): Promise<any
         path: relative(vaultPath, fullPath).replace(/\\/g, '/'),
         isDirectory: entry.isDirectory(),
       }
-      if (entry.isDirectory()) node.children = await readDirRecursive(fullPath, vaultPath)
+      if (entry.isDirectory()) {
+        if (depth < MAX_DEPTH) {
+          node.children = await readDirRecursive(fullPath, vaultPath, depth + 1)
+        }
+        // No children set at MAX_DEPTH → frontend lazy-loads on expand
+      }
       return node
     })
   )
@@ -447,6 +473,17 @@ ipcMain.handle('files:tree', async () => {
   const vault = getVault()
   const children = await readDirRecursive(vault.path, vault.path)
   return { name: vault.name, path: '', isDirectory: true, children }
+})
+
+ipcMain.handle('files:tree:children', async (_, dirPath: string) => {
+  const vault = getVault()
+  const fullPath = dirPath ? join(vault.path, dirPath) : vault.path
+  const entries = await readdir(fullPath, { withFileTypes: true }).catch(() => [])
+  return entries.map(entry => ({
+    name: entry.name,
+    path: relative(vault.path, join(fullPath, entry.name)).replace(/\\/g, '/'),
+    isDirectory: entry.isDirectory(),
+  }))
 })
 
 ipcMain.handle('files:read', async (_, filePath: string) => {
@@ -530,7 +567,7 @@ ipcMain.handle('files:search', async (_, query: string, options: { caseSensitive
       } else {
         const relPath = relative(vault.path, fullPath).replace(/\\/g, '/')
         const nameHaystack = options.caseSensitive ? entry.name : entry.name.toLowerCase()
-        if (nameHaystack.includes(needle)) {
+        if (nameHaystack.includes(needle) && filenameResults.length < 300) {
           filenameResults.push({ path: relPath, line: 0, text: '', matchType: 'filename' })
         }
         if (entry.name.endsWith('.md') && contentResults.length < 500) {

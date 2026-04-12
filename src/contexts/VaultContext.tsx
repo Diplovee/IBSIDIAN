@@ -22,6 +22,7 @@ interface VaultNode {
   content?: string;
   children?: VaultNode[];
   isOpen?: boolean;
+  childrenLoaded?: boolean;
 }
 
 interface VaultContextType {
@@ -56,6 +57,8 @@ interface VaultContextType {
   deleteItem: (itemPath: string) => Promise<void>;
   renameItem: (oldPath: string, newName: string) => Promise<void>;
   
+  expandFolder: (id: string) => Promise<void>;
+
   // Utility
   normalizePath: (path: string) => string;
 }
@@ -93,13 +96,21 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const convertToVaultNodes = useCallback((fileNode: FileNode): VaultNode => {
     const ext = fileNode.isDirectory ? undefined : fileNode.name.includes('.') ? fileNode.name.split('.').pop()?.toLowerCase() : undefined;
+    if (fileNode.isDirectory) {
+      return {
+        id: fileNode.path || fileNode.name,
+        type: 'folder',
+        name: fileNode.name,
+        children: fileNode.children?.map(convertToVaultNodes) ?? [],
+        childrenLoaded: fileNode.children !== undefined,
+        isOpen: false,
+      };
+    }
     return {
       id: fileNode.path || fileNode.name,
-      type: fileNode.isDirectory ? 'folder' : 'file',
+      type: 'file',
       name: fileNode.name,
       ext,
-      children: fileNode.children?.map(convertToVaultNodes),
-      isOpen: false,
     };
   }, []);
 
@@ -178,7 +189,22 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     return find(nodes);
   }, [nodes]);
-  
+
+  const expandFolder = useCallback(async (id: string) => {
+    const entries = await window.api.files.treeChildren(id);
+    const children = entries.map((fileNode: FileNode) => convertToVaultNodes(fileNode));
+    setNodes(prev => {
+      const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
+        if (node.id === id && node.type === 'folder') {
+          return { ...node, children, childrenLoaded: true };
+        }
+        if (node.type === 'folder') return { ...node, children: update(node.children || []) };
+        return node;
+      });
+      return update(prev);
+    });
+  }, [convertToVaultNodes]);
+
   const createFile = useCallback((parentId: string | null, name: string, ext: 'md' | 'excalidraw'): string => {
     const id = Math.random().toString(36).substr(2, 9);
     const content = ext === 'md' ? '' : createEmptyExcalidrawFileContent();
@@ -369,6 +395,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     copyNode,
     updateFileContent,
     getNodeById,
+    expandFolder,
     nextUntitledName,
     setActiveVault,
     clearActiveVault,

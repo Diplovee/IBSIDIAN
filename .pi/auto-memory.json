@@ -3,6 +3,27 @@
   "enabled": true,
   "preferences": [
     {
+      "text": "hey , umm i am making this opensource, so what licence is great for, it , or check maybe i already have, also i want it open , but the user…",
+      "createdAt": "2026-04-12T12:48:39.329Z",
+      "updatedAt": "2026-04-12T12:49:02.530Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": "/tmp/pi-clipboard-2ccaa5a3-4eb6-4b5f-9702-2c114e2b34bf.png , tip tap is always failing, Canvas.tsx:1530 TypeError: Cannot read properties o…",
+      "createdAt": "2026-04-12T15:46:27.873Z",
+      "updatedAt": "2026-04-12T15:47:02.551Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": "/tmp/pi-clipboard-d911654b-6774-437b-9a80-1297608849b9.png, add the bar there, so it will be fixed, position , remember show it only if the…",
+      "createdAt": "2026-04-12T16:01:12.701Z",
+      "updatedAt": "2026-04-12T16:04:48.158Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
       "text": "make the close btn on web tabs always visible",
       "createdAt": "2026-04-11T19:54:51.564Z",
       "updatedAt": "2026-04-11T19:54:55.830Z",
@@ -10,8 +31,65 @@
       "source": "user"
     }
   ],
-  "projectFacts": [],
+  "projectFacts": [
+    {
+      "text": "[plugin:vite:react-babel] /home/diplov/IBSIDIAN/src/components/Canvas.tsx: 'return' outside of function.",
+      "createdAt": "2026-04-12T07:59:57.144Z",
+      "updatedAt": "2026-04-12T08:00:50.749Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": "Uncaught SyntaxError: The requested module '/node_modules/.vite/deps/@tiptap_extension-table.js?v=725d1e8e' does not provide an export named 'default' (at",
+      "createdAt": "2026-04-12T15:44:16.478Z",
+      "updatedAt": "2026-04-12T15:44:37.616Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": "React will try to recreate this component tree from scratch using the error boundary you provided, TipTapErrorBoundary.",
+      "createdAt": "2026-04-12T15:46:27.873Z",
+      "updatedAt": "2026-04-12T15:47:02.551Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": ", TipTap crashed, falling back to CodeMirror: TypeError: Cannot read properties of null (reading 'nodeType') at renderSpec (chunk-YCGA4BJF.js?v=725d1e8e:3273:1…",
+      "createdAt": "2026-04-12T15:46:27.873Z",
+      "updatedAt": "2026-04-12T15:47:02.551Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": " ❯ bun run build 󱙺 FORGE  gpt-5.4-mini bun run install:linux-local $ bun run sync:excalidraw-assets && electron-vite build 󱙺 FORGE  \"gpt-5.4-mini\" $ node…",
+      "createdAt": "2026-04-12T19:50:08.805Z",
+      "updatedAt": "2026-04-12T19:50:08.805Z",
+      "mentions": 1,
+      "source": "user"
+    },
+    {
+      "text": "at configResolved (file:///home/diplov/IBSIDIAN/node_modules/electron-vite/dist/chunks/lib-q6ns0vZr.js:356:23) at file:///home/diplov/IBSIDIAN/node_modules/vit…",
+      "createdAt": "2026-04-12T19:50:08.805Z",
+      "updatedAt": "2026-04-12T19:50:08.805Z",
+      "mentions": 1,
+      "source": "user"
+    }
+  ],
   "recentDecisions": [
+    {
+      "text": "--- If you want, next I can make the pad use the **exact shared TabBar components** (same rendering code path) so visuals + behavior are literally 1:1 instead…",
+      "createdAt": "2026-04-12T00:46:46.603Z",
+      "updatedAt": "2026-04-12T00:46:46.603Z",
+      "mentions": 1,
+      "source": "assistant"
+    },
+    {
+      "text": "### Fixed now I changed split-mode group creation to use the app’s modal prompt (`useModal().prompt`) instead of `window.prompt`.",
+      "createdAt": "2026-04-12T07:47:41.374Z",
+      "updatedAt": "2026-04-12T07:47:41.374Z",
+      "mentions": 1,
+      "source": "assistant"
+    },
     {
       "text": "If you want, after you test it I can keep going with the visual polish for grouping, like a fuller grouped tab strip.",
       "createdAt": "2026-04-11T15:02:10.919Z",
@@ -20,7 +98,7 @@
       "source": "assistant"
     }
   ],
-  "currentFocus": "yes do it",
-  "lastSourceText": "yes do it\nDone ✅ committed and pushed. - **Commit:** `e52e641` - **Message:** `feat: improve browser tab UX and auto-scroll active tabs` - **Pushed:** `origin/main`",
-  "lastUpdatedAt": "2026-04-11T22:07:41.154Z"
+  "currentFocus": "add a pin feture for the tabs , and make it excatyle work well",
+  "lastSourceText": "add a pin feture for the tabs , and make it excatyle work well",
+  "lastUpdatedAt": "2026-04-12T21:30:53.217Z"
 }

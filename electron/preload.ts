@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   app: {
     homeDir: () => ipcRenderer.invoke('app:home-dir'),
+    version: (): Promise<string> => ipcRenderer.invoke('app:version'),
+    changelog: (): Promise<string | null> => ipcRenderer.invoke('app:changelog'),
     checkForUpdates: () => ipcRenderer.invoke('app:updates:check'),
     applyUpdate: () => ipcRenderer.invoke('app:updates:apply'),
     restart: () => ipcRenderer.invoke('app:restart'),
@@ -32,6 +34,8 @@ contextBridge.exposeInMainWorld('api', {
   files: {
     tree: () =>
       ipcRenderer.invoke('files:tree'),
+    treeChildren: (path: string) =>
+      ipcRenderer.invoke('files:tree:children', path),
     read: (path: string) =>
       ipcRenderer.invoke('files:read', path),
     write: (path: string, content: string) =>

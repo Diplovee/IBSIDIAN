@@ -14,6 +14,8 @@ declare global {
       }
       app: {
         homeDir: () => Promise<string>
+        version: () => Promise<string>
+        changelog: () => Promise<string | null>
         checkForUpdates: () => Promise<{
           supported: boolean
           updateAvailable: boolean
@@ -39,6 +41,7 @@ declare global {
       }
       files: {
         tree: () => Promise<FileNode>
+        treeChildren: (path: string) => Promise<FileNode[]>
         read: (path: string) => Promise<string>
         write: (path: string, content: string) => Promise<void>
         writeBinary: (path: string, base64: string) => Promise<void>

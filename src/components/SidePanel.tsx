@@ -215,7 +215,7 @@ const filterTreeNodes = (nodes: VaultNode[]): VaultNode[] =>
 
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
-  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem } = useVault();
+  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem, expandFolder } = useVault();
   const { openTab } = useTabs();
   const { confirm } = useModal();
   const { settings } = useAppSettings();
@@ -250,12 +250,14 @@ const FileTreeView: React.FC = () => {
   };
 
   const handleActivate = useCallback((node: NodeApi<VaultNode>) => {
-    if (node.data.type === 'folder') node.toggle();
-    else {
+    if (node.data.type === 'folder') {
+      if (!node.data.childrenLoaded) expandFolder(node.data.id).catch(() => {});
+      node.toggle();
+    } else {
       const target = getTabForNode(node.data);
       if (target) openTab(target);
     }
-  }, [openTab]);
+  }, [openTab, expandFolder]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, node: NodeApi<VaultNode>) => {
     e.preventDefault();

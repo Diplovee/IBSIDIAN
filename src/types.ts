@@ -1,5 +1,5 @@
 export type VaultNode =
-  | { id: string; type: 'folder'; name: string; children: VaultNode[]; isOpen?: boolean }
+  | { id: string; type: 'folder'; name: string; children: VaultNode[]; isOpen?: boolean; childrenLoaded?: boolean }
   | { id: string; type: 'file'; name: string; ext?: string; content?: string };
 
 export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab' | 'claude' | 'codex' | 'pi' | 'productivity';
@@ -73,3 +73,19 @@ export interface Pane {
 }
 
 export type ActivityType = 'files' | 'search';
+
+export interface SavedGroup {
+  id: string;
+  name: string;
+  color: string;
+  tabs: { url: string; title: string; faviconUrl?: string }[];
+  savedAt: number;
+}
+
+export interface HistoryEntry {
+  id: string;
+  url: string;
+  title: string;
+  faviconUrl?: string;
+  visitedAt: number;
+}

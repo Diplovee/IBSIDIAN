@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 
 // NOTE: User-requested guardrail — keep changes in this tab strip minimal unless explicitly requested.
 // This is the source of truth for split-pane tab rendering and grouping behavior.
-import { Globe, SquareTerminal, Plus, PanelRight, PanelBottom, X } from 'lucide-react';
+import { Globe, SquareTerminal, Plus, PanelRight, PanelBottom, X, Pin } from 'lucide-react';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { isGroupableTab } from '../utils/tabGrouping';
-import type { BrowserTabGroup, Tab } from '../types';
+import type { BrowserTabGroup, Tab, SavedGroup } from '../types';
 
 const MarkdownTabIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
@@ -128,6 +128,7 @@ interface PaneTabBarProps {
   duplicateBrowserGroup: (groupId: string) => void;
   deleteBrowserGroup: (groupId: string) => void;
   closeBrowserGroup: (groupId: string) => void;
+  saveGroup: (group: SavedGroup) => void;
   promptValue: PromptValue;
   paneCount: number;
   onClosePane: () => void;
@@ -774,6 +775,20 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
                 />
               ))}
             </div>
+
+            <Sep />
+
+            <MenuItem
+              label="Keep forever"
+              icon={<Pin size={14} />}
+              onClick={() => {
+                const groupTabs = allTabs
+                  .filter(t => t.groupId === group.id && t.url)
+                  .map(t => ({ url: t.url!, title: t.title, faviconUrl: t.faviconUrl }));
+                saveGroup({ id: group.id, name: group.name, color: group.color, tabs: groupTabs, savedAt: Date.now() });
+                setGroupCtxMenu(null);
+              }}
+            />
 
             <Sep />
 

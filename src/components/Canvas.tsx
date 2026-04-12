@@ -19,6 +19,7 @@ import { useVault } from '../contexts/VaultContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { useModal } from './Modal';
 import { useActivity } from '../contexts/ActivityContext';
+import { useLibrary } from '../contexts/LibraryContext';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
@@ -433,6 +434,7 @@ export const Canvas: React.FC = () => {
     closePane,
     setPaneSizes,
   } = useTabs();
+  const { saveGroup } = useLibrary();
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const [stackTabCtxMenu, setStackTabCtxMenu] = useState<{ x: number; y: number; tabId: string; paneId: string } | null>(null);
   const { prompt: promptModal, confirm: confirmModal } = useModal();
@@ -585,6 +587,7 @@ export const Canvas: React.FC = () => {
           duplicateBrowserGroup={duplicateBrowserGroup}
           deleteBrowserGroup={deleteBrowserGroup}
           closeBrowserGroup={closeBrowserGroup}
+          saveGroup={saveGroup}
           promptValue={promptModal}
           paneCount={panes.length}
           onClosePane={async () => {
