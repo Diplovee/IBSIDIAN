@@ -65,6 +65,7 @@ export interface Tab {
   scrollNonce?: number;
   searchQuery?: string;
   searchCaseSensitive?: boolean;
+  pinned?: boolean;
 }
 
 export interface Pane {

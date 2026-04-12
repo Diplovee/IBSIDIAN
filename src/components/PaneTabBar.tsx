@@ -123,6 +123,7 @@ interface PaneTabBarProps {
   moveTabToPane: (tabId: string, paneId: string) => void;
   moveTabToPaneAt: (tabId: string, paneId: string, targetId: string, position: 'before' | 'after') => void;
   moveTabToGroup: (tabId: string, groupId?: string | null) => void;
+  toggleTabPinned: (tabId: string) => void;
   toggleBrowserGroupCollapsed: (groupId: string) => void;
   updateBrowserGroup: (groupId: string, patch: Partial<Omit<BrowserTabGroup, 'id'>>) => void;
   duplicateBrowserGroup: (groupId: string) => void;
@@ -150,6 +151,7 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
   moveTabToPane,
   moveTabToPaneAt,
   moveTabToGroup,
+  toggleTabPinned,
   toggleBrowserGroupCollapsed,
   updateBrowserGroup,
   duplicateBrowserGroup,
@@ -447,6 +449,7 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
                   {groupTabs.map((groupTab, index) => {
                     const isActive = activeTabId === groupTab.id;
                     const isDragging = draggedTabId === groupTab.id;
+                    const isPinned = !!groupTab.pinned;
                     const groupColor = group.color;
                     return (
                       <React.Fragment key={groupTab.id}>
@@ -496,15 +499,26 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
                         >
                           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, color: GROUP_TEXT_COLOR, pointerEvents: 'none', flexShrink: 0 }}>{iconForTab(groupTab)}</span>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, pointerEvents: 'none', minWidth: 0, fontWeight: 600 }}>{groupTab.customTitle ?? groupTab.title}</span>
-                          <button
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => { e.stopPropagation(); closeTab(groupTab.id); }}
-                            style={{
-                              position: 'absolute', right: 8, width: 18, height: 18,
-                              border: 'none', borderRadius: 4, background: 'transparent', color: GROUP_TEXT_COLOR,
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                            }}
-                          >×</button>
+                          {isPinned ? (
+                            <button
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); toggleTabPinned(groupTab.id); }}
+                              title="Unpin tab"
+                              style={{ position: 'absolute', right: 6, width: 18, height: 18, border: 'none', borderRadius: 4, background: 'transparent', color: 'var(--accent)', opacity: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                            >
+                              <Pin size={12} />
+                            </button>
+                          ) : (
+                            <button
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); closeTab(groupTab.id); }}
+                              style={{
+                                position: 'absolute', right: 8, width: 18, height: 18,
+                                border: 'none', borderRadius: 4, background: 'transparent', color: GROUP_TEXT_COLOR,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                              }}
+                            >×</button>
+                          )}
                         </div>
                         {index < groupTabs.length - 1 && <GroupConnector cracking={crackedIdx === index + 1} />}
                       </React.Fragment>
@@ -518,6 +532,7 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
 
           const isActive = activeTabId === tab.id;
           const isDragging = draggedTabId === tab.id;
+          const isPinned = !!tab.pinned;
           return (
             <React.Fragment key={tab.id}>
               {insertLine}
@@ -568,15 +583,26 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
             >
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, color: 'var(--text-secondary)', pointerEvents: 'none', flexShrink: 0 }}>{iconForTab(tab)}</span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, pointerEvents: 'none', minWidth: 0 }}>{tab.customTitle ?? tab.title}</span>
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                style={{
-                  position: 'absolute', right: 8, width: 18, height: 18,
-                  border: 'none', borderRadius: 4, background: 'transparent', color: 'var(--text-muted)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                }}
-              >×</button>
+              {isPinned ? (
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); toggleTabPinned(tab.id); }}
+                  title="Unpin tab"
+                  style={{ position: 'absolute', right: 6, width: 18, height: 18, border: 'none', borderRadius: 4, background: 'transparent', color: 'var(--accent)', opacity: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                >
+                  <Pin size={12} />
+                </button>
+              ) : (
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                  style={{
+                    position: 'absolute', right: 8, width: 18, height: 18,
+                    border: 'none', borderRadius: 4, background: 'transparent', color: 'var(--text-muted)',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  }}
+                >×</button>
+              )}
               </div>
             </React.Fragment>
           );

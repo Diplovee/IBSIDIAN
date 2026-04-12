@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.17] - 2026-04-12
+
+### Added
+- Tab pinning for pane tabs: pin/unpin action in tab context menu and inline pin indicator on pinned tabs
+
+### Changed
+- Pinned tab icon now uses the theme accent (purple) and is directly clickable to unpin
+- Unpinning a tab now keeps it in place (no automatic reordering)
+- Settings modal now uses a stable fixed-size layout with scrollable nav/content regions for consistent sizing
+
+### Fixed
+- Pinned tabs are protected from close actions (single close and bulk close operations)
+
 ## [2026.5.16] - 2026-04-12
 
 ### Changed

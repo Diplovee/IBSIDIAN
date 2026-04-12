@@ -33,7 +33,7 @@ import {
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, Check, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight, X,
+  Trash2, ChevronRight, X, Pin,
 } from 'lucide-react';
 import {
   CALL_OUT_STYLES,
@@ -414,6 +414,7 @@ export const Canvas: React.FC = () => {
     setActiveTabId,
     openTab,
     closeTab,
+    toggleTabPinned,
     closeTabsToLeft,
     closeTabsToRight,
     closeOtherTabs,
@@ -582,6 +583,7 @@ export const Canvas: React.FC = () => {
           moveTabToPane={moveTabToPane}
           moveTabToPaneAt={moveTabToPaneAt}
           moveTabToGroup={moveTabToGroup}
+          toggleTabPinned={toggleTabPinned}
           toggleBrowserGroupCollapsed={toggleBrowserGroupCollapsed}
           updateBrowserGroup={updateBrowserGroup}
           duplicateBrowserGroup={duplicateBrowserGroup}
@@ -686,7 +688,13 @@ export const Canvas: React.FC = () => {
               paddingBottom: 4,
             }}
           >
-            <MenuItem icon={<X size={14} />} label="Close" onClick={() => { closeTab(targetTab.id); setStackTabCtxMenu(null); }} />
+            <MenuItem
+              icon={<Pin size={14} color="var(--accent)" />}
+              label={targetTab.pinned ? 'Unpin tab' : 'Pin tab'}
+              onClick={() => { toggleTabPinned(targetTab.id); setStackTabCtxMenu(null); }}
+            />
+            <Sep />
+            <MenuItem icon={<X size={14} />} label="Close" disabled={!!targetTab.pinned} onClick={() => { closeTab(targetTab.id); setStackTabCtxMenu(null); }} />
             <MenuItem icon={<PanelLeft size={14} />} label="Close tabs to the left" disabled={!canLeft} onClick={() => { closeTabsToLeft(targetTab.id); setStackTabCtxMenu(null); }} />
             <MenuItem icon={<PanelRight size={14} />} label="Close tabs to the right" disabled={!canRight} onClick={() => { closeTabsToRight(targetTab.id); setStackTabCtxMenu(null); }} />
             <MenuItem icon={<FolderOpen size={14} />} label="Close other tabs" disabled={!canOther} onClick={() => { closeOtherTabs(targetTab.id); setStackTabCtxMenu(null); }} />

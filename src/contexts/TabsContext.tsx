@@ -11,6 +11,7 @@ interface TabsContextType {
   activePaneId: string;
   openTab: (tab: Omit<Tab, 'id'>, paneId?: string) => void;
   closeTab: (id: string) => void;
+  toggleTabPinned: (id: string) => void;
   closeTabsToLeft: (id: string) => void;
   closeTabsToRight: (id: string) => void;
   closeOtherTabs: (id: string) => void;
@@ -283,14 +284,15 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const closeTabsByIds = useCallback((ids: string[]) => {
     if (ids.length === 0) return;
 
-    const idsToClose = new Set(ids);
     setTabs(prev => {
-      const newTabs = prev.filter(t => !idsToClose.has(t.id));
+      const pinnedIds = new Set(prev.filter(tab => tab.pinned).map(tab => tab.id));
+      const effectiveIdsToClose = new Set(ids.filter(id => !pinnedIds.has(id)));
+      const newTabs = prev.filter(t => !effectiveIdsToClose.has(t.id));
 
       setPanes(prevPanes => {
         const paneIdsWithTabs = new Set(newTabs.map(tab => getTabPaneId(tab)));
         const withUpdatedActive = prevPanes.map(p => {
-          if (!p.activeTabId || !idsToClose.has(p.activeTabId)) return p;
+          if (!p.activeTabId || !effectiveIdsToClose.has(p.activeTabId)) return p;
           const paneTabs = newTabs.filter(tab => getTabPaneId(tab) === p.id);
           return { ...p, activeTabId: paneTabs.length ? paneTabs[paneTabs.length - 1].id : null };
         });
@@ -337,6 +339,10 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const closeTab = useCallback((id: string) => {
     closeTabsByIds([id]);
   }, [closeTabsByIds]);
+
+  const toggleTabPinned = useCallback((id: string) => {
+    setTabs(prev => prev.map(tab => tab.id === id ? { ...tab, pinned: !tab.pinned } : tab));
+  }, []);
 
   const closeTabsToLeft = useCallback((id: string) => {
     const target = tabs.find(t => t.id === id);
@@ -556,6 +562,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       activePaneId,
       openTab,
       closeTab,
+      toggleTabPinned,
       reorderTabs,
       closeTabsToLeft,
       closeTabsToRight,
