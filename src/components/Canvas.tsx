@@ -435,7 +435,7 @@ export const Canvas: React.FC = () => {
   } = useTabs();
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const [stackTabCtxMenu, setStackTabCtxMenu] = useState<{ x: number; y: number; tabId: string; paneId: string } | null>(null);
-  const { prompt: promptModal } = useModal();
+  const { prompt: promptModal, confirm: confirmModal } = useModal();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -586,6 +586,17 @@ export const Canvas: React.FC = () => {
           deleteBrowserGroup={deleteBrowserGroup}
           closeBrowserGroup={closeBrowserGroup}
           promptValue={promptModal}
+          paneCount={panes.length}
+          onClosePane={async () => {
+            const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
+            if (paneTabs.length > 0) {
+              const ok = await confirmModal({ title: 'Close pane', message: `Close this pane and its ${paneTabs.length} tab${paneTabs.length === 1 ? '' : 's'}?`, confirmLabel: 'Close', danger: true });
+              if (!ok) return;
+            }
+            closePane(paneId);
+          }}
+          onSplitRight={() => { setActivePane(paneId); splitRight(); }}
+          onSplitDown={() => { setActivePane(paneId); splitDown(); }}
         />
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>{renderPane(paneId)}</div>
       </div>

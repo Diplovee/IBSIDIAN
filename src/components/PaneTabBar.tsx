@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 // NOTE: User-requested guardrail — keep changes in this tab strip minimal unless explicitly requested.
 // This is the source of truth for split-pane tab rendering and grouping behavior.
-import { Globe, SquareTerminal, Plus } from 'lucide-react';
+import { Globe, SquareTerminal, Plus, PanelRight, PanelBottom, X } from 'lucide-react';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { isGroupableTab } from '../utils/tabGrouping';
@@ -129,6 +129,10 @@ interface PaneTabBarProps {
   deleteBrowserGroup: (groupId: string) => void;
   closeBrowserGroup: (groupId: string) => void;
   promptValue: PromptValue;
+  paneCount: number;
+  onClosePane: () => void;
+  onSplitRight: () => void;
+  onSplitDown: () => void;
 }
 
 export const PaneTabBar: React.FC<PaneTabBarProps> = ({
@@ -151,6 +155,10 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
   deleteBrowserGroup,
   closeBrowserGroup,
   promptValue,
+  paneCount,
+  onClosePane,
+  onSplitRight,
+  onSplitDown,
 }) => {
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const draggedTabIdRef = useRef<string | null>(null);
@@ -159,7 +167,22 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
   const [paneDropTarget, setPaneDropTarget] = useState(false);
   const [insertBefore, setInsertBefore] = useState<string | 'end' | null>(null);
   const [groupCtxMenu, setGroupCtxMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addBtnRef = useRef<HTMLButtonElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
+
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setAddMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [addMenuOpen]);
 
   const getDraggedTabId = (e: React.DragEvent) => draggedTabIdRef.current || e.dataTransfer.getData('text/tab-id') || e.dataTransfer.getData('text/plain') || null;
   const getDraggedPaneId = (e: React.DragEvent) => draggedPaneIdRef.current || e.dataTransfer.getData('text/pane-id') || null;
@@ -570,30 +593,93 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
           }}
         />
       </div>
-      <button
-        onClick={openNewTab}
-        style={{
-          height: 'calc(100% - 8px)',
-          marginTop: 4,
-          marginBottom: 4,
-          marginRight: 4,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: 34,
-          padding: '0 10px',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-          background: 'var(--bg-primary)',
-          color: 'var(--text-muted)',
-          flexShrink: 0,
-          cursor: 'pointer',
-        }}
-        title="New tab"
-        aria-label="New tab"
-      >
-        <Plus size={16} />
-      </button>
+      <div ref={addMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: 4 }}>
+        <button
+          ref={addBtnRef}
+          onClick={() => setAddMenuOpen(v => !v)}
+          style={{
+            height: 'calc(100% - 8px)',
+            marginTop: 4,
+            marginBottom: 4,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 34,
+            padding: '0 10px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: addMenuOpen ? 'var(--bg-hover)' : 'var(--bg-primary)',
+            color: 'var(--text-muted)',
+            flexShrink: 0,
+            cursor: 'pointer',
+          }}
+          title="New tab / Split"
+          aria-label="New tab / Split"
+        >
+          <Plus size={16} />
+        </button>
+        {addMenuOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% - 2px)', right: 0,
+            zIndex: 9999, minWidth: 170,
+            background: 'var(--bg-primary)', border: '1px solid var(--border)',
+            borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            paddingTop: 4, paddingBottom: 4,
+          }}>
+            {[
+              { icon: <Plus size={14} />, label: 'New tab', action: () => { openNewTab(); setAddMenuOpen(false); } },
+              null,
+              { icon: <PanelRight size={14} />, label: 'Split right', action: () => { onSplitRight(); setAddMenuOpen(false); } },
+              { icon: <PanelBottom size={14} />, label: 'Split down', action: () => { onSplitDown(); setAddMenuOpen(false); } },
+            ].map((item, i) =>
+              item === null
+                ? <div key={i} style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />
+                : (
+                  <button key={item.label} onClick={item.action} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '6px 12px', border: 'none', cursor: 'pointer',
+                    fontSize: 13, textAlign: 'left',
+                    background: 'transparent', color: 'var(--text-primary)', borderRadius: 6,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span style={{ color: 'var(--text-muted)', display: 'flex' }}>{item.icon}</span>
+                    {item.label}
+                  </button>
+                )
+            )}
+          </div>
+        )}
+      </div>
+      {paneCount > 1 && (
+        <button
+          onClick={onClosePane}
+          title="Close pane"
+          aria-label="Close pane"
+          style={{
+            height: 'calc(100% - 8px)',
+            marginTop: 4,
+            marginBottom: 4,
+            marginRight: 4,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 28,
+            padding: '0 6px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-muted)',
+            flexShrink: 0,
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fee2e2'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#fca5a5'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-primary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; }}
+        >
+          <X size={14} />
+        </button>
+      )}
 
       {groupCtxMenu && (() => {
         const group = getBrowserGroup(groupCtxMenu.groupId);

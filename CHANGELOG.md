@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [2026.5.15] - 2026-04-12
 
+### Added
+- `+` button in the tab bar now opens a dropdown with **New tab**, **Split right**, and **Split down** options, making split creation discoverable without a context menu
+- Close-pane `×` button appears at the far right of every pane's tab bar when two or more panes are open; shows a confirmation dialog when the pane has open tabs
+
 ### Fixed
 - Grouped tabs no longer get clipped by normal tabs when space is tight — added `flexShrink: 0` to the group tab container
 - New tab `+` button is now pinned outside the scrollable tab strip so it is always visible regardless of how many tabs are open
