@@ -355,6 +355,10 @@ export const Canvas: React.FC = () => {
     moveTabToGroup,
     createBrowserGroup,
     getBrowserGroup,
+    updateBrowserGroup,
+    deleteBrowserGroup,
+    duplicateBrowserGroup,
+    closeBrowserGroup,
     toggleBrowserGroupCollapsed,
     splitRight,
     splitDown,
@@ -507,6 +511,11 @@ export const Canvas: React.FC = () => {
           moveTabToPaneAt={moveTabToPaneAt}
           moveTabToGroup={moveTabToGroup}
           toggleBrowserGroupCollapsed={toggleBrowserGroupCollapsed}
+          updateBrowserGroup={updateBrowserGroup}
+          duplicateBrowserGroup={duplicateBrowserGroup}
+          deleteBrowserGroup={deleteBrowserGroup}
+          closeBrowserGroup={closeBrowserGroup}
+          promptValue={promptModal}
         />
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>{renderPane(paneId)}</div>
       </div>

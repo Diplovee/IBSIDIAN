@@ -101,6 +101,13 @@ const iconForTab = (tab: Tab) => {
   }
 };
 
+type PromptValue = (options: {
+  title: string;
+  defaultValue?: string;
+  placeholder?: string;
+  confirmLabel?: string;
+}) => Promise<string | null | undefined>;
+
 interface PaneTabBarProps {
   paneId: string;
   paneTabs: Tab[];
@@ -116,6 +123,11 @@ interface PaneTabBarProps {
   moveTabToPaneAt: (tabId: string, paneId: string, targetId: string, position: 'before' | 'after') => void;
   moveTabToGroup: (tabId: string, groupId?: string | null) => void;
   toggleBrowserGroupCollapsed: (groupId: string) => void;
+  updateBrowserGroup: (groupId: string, patch: Partial<Omit<BrowserTabGroup, 'id'>>) => void;
+  duplicateBrowserGroup: (groupId: string) => void;
+  deleteBrowserGroup: (groupId: string) => void;
+  closeBrowserGroup: (groupId: string) => void;
+  promptValue: PromptValue;
 }
 
 export const PaneTabBar: React.FC<PaneTabBarProps> = ({
@@ -133,12 +145,20 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
   moveTabToPaneAt,
   moveTabToGroup,
   toggleBrowserGroupCollapsed,
+  updateBrowserGroup,
+  duplicateBrowserGroup,
+  deleteBrowserGroup,
+  closeBrowserGroup,
+  promptValue,
 }) => {
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const draggedTabIdRef = useRef<string | null>(null);
   const draggedPaneIdRef = useRef<string | null>(null);
   const [dropGroupId, setDropGroupId] = useState<string | null>(null);
   const [paneDropTarget, setPaneDropTarget] = useState(false);
+  const [insertBefore, setInsertBefore] = useState<string | 'end' | null>(null);
+  const [groupCtxMenu, setGroupCtxMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
 
   const getDraggedTabId = (e: React.DragEvent) => draggedTabIdRef.current || e.dataTransfer.getData('text/tab-id') || e.dataTransfer.getData('text/plain') || null;
   const getDraggedPaneId = (e: React.DragEvent) => draggedPaneIdRef.current || e.dataTransfer.getData('text/pane-id') || null;
@@ -149,9 +169,44 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
       draggedPaneIdRef.current = null;
       setDraggedTabId(null);
       setDropGroupId(null);
+      setInsertBefore(null);
       setPaneDropTarget(false);
     }, 0);
   };
+
+  useEffect(() => {
+    if (!groupCtxMenu) return;
+    const close = () => setGroupCtxMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [groupCtxMenu]);
+
+  useEffect(() => {
+    if (!activeTabId) return;
+    const strip = stripRef.current;
+    if (!strip) return;
+
+    const activeTab = paneTabs.find(tab => tab.id === activeTabId);
+    if (!activeTab) return;
+
+    let target: HTMLElement | null = null;
+    if (activeTab.groupId) {
+      const group = getBrowserGroup(activeTab.groupId);
+      if (group?.collapsed) {
+        target = strip.querySelector(`[data-group-id="${activeTab.groupId}"]`) as HTMLElement | null;
+      }
+    }
+    if (!target) {
+      target = strip.querySelector(`[data-tab-id="${activeTabId}"]`) as HTMLElement | null;
+    }
+    if (!target) return;
+
+    const stripRect = strip.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    if (targetRect.left < stripRect.left || targetRect.right > stripRect.right) {
+      target.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }
+  }, [activeTabId, paneTabs, getBrowserGroup]);
 
   const handleDragStart = (e: React.DragEvent, tabId: string) => {
     e.dataTransfer.effectAllowed = 'move';
@@ -169,12 +224,37 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
     const sourcePaneId = getDraggedPaneId(e);
     if (!sourceId) { clearDragState(); return; }
 
+    const sourceTab = allTabs.find(t => t.id === sourceId);
     const groupEl = (e.target as HTMLElement).closest('[data-group-id]') as HTMLElement | null;
     if (groupEl) {
       const groupId = groupEl.dataset.groupId!;
-      const sourceTab = allTabs.find(t => t.id === sourceId);
       if (sourcePaneId !== paneId) moveTabToPane(sourceId, paneId);
       if (sourceTab && isGroupableTab(sourceTab)) moveTabToGroup(sourceId, groupId);
+      clearDragState();
+      return;
+    }
+
+    if (insertBefore) {
+      if (insertBefore === 'end') {
+        const tail = paneTabs.filter(t => t.id !== sourceId).at(-1);
+        if (tail) {
+          if (sourcePaneId === paneId) reorderTabs(sourceId, tail.id, 'after');
+          else moveTabToPaneAt(sourceId, paneId, tail.id, 'after');
+        } else if (sourcePaneId !== paneId) {
+          moveTabToPane(sourceId, paneId);
+        }
+      } else {
+        const targetTab = paneTabs.find(t => t.id === insertBefore);
+        if (targetTab) {
+          if (sourcePaneId === paneId) reorderTabs(sourceId, targetTab.id, 'before');
+          else moveTabToPaneAt(sourceId, paneId, targetTab.id, 'before');
+
+          if (sourceTab && isGroupableTab(sourceTab)) {
+            if (targetTab.groupId && sourceTab.groupId !== targetTab.groupId) moveTabToGroup(sourceId, targetTab.groupId);
+            else if (!targetTab.groupId && sourceTab.groupId) moveTabToGroup(sourceId, null);
+          }
+        }
+      }
       clearDragState();
       return;
     }
@@ -194,6 +274,48 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
         e.dataTransfer.dropEffect = 'move';
         const srcPane = getDraggedPaneId(e);
         setPaneDropTarget(!!srcPane && srcPane !== paneId);
+
+        const sourceId = getDraggedTabId(e);
+        if (!sourceId) return;
+        const sourceTab = allTabs.find(t => t.id === sourceId);
+
+        const tabEl = (e.target as HTMLElement).closest('[data-tab-id]') as HTMLElement | null;
+        if (!tabEl) {
+          const groupEl = (e.target as HTMLElement).closest('[data-group-id]') as HTMLElement | null;
+          if (groupEl && sourceTab && isGroupableTab(sourceTab)) {
+            const gId = groupEl.dataset.groupId!;
+            if (sourceTab.groupId !== gId) {
+              setDropGroupId(gId);
+              setInsertBefore(null);
+              return;
+            }
+          }
+          setDropGroupId(null);
+          setInsertBefore('end');
+          return;
+        }
+
+        const targetId = tabEl.dataset.tabId!;
+        if (targetId === sourceId) return;
+
+        const targetTab = paneTabs.find(t => t.id === targetId);
+        if (!targetTab) return;
+
+        if (targetTab.groupId && sourceTab && isGroupableTab(sourceTab) && sourceTab.groupId !== targetTab.groupId) {
+          setDropGroupId(targetTab.groupId);
+          setInsertBefore(null);
+          return;
+        }
+
+        setDropGroupId(null);
+        const rect = tabEl.getBoundingClientRect();
+        if (e.clientX < rect.left + rect.width / 2) {
+          setInsertBefore(targetId);
+        } else {
+          const idx = paneTabs.findIndex(t => t.id === targetId);
+          const next = paneTabs[idx + 1];
+          setInsertBefore(next ? next.id : 'end');
+        }
       }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaneDropTarget(false); }}
       onDrop={handleContainerDrop}
@@ -209,22 +331,45 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
         transition: 'background 0.12s, border-color 0.12s',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'stretch', minWidth: 0, flex: 1 }}>
+      <div ref={stripRef} style={{ display: 'flex', alignItems: 'stretch', minWidth: 0, flex: 1 }}>
         {paneTabs.map((tab) => {
+          const insertLine = (
+            <div
+              key={`insert-${tab.id}`}
+              style={{
+                width: insertBefore === tab.id ? 2 : 0,
+                minWidth: insertBefore === tab.id ? 2 : 0,
+                alignSelf: 'stretch',
+                margin: '4px 0',
+                borderRadius: 1,
+                background: 'var(--accent)',
+                transition: 'width 0.08s, min-width 0.08s',
+                flexShrink: 0,
+              }}
+            />
+          );
+
           if (tab.groupId && isGroupableTab(tab)) {
             const group = getBrowserGroup(tab.groupId);
             if (!group) return null;
             if (renderedGroupIds.has(group.id)) return null;
             renderedGroupIds.add(group.id);
             const groupTabs = paneTabs.filter(t => t.groupId === group.id);
+            const firstTab = groupTabs[0];
             const isDropTarget = dropGroupId === group.id;
             const crackedIdx = draggingFromGroupId === group.id ? groupTabs.findIndex(t => t.id === draggedTabId) : -1;
 
             return (
               <React.Fragment key={group.id}>
+                {firstTab && insertBefore === firstTab.id && insertLine}
                 <button
                   data-group-id={group.id}
                   onClick={() => toggleBrowserGroupCollapsed(group.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setGroupCtxMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
+                  }}
                   title={group.collapsed ? 'Expand group' : 'Collapse group'}
                   aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
                   onDragOver={(e) => {
@@ -349,8 +494,10 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
           const isActive = activeTabId === tab.id;
           const isDragging = draggedTabId === tab.id;
           return (
-            <div
-              key={tab.id}
+            <React.Fragment key={tab.id}>
+              {insertLine}
+              <div
+                key={tab.id}
               data-tab-id={tab.id}
               draggable={tab.type !== 'new-tab'}
               onDragStart={(e) => handleDragStart(e, tab.id)}
@@ -405,21 +552,105 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                 }}
               >×</button>
-            </div>
+              </div>
+            </React.Fragment>
           );
         })}
+        <div
+          style={{
+            width: insertBefore === 'end' ? 2 : 0,
+            minWidth: insertBefore === 'end' ? 2 : 0,
+            alignSelf: 'stretch',
+            margin: '4px 0',
+            borderRadius: 1,
+            background: 'var(--accent)',
+            transition: 'width 0.08s, min-width 0.08s',
+            flexShrink: 0,
+          }}
+        />
+        <button
+          onClick={openNewTab}
+          style={{
+            height: 'calc(100% - 8px)',
+            marginTop: 4,
+            marginBottom: 4,
+            marginRight: 4,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 34,
+            padding: '0 10px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-muted)',
+            flexShrink: 0,
+            cursor: 'pointer',
+          }}
+          title="New tab"
+          aria-label="New tab"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
-      <button
-        onClick={openNewTab}
-        style={{
-          border: 'none', background: 'transparent', color: 'var(--text-muted)',
-          width: 28, height: 28, marginTop: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 6, flexShrink: 0, cursor: 'pointer',
-        }}
-      >
-        <Plus size={16} />
-      </button>
+      {groupCtxMenu && (() => {
+        const group = getBrowserGroup(groupCtxMenu.groupId);
+        if (!group) return null;
+        const MenuItem: React.FC<{ label: string; onClick: () => void; danger?: boolean }> = ({ label, onClick, danger }) => (
+          <button
+            onClick={onClick}
+            style={{
+              width: '100%',
+              textAlign: 'left',
+              padding: '6px 12px',
+              border: 'none',
+              background: 'transparent',
+              color: danger ? '#ef4444' : 'var(--text-primary)',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            {label}
+          </button>
+        );
+        const Sep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />;
+
+        return (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: groupCtxMenu.x,
+              top: groupCtxMenu.y,
+              zIndex: 9999,
+              minWidth: 190,
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              paddingTop: 4,
+              paddingBottom: 4,
+            }}
+          >
+            <MenuItem label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={() => { toggleBrowserGroupCollapsed(group.id); setGroupCtxMenu(null); }} />
+            <MenuItem label="Rename group..." onClick={async () => {
+              const nextName = await promptValue({ title: 'Rename group', defaultValue: group.name, placeholder: 'Group name', confirmLabel: 'Rename' });
+              if (nextName?.trim()) updateBrowserGroup(group.id, { name: nextName.trim() });
+              setGroupCtxMenu(null);
+            }} />
+            <MenuItem label="Change group color..." onClick={async () => {
+              const nextColor = await promptValue({ title: 'Group color', defaultValue: group.color, placeholder: '#7c3aed', confirmLabel: 'Apply' });
+              if (nextColor?.trim()) updateBrowserGroup(group.id, { color: nextColor.trim() });
+              setGroupCtxMenu(null);
+            }} />
+            <Sep />
+            <MenuItem label="Duplicate group" onClick={() => { duplicateBrowserGroup(group.id); setGroupCtxMenu(null); }} />
+            <MenuItem label="Ungroup" onClick={() => { deleteBrowserGroup(group.id); setGroupCtxMenu(null); }} />
+            <MenuItem label="Delete group" danger onClick={() => { closeBrowserGroup(group.id); setGroupCtxMenu(null); }} />
+          </div>
+        );
+      })()}
     </div>
   );
 };

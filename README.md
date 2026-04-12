@@ -87,7 +87,6 @@ Project Structure
     │   │   ├── CommandPalette.tsx
     │   │   ├── SidePanel.tsx       file tree, search, settings
     │   │   ├── PaneTabBar.tsx      active tab strip + grouping UI for pane tabs
-    │   │   ├── TabBar.tsx          legacy/non-mounted tab strip implementation
     │   │   └── VaultSetup.tsx      first-launch screen
     │   ├── contexts/
     │   │   ├── TabsContext.tsx
