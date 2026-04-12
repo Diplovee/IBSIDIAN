@@ -714,18 +714,19 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
 
         const GROUP_SWATCHES = ['#1a1a1a', '#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#6b7280', '#7c3aed', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#84cc16'];
 
-        const MenuItem: React.FC<{ label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode }> = ({ label, onClick, danger, icon }) => {
+        const MenuItem: React.FC<{ label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode; disabled?: boolean }> = ({ label, onClick, danger, icon, disabled }) => {
           const [hovered, setHovered] = React.useState(false);
           return (
             <button
-              onClick={onClick}
+              disabled={disabled}
+              onClick={disabled ? undefined : onClick}
               onMouseEnter={() => setHovered(true)}
               onMouseLeave={() => setHovered(false)}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                padding: '6px 12px', border: 'none', cursor: 'pointer',
-                fontSize: 13, textAlign: 'left',
-                background: hovered ? 'var(--bg-hover)' : 'transparent',
+                padding: '6px 12px', border: 'none', cursor: disabled ? 'default' : 'pointer',
+                fontSize: 13, textAlign: 'left', opacity: disabled ? 0.45 : 1,
+                background: hovered && !disabled ? 'var(--bg-hover)' : 'transparent',
                 color: danger ? '#ef4444' : 'var(--text-primary)',
                 borderRadius: 6, transition: 'background 0.1s',
               }}
@@ -736,6 +737,9 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
           );
         };
         const Sep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 6px' }} />;
+        const savableGroupTabs = allTabs
+          .filter(t => t.groupId === group.id && t.type === 'browser' && typeof t.url === 'string' && t.url.trim().length > 0)
+          .map(t => ({ url: t.url!, title: t.title, faviconUrl: t.faviconUrl }));
 
         return (
           <div
@@ -807,11 +811,9 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
             <MenuItem
               label="Keep forever"
               icon={<Pin size={14} />}
+              disabled={savableGroupTabs.length === 0}
               onClick={() => {
-                const groupTabs = allTabs
-                  .filter(t => t.groupId === group.id && t.url)
-                  .map(t => ({ url: t.url!, title: t.title, faviconUrl: t.faviconUrl }));
-                saveGroup({ id: group.id, name: group.name, color: group.color, tabs: groupTabs, savedAt: Date.now() });
+                saveGroup({ id: group.id, name: group.name, color: group.color, tabs: savableGroupTabs, savedAt: Date.now() });
                 setGroupCtxMenu(null);
               }}
             />

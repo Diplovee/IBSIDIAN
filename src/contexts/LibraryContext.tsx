@@ -50,12 +50,20 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const addToHistory = useCallback((entry: Omit<HistoryEntry, 'id'>) => {
-    if (!entry.url || entry.url === 'about:blank' || entry.url.startsWith('chrome://')) return;
+    const url = entry.url?.trim();
+    if (!url || url === 'about:blank' || url.startsWith('chrome://')) return;
+
     setHistory(prev => {
-      const recent = prev[0];
-      if (recent && recent.url === entry.url && Date.now() - recent.visitedAt < 5000) return prev;
-      const id = Math.random().toString(36).slice(2, 10);
-      const next = [{ ...entry, id }, ...prev].slice(0, MAX_HISTORY);
+      const existing = prev.find(item => item.url === url);
+      const id = existing?.id ?? Math.random().toString(36).slice(2, 10);
+      const nextEntry: HistoryEntry = {
+        id,
+        url,
+        title: entry.title?.trim() || url,
+        faviconUrl: entry.faviconUrl,
+        visitedAt: entry.visitedAt,
+      };
+      const next = [nextEntry, ...prev.filter(item => item.url !== url)].slice(0, MAX_HISTORY);
       saveToStorage(HISTORY_KEY, next);
       return next;
     });

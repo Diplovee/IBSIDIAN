@@ -58,14 +58,16 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
 
   const handleSaveGroup = (group: { id: string; name: string; color: string }) => {
     const groupTabs = tabs
-      .filter(t => t.groupId === group.id && t.url)
+      .filter(t => t.groupId === group.id && t.type === 'browser' && typeof t.url === 'string' && t.url.trim().length > 0)
       .map(t => ({ url: t.url!, title: t.title, faviconUrl: t.faviconUrl }));
+    if (groupTabs.length === 0) return;
     saveGroup({ id: group.id, name: group.name, color: group.color, tabs: groupTabs, savedAt: Date.now() });
   };
 
   const handleRestoreGroup = (sg: typeof savedGroups[number]) => {
     for (const tab of sg.tabs) {
-      openTab({ type: 'browser', title: tab.title, url: tab.url, faviconUrl: tab.faviconUrl });
+      if (!tab.url?.trim()) continue;
+      openTab({ type: 'browser', title: tab.title || tab.url, url: tab.url, faviconUrl: tab.faviconUrl });
     }
   };
 
@@ -83,8 +85,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 560,
-          maxHeight: 'calc(100vh - 120px)',
+          width: 'min(760px, calc(100vw - 32px))',
+          height: 'min(640px, calc(100vh - 32px))',
           background: 'var(--bg-primary)',
           border: '1px solid var(--border)',
           borderRadius: 12,
@@ -92,6 +94,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
           zIndex: 9999,
           display: 'flex',
           flexDirection: 'column',
+          overflow: 'hidden',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 0' }}>
@@ -139,7 +142,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
           {activeTab === 'browser' && (
             <HistoryTab
               historyByDate={historyByDate}
-              onOpenEntry={(entry) => openTab({ type: 'browser', title: entry.title, url: entry.url })}
+              onOpenEntry={(entry) => openTab({ type: 'browser', title: entry.title || entry.url, url: entry.url, faviconUrl: entry.faviconUrl })}
               onClearHistory={clearHistory}
             />
           )}
@@ -176,7 +179,8 @@ const ActiveTab: React.FC<ActiveTabProps> = ({ browserGroups, tabs, onSave }) =>
   return (
     <div style={{ padding: '8px 0 16px' }}>
       {browserGroups.map(group => {
-        const count = tabs.filter(t => t.groupId === group.id).length;
+        const browserTabsInGroup = tabs.filter(t => t.groupId === group.id && t.type === 'browser' && typeof t.url === 'string' && t.url.trim().length > 0);
+        const count = browserTabsInGroup.length;
         const isHovered = hoveredId === group.id;
         return (
           <div
@@ -200,8 +204,9 @@ const ActiveTab: React.FC<ActiveTabProps> = ({ browserGroups, tabs, onSave }) =>
             {isHovered && (
               <button
                 onClick={() => onSave(group)}
-                title="Keep forever"
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+                title={count > 0 ? 'Keep forever' : 'No browser tabs to save'}
+                disabled={count === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, cursor: count === 0 ? 'default' : 'pointer', opacity: count === 0 ? 0.45 : 1, flexShrink: 0 }}
               >
                 <Pin size={13} />
                 Keep forever

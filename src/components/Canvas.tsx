@@ -1899,6 +1899,7 @@ const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
   const { updateTabTitle, updateTabUrl, updateTabFavicon, openTab } = useTabs();
+  const { addToHistory, updateHistoryTitle } = useLibrary();
   const { theme } = useActivity();
   const bgColor = theme === 'dark' ? '#1e1e1e' : '#ffffff';
   const textColor = theme === 'dark' ? '#ffffff' : '#1e1e1e';
@@ -2008,11 +2009,14 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     const onNav = (e: any) => {
       const nextUrl = e?.url || wv.getURL?.() || currentUrlRef.current;
       if (!nextUrl) return;
+      const nextTitle = deriveBrowserTitle(nextUrl);
+      const nextFavicon = getBrowserFaviconForUrl(nextUrl);
       setInputUrl(nextUrl);
       setCurrentUrl(nextUrl);
       currentUrlRef.current = nextUrl;
       updateTabUrlRef.current(tabIdRef.current, nextUrl);
-      updateTabFaviconRef.current(tabIdRef.current, getBrowserFaviconForUrl(nextUrl));
+      updateTabFaviconRef.current(tabIdRef.current, nextFavicon);
+      addToHistory({ url: nextUrl, title: nextTitle, faviconUrl: nextFavicon, visitedAt: Date.now() });
       updateNavState(wv);
     };
     const onTitle = (e: any) => {
@@ -2020,12 +2024,14 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
         ? e.title.trim()
         : deriveBrowserTitle(currentUrlRef.current);
       updateTabTitleRef.current(tabIdRef.current, nextTitle);
+      updateHistoryTitle(currentUrlRef.current, nextTitle);
     };
     const onFavicon = (e: any) => {
       const favicons = Array.isArray(e?.favicons) ? e.favicons.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0) : [];
       const favicon = favicons[0];
       cacheBrowserFavicon(currentUrlRef.current, favicon);
       updateTabFaviconRef.current(tabIdRef.current, favicon);
+      updateHistoryTitle(currentUrlRef.current, deriveBrowserTitle(currentUrlRef.current), favicon);
     };
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
     const done = () => { if (stopTimer) clearTimeout(stopTimer); stopTimer = null; setIsLoading(false); updateNavState(wv); };
