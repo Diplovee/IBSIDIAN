@@ -24,6 +24,7 @@ interface Props {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const MENU_W = 248;
+const MENU_H = 340; // safe upper bound for clamping
 const SUB_W = 210;
 
 const toggleInline = (view: EditorView, marker: string) => {
@@ -43,7 +44,8 @@ const toggleInline = (view: EditorView, marker: string) => {
 const setBlockPrefix = (view: EditorView, prefix: string) => {
   const { from } = view.state.selection.main;
   const line = view.state.doc.lineAt(from);
-  const stripped = line.text.replace(/^(#{1,6} |[-*+] |\d+\. |> |- \[[ x]\] )/, '');
+  // task list must come before bullet list so `- [ ] ` isn't consumed by `[-*+] `
+  const stripped = line.text.replace(/^(#{1,6} |- \[[ x]\] |[-*+] |\d+\. |> )/, '');
   view.dispatch({ changes: { from: line.from, to: line.to, insert: prefix + stripped } });
   view.focus();
 };
@@ -113,16 +115,14 @@ const Item: React.FC<ItemProps & { onMouseEnter?: () => void; onMouseLeave?: () 
 interface SubMenuProps {
   icon?: React.ReactNode;
   label: string;
-  parentLeft: number;
   children: React.ReactNode;
 }
 
-const SubMenu: React.FC<SubMenuProps> = ({ icon, label, parentLeft, children }) => {
+const SubMenu: React.FC<SubMenuProps> = ({ icon, label, children }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout>>();
-  const [hovered, setHovered] = useState(false);
 
   const openSub = useCallback(() => {
     clearTimeout(leaveTimer.current);
@@ -132,11 +132,10 @@ const SubMenu: React.FC<SubMenuProps> = ({ icon, label, parentLeft, children }) 
       setPos({ x: flipLeft ? rect.left - SUB_W : rect.right, y: rect.top - 4 });
     }
     setOpen(true);
-    setHovered(true);
   }, []);
 
   const closeSub = useCallback(() => {
-    leaveTimer.current = setTimeout(() => { setOpen(false); setHovered(false); }, 80);
+    leaveTimer.current = setTimeout(() => setOpen(false), 80);
   }, []);
 
   const cancelClose = useCallback(() => clearTimeout(leaveTimer.current), []);
@@ -179,7 +178,7 @@ export const EditorContextMenu: React.FC<Props> = ({ x, y, view, onClose, curren
 
   // Clamp position so menu stays within viewport
   const left = Math.min(x, window.innerWidth - MENU_W - 8);
-  const top = Math.min(y, window.innerHeight - 8);
+  const top = Math.min(y, window.innerHeight - MENU_H - 8);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -219,7 +218,7 @@ export const EditorContextMenu: React.FC<Props> = ({ x, y, view, onClose, curren
 
   const handleSearch = act(() => {
     openActivity('search');
-    setPendingSearch(selectedText || '');
+    if (selectedText) setPendingSearch(selectedText);
   });
 
   const handleExtract = () => {
@@ -328,7 +327,7 @@ export const EditorContextMenu: React.FC<Props> = ({ x, y, view, onClose, curren
       <Sep />
 
       {/* Format / Paragraph / Insert submenus */}
-      <SubMenu icon={<Bold size={14} />} label="Format" parentLeft={left}>
+      <SubMenu icon={<Bold size={14} />} label="Format" >
         <Item icon={<Bold size={14} />} label="Bold" onClick={act(() => toggleInline(view, '**'))} />
         <Item icon={<Italic size={14} />} label="Italic" onClick={act(() => toggleInline(view, '*'))} />
         <Item icon={<Strikethrough size={14} />} label="Strikethrough" onClick={act(() => toggleInline(view, '~~'))} />
@@ -341,7 +340,7 @@ export const EditorContextMenu: React.FC<Props> = ({ x, y, view, onClose, curren
         <Item icon={<Eraser size={14} />} label="Clear formatting" onClick={act(() => clearFormatting(view))} />
       </SubMenu>
 
-      <SubMenu icon={<AlignLeft size={14} />} label="Paragraph" parentLeft={left}>
+      <SubMenu icon={<AlignLeft size={14} />} label="Paragraph" >
         <Item icon={<List size={14} />} label="Bullet list" onClick={act(() => setBlockPrefix(view, '- '))} />
         <Item icon={<ListOrdered size={14} />} label="Numbered list" onClick={act(() => setBlockPrefix(view, '1. '))} />
         <Item icon={<CheckSquare size={14} />} label="Task list" onClick={act(() => setBlockPrefix(view, '- [ ] '))} />
@@ -357,7 +356,7 @@ export const EditorContextMenu: React.FC<Props> = ({ x, y, view, onClose, curren
         <Item icon={<Quote size={14} />} label="Quote" onClick={act(() => setBlockPrefix(view, '> '))} />
       </SubMenu>
 
-      <SubMenu icon={<FileText size={14} />} label="Insert" parentLeft={left}>
+      <SubMenu icon={<FileText size={14} />} label="Insert" >
         <Item icon={<FileText size={14} />} label="Footnote" onClick={handleInsertFootnote} />
         <Item icon={<Table2 size={14} />} label="Table" onClick={handleInsertTable} />
         <Item icon={<Quote size={14} />} label="Callout" onClick={handleInsertCallout} />
