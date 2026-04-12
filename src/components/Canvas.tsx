@@ -194,10 +194,14 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
     li: ({ children }: any) => <li style={{ marginBottom: 'var(--space-1)', paddingLeft: 2 }}>{children}</li>,
     hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: 'var(--space-6) 0' }} />,
     code: ({ className, children }: any) => {
-      const isBlock = typeof className === 'string' && className.includes('language-');
+      // Fenced code blocks always have a trailing \n added by remark;
+      // inline code never does. Also catch languaged blocks via className.
+      const isBlock =
+        (typeof className === 'string' && className.includes('language-')) ||
+        String(children).endsWith('\n');
       if (isBlock) {
         return (
-          <code style={{ fontFamily: 'var(--font-mono)', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          <code style={{ fontFamily: 'var(--font-mono)', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'transparent', padding: 0 }}>
             {children}
           </code>
         );
