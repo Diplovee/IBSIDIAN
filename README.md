@@ -117,6 +117,17 @@ Exposed via contextBridge in the preload script:
     terminal.onData(cb)            listen for PTY output
     terminal.onExit(cb)            listen for PTY exit
 
+License
+-------
+
+Licensed under the Apache License, Version 2.0. See `LICENSE`.
+
+Author / Attribution
+--------------------
+
+Created by **T-kay T Mutumbiwenzou (TTM)**.
+Please preserve attribution notices in `NOTICE` and source distributions.
+
 ---
 
 <p align="center">Ibsidian</p>
