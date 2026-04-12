@@ -22,6 +22,7 @@ interface TreeCtx {
 const TreeContext = React.createContext<TreeCtx>({ openContextMenu: () => {}, openTab: () => {} });
 
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']);
+const visibleFileExtensions = new Set(['md', 'excalidraw']);
 
 const isImageExt = (ext?: string) => !!ext && imageExtensions.has(ext.toLowerCase());
 
@@ -201,6 +202,17 @@ function sortVaultNodes<T extends SortableNode>(nodes: T[], order: 'asc' | 'desc
   });
 }
 
+const filterTreeNodes = (nodes: VaultNode[]): VaultNode[] =>
+  nodes.flatMap((node) => {
+    if (node.type === 'folder') {
+      const children = filterTreeNodes(node.children);
+      return children.length ? [{ ...node, children }] : [];
+    }
+
+    const ext = node.ext?.toLowerCase();
+    return ext && visibleFileExtensions.has(ext) ? [node] : [];
+  });
+
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
   const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem } = useVault();
@@ -216,10 +228,10 @@ const FileTreeView: React.FC = () => {
   const rowHeight = settings.appearance?.compactMode ? 28 : 36;
   const TreeRenderer = settings.fileTree.style === 'hierarchy' ? TreeNode : OriginalTreeNode;
 
-  const displayNodes = React.useMemo(
-    () => sortOrder === 'none' ? nodes : sortVaultNodes(nodes, sortOrder),
-    [nodes, sortOrder]
-  );
+  const displayNodes = React.useMemo(() => {
+    const filteredNodes = filterTreeNodes(nodes);
+    return sortOrder === 'none' ? filteredNodes : sortVaultNodes(filteredNodes, sortOrder);
+  }, [nodes, sortOrder]);
 
   const handleSort = () => setSortOrder(o => o === 'none' ? 'asc' : o === 'asc' ? 'desc' : 'none');
 

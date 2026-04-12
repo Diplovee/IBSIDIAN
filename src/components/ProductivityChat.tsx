@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, Search, RotateCcw, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react';
+import { Plus, Search, RotateCcw, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Zap } from 'lucide-react';
 import { ProductivityIcon } from './AgentIcons';
 import type { Tab } from '../types';
 
@@ -335,8 +335,8 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   return (
     <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg-primary)' }}>
 
-      {/* ── Sidebar ── */}
-      {sidebarOpen && (
+      {/* ── Sidebar (full or icon-only strip) ── */}
+      {sidebarOpen ? (
         <div style={{
           width: 240, flexShrink: 0,
           borderRight: '1px solid var(--border)',
@@ -344,7 +344,6 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
         }}>
-          {/* Sidebar header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 12px 4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <ProductivityIcon size={18} />
@@ -361,23 +360,45 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
           </div>
           <Sidebar sessions={sessions} activeId={activeSessionId} onSelect={handleSelectSession} onNew={handleNewChat} />
         </div>
+      ) : (
+        /* Icon-only strip */
+        <div style={{
+          width: 48, flexShrink: 0,
+          borderRight: '1px solid var(--border)',
+          background: 'var(--bg-secondary)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center',
+          paddingTop: 10, gap: 4,
+        }}>
+          {[
+            { icon: <PanelLeftOpen size={18} />, onClick: () => setSidebarOpen(true), title: 'Open sidebar' },
+            { icon: <Pencil size={17} />, onClick: handleNewChat, title: 'New chat' },
+            { icon: <Search size={17} />, onClick: () => setSidebarOpen(true), title: 'Search chats' },
+          ].map(({ icon, onClick, title }) => (
+            <button
+              key={title}
+              title={title}
+              onClick={onClick}
+              style={{
+                width: 36, height: 36, borderRadius: 8, border: 'none',
+                background: 'none', color: 'var(--text-muted)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'background 0.1s, color 0.1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* ── Main area ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
-        {/* Top bar (toggle + optional actions) */}
+        {/* Top bar */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', gap: 8, flexShrink: 0 }}>
-          {!sidebarOpen && (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-            >
-              <PanelLeftOpen size={16} />
-            </button>
-          )}
           {messages.length > 0 && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button
