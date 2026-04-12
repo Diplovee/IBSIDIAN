@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.16] - 2026-04-12
+
+### Changed
+- Tab group pill context menu redesigned: inline rename input (bordered with the group's color), color swatches for one-click color picking, and action items styled to match other context menus
+
 ## [2026.5.15] - 2026-04-12
 
 ### Added

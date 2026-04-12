@@ -684,24 +684,31 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
       {groupCtxMenu && (() => {
         const group = getBrowserGroup(groupCtxMenu.groupId);
         if (!group) return null;
-        const MenuItem: React.FC<{ label: string; onClick: () => void; danger?: boolean }> = ({ label, onClick, danger }) => (
-          <button
-            onClick={onClick}
-            style={{
-              width: '100%',
-              textAlign: 'left',
-              padding: '6px 12px',
-              border: 'none',
-              background: 'transparent',
-              color: danger ? '#ef4444' : 'var(--text-primary)',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
-            {label}
-          </button>
-        );
-        const Sep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />;
+
+        const GROUP_SWATCHES = ['#1a1a1a', '#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#6b7280', '#7c3aed', '#ec4899'];
+
+        const MenuItem: React.FC<{ label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode }> = ({ label, onClick, danger, icon }) => {
+          const [hovered, setHovered] = React.useState(false);
+          return (
+            <button
+              onClick={onClick}
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                padding: '6px 12px', border: 'none', cursor: 'pointer',
+                fontSize: 13, textAlign: 'left',
+                background: hovered ? 'var(--bg-hover)' : 'transparent',
+                color: danger ? '#ef4444' : 'var(--text-primary)',
+                borderRadius: 6, transition: 'background 0.1s',
+              }}
+            >
+              {icon && <span style={{ color: danger ? '#ef4444' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>}
+              {label}
+            </button>
+          );
+        };
+        const Sep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 6px' }} />;
 
         return (
           <div
@@ -711,29 +718,71 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
               left: groupCtxMenu.x,
               top: groupCtxMenu.y,
               zIndex: 9999,
-              minWidth: 190,
+              width: 220,
               background: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: 8,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-              paddingTop: 4,
-              paddingBottom: 4,
+              borderRadius: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+              padding: '10px 10px 6px',
             }}
           >
-            <MenuItem label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={() => { toggleBrowserGroupCollapsed(group.id); setGroupCtxMenu(null); }} />
-            <MenuItem label="Rename group..." onClick={async () => {
-              const nextName = await promptValue({ title: 'Rename group', defaultValue: group.name, placeholder: 'Group name', confirmLabel: 'Rename' });
-              if (nextName?.trim()) updateBrowserGroup(group.id, { name: nextName.trim() });
-              setGroupCtxMenu(null);
-            }} />
-            <MenuItem label="Change group color..." onClick={async () => {
-              const nextColor = await promptValue({ title: 'Group color', defaultValue: group.color, placeholder: '#7c3aed', confirmLabel: 'Apply' });
-              if (nextColor?.trim()) updateBrowserGroup(group.id, { color: nextColor.trim() });
-              setGroupCtxMenu(null);
-            }} />
+            {/* Rename input */}
+            <input
+              autoFocus
+              defaultValue={group.name}
+              placeholder="Group name"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = e.currentTarget.value.trim();
+                  if (val) updateBrowserGroup(group.id, { name: val });
+                  setGroupCtxMenu(null);
+                } else if (e.key === 'Escape') {
+                  setGroupCtxMenu(null);
+                }
+              }}
+              onBlur={(e) => {
+                const val = e.currentTarget.value.trim();
+                if (val && val !== group.name) updateBrowserGroup(group.id, { name: val });
+              }}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '6px 10px', marginBottom: 10,
+                fontSize: 13, borderRadius: 7,
+                border: `2px solid ${group.color}`,
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                outline: 'none',
+              }}
+            />
+
+            {/* Color swatches */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '0 2px', marginBottom: 8 }}>
+              {GROUP_SWATCHES.map(color => (
+                <button
+                  key={color}
+                  title={color}
+                  onClick={() => updateBrowserGroup(group.id, { color })}
+                  style={{
+                    width: 28, height: 28, borderRadius: 7, border: 'none',
+                    background: color, cursor: 'pointer', flexShrink: 0,
+                    outline: group.color === color ? `2.5px solid var(--accent)` : '2.5px solid transparent',
+                    outlineOffset: 2,
+                    transition: 'outline-color 0.1s, transform 0.1s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.12)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                />
+              ))}
+            </div>
+
             <Sep />
+
+            <MenuItem label={group.collapsed ? 'Expand group' : 'Collapse group'} onClick={() => { toggleBrowserGroupCollapsed(group.id); setGroupCtxMenu(null); }} />
             <MenuItem label="Duplicate group" onClick={() => { duplicateBrowserGroup(group.id); setGroupCtxMenu(null); }} />
             <MenuItem label="Ungroup" onClick={() => { deleteBrowserGroup(group.id); setGroupCtxMenu(null); }} />
+
+            <Sep />
+
             <MenuItem label="Delete group" danger onClick={() => { closeBrowserGroup(group.id); setGroupCtxMenu(null); }} />
           </div>
         );
