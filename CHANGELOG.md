@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.15] - 2026-04-12
+
+### Fixed
+- Grouped tabs no longer get clipped by normal tabs when space is tight — added `flexShrink: 0` to the group tab container
+- New tab `+` button is now pinned outside the scrollable tab strip so it is always visible regardless of how many tabs are open
+
 ## [2026.5.14] - 2026-04-12
 
 ### Added

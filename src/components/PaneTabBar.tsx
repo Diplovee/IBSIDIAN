@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 // NOTE: User-requested guardrail — keep changes in this tab strip minimal unless explicitly requested.
 // This is the source of truth for split-pane tab rendering and grouping behavior.
 import { Globe, SquareTerminal, Plus } from 'lucide-react';
-import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
+import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { isGroupableTab } from '../utils/tabGrouping';
 import type { BrowserTabGroup, Tab } from '../types';
@@ -96,6 +96,7 @@ const iconForTab = (tab: Tab) => {
     case 'claude': return <ClaudeIcon size={13} />;
     case 'codex': return <CodexIcon size={13} />;
     case 'pi': return <PiIcon size={13} />;
+    case 'productivity': return <ProductivityIcon size={13} />;
     case 'note': return <MarkdownTabIcon size={13} />;
     default: return <MarkdownTabIcon size={13} />;
   }
@@ -326,12 +327,11 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
         display: 'flex',
         alignItems: 'stretch',
         padding: '0 6px',
-        overflowX: 'auto',
-        scrollbarWidth: 'none',
+        overflow: 'hidden',
         transition: 'background 0.12s, border-color 0.12s',
       }}
     >
-      <div ref={stripRef} style={{ display: 'flex', alignItems: 'stretch', minWidth: 0, flex: 1 }}>
+      <div ref={stripRef} style={{ display: 'flex', alignItems: 'stretch', minWidth: 0, flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
         {paneTabs.map((tab) => {
           const insertLine = (
             <div
@@ -416,6 +416,7 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
                     pointerEvents: group.collapsed ? 'none' : undefined,
                     transition: 'max-width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease',
                     marginRight: 4,
+                    flexShrink: 0,
                   }}
                 >
                   <GroupConnector dashed cracking={crackedIdx === 0} connecting={isDropTarget && crackedIdx === -1} />
@@ -568,31 +569,31 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
             flexShrink: 0,
           }}
         />
-        <button
-          onClick={openNewTab}
-          style={{
-            height: 'calc(100% - 8px)',
-            marginTop: 4,
-            marginBottom: 4,
-            marginRight: 4,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: 34,
-            padding: '0 10px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--bg-primary)',
-            color: 'var(--text-muted)',
-            flexShrink: 0,
-            cursor: 'pointer',
-          }}
-          title="New tab"
-          aria-label="New tab"
-        >
-          <Plus size={16} />
-        </button>
       </div>
+      <button
+        onClick={openNewTab}
+        style={{
+          height: 'calc(100% - 8px)',
+          marginTop: 4,
+          marginBottom: 4,
+          marginRight: 4,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: 34,
+          padding: '0 10px',
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--bg-primary)',
+          color: 'var(--text-muted)',
+          flexShrink: 0,
+          cursor: 'pointer',
+        }}
+        title="New tab"
+        aria-label="New tab"
+      >
+        <Plus size={16} />
+      </button>
 
       {groupCtxMenu && (() => {
         const group = getBrowserGroup(groupCtxMenu.groupId);
