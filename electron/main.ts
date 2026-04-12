@@ -20,7 +20,7 @@ import { pathToFileURL } from 'url'
 import chokidar from 'chokidar'
 import * as nodePty from 'node-pty'
 
-const isDev = !app.isPackaged
+const isDev = !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 
 // ── Vault state ────────────────────────────────────────────────────────────
 type Vault = { id: string; name: string; path: string }
@@ -214,8 +214,8 @@ function createWindow() {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
   })
 
-  if (isDev) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] ?? 'http://localhost:5173')
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../../out/renderer/index.html'))
   }
