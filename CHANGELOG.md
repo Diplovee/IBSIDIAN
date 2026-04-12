@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.14] - 2026-04-12
+
+### Added
+- Productivity agent — a dedicated chat tab accessible from the activity bar and Settings → Agents
+- ChatGPT-style chat UI: collapsible sidebar with session history (grouped Today / Yesterday / Previous 7 days), projects section, empty-state landing screen, and pill input bar
+- User messages render as fully-rounded pill bubbles (right-aligned); assistant replies as plain text with copy / thumbs / share / regenerate action row
+- Swallow bird SVG icon for the Productivity agent
+- New agent keys are now automatically appended to the saved activity-bar order so agents added in future versions appear without manual re-ordering
+
+### Fixed
+- Electron main process entry file renamed to `index.js` via `rollupOptions.input` key, fixing the `No electron app entry file found` startup error
+
 ## [2026.5.13] - 2026-04-12
 
 ### Added

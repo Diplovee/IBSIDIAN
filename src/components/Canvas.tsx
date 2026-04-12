@@ -23,6 +23,7 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
+import { ProductivityChat } from './ProductivityChat';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { PaneTabBar } from './PaneTabBar';
 import { EditorContextMenu } from './EditorContextMenu';
@@ -465,6 +466,7 @@ export const Canvas: React.FC = () => {
     const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
     const paneBrowserTabs = paneTabs.filter(t => t.type === 'browser');
     const paneTerminalTabs = paneTabs.filter(t => t.type === 'terminal' || t.type === 'claude' || t.type === 'codex' || t.type === 'pi');
+    const paneProductivityTabs = paneTabs.filter(t => t.type === 'productivity');
 
     return (
       <div
@@ -482,8 +484,13 @@ export const Canvas: React.FC = () => {
             <TerminalTab tab={t} />
           </div>
         ))}
+        {paneProductivityTabs.map(t => (
+          <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+            <ProductivityChat tab={t} />
+          </div>
+        ))}
 
-        {activeTab && activeTab.type !== 'terminal' && activeTab.type !== 'claude' && activeTab.type !== 'codex' && activeTab.type !== 'pi' && activeTab.type !== 'browser' ? (
+        {activeTab && activeTab.type !== 'terminal' && activeTab.type !== 'claude' && activeTab.type !== 'codex' && activeTab.type !== 'pi' && activeTab.type !== 'browser' && activeTab.type !== 'productivity' ? (
           <>
             {activeTab.type === 'note' && <EditorTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'draw' && <DrawTab key={activeTab.id} tab={activeTab} />}

@@ -17,7 +17,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     claude: true,
     codex: true,
     pi: true,
-    order: ['claude', 'codex', 'pi'] as AgentKey[],
+    productivity: true,
+    order: ['claude', 'codex', 'pi', 'productivity'] as AgentKey[],
   },
 };
 
@@ -43,7 +44,12 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         agents: {
           ...DEFAULT_SETTINGS.agents,
           ...loaded.agents,
-          order: (loaded.agents?.order?.length ? loaded.agents.order : DEFAULT_SETTINGS.agents.order) as AgentKey[],
+          productivity: loaded.agents?.productivity ?? DEFAULT_SETTINGS.agents.productivity,
+          order: (() => {
+            const saved: AgentKey[] = loaded.agents?.order?.length ? loaded.agents.order : DEFAULT_SETTINGS.agents.order;
+            const missing = DEFAULT_SETTINGS.agents.order.filter(k => !saved.includes(k));
+            return [...saved, ...missing] as AgentKey[];
+          })(),
         },
       }))
       .catch(() => {})

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Sun, Moon } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
-import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
+import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import type { AgentKey } from '../types';
 
 const CATEGORIES = [
@@ -201,16 +201,17 @@ const FilesPanel: React.FC = () => {
 };
 
 const AGENT_DEFS: Record<AgentKey, { label: string; description: string; color?: string; hasGradient?: boolean; Icon: React.FC<{ size?: number }> }> = {
-  claude: { label: 'Claude', description: "Anthropic's Claude Code CLI", color: '#D97757', Icon: ClaudeIcon },
-  codex:  { label: 'Codex',  description: 'OpenAI Codex CLI', hasGradient: true, Icon: CodexIcon },
-  pi:     { label: 'Pi',     description: 'Pi agent CLI', color: '#3B82F6', Icon: PiIcon },
+  claude:       { label: 'Claude',       description: "Anthropic's Claude Code CLI", color: '#D97757', Icon: ClaudeIcon },
+  codex:        { label: 'Codex',        description: 'OpenAI Codex CLI', hasGradient: true, Icon: CodexIcon },
+  pi:           { label: 'Pi',           description: 'Pi agent CLI', color: '#3B82F6', Icon: PiIcon },
+  productivity: { label: 'Productivity', description: 'Personal productivity assistant', color: '#8B5CF6', Icon: ProductivityIcon },
 };
 
-const ALL_KEYS: AgentKey[] = ['claude', 'codex', 'pi'];
+const ALL_KEYS: AgentKey[] = ['claude', 'codex', 'pi', 'productivity'];
 
 const AgentsPanel: React.FC = () => {
   const { settings, updateAgentSettings } = useAppSettings();
-  const agents = settings.agents ?? { claude: true, codex: true, pi: true, order: ALL_KEYS as AgentKey[] };
+  const agents = settings.agents ?? { claude: true, codex: true, pi: true, productivity: true, order: ALL_KEYS as AgentKey[] };
   const order: AgentKey[] = agents.order?.length ? agents.order : ALL_KEYS;
 
   const dragSrc = useRef<AgentKey | null>(null);

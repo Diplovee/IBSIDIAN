@@ -32,6 +32,25 @@ export const CodexIcon: React.FC<{ size?: number }> = ({ size = 18 }) => {
   );
 };
 
+// Productivity — violet card with swallow bird silhouette
+export const ProductivityIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none">
+    {/* Card background */}
+    <rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#8B5CF6" fillOpacity="0.13" stroke="#8B5CF6" strokeWidth="1.4" />
+    {/* Swallow body + head, facing right */}
+    <path
+      d="M15.8 9.2 C15.2 7.8 13.6 7.2 12 7.8 C10.4 8.4 9.6 10 10.2 11.4 C8.6 11 7 11.8 7.4 13.2 C8.2 12.6 9.6 12.4 10.8 12.8 C10 14 9.2 15.6 8.2 16.4 C9.4 15.8 10.8 14.6 12 13.6 C13.2 14.6 14.6 15.8 15.8 16.4 C14.8 15.6 14 14 13.2 12.8 C14.4 12.4 15.8 12.6 16.6 13.2 C17 11.8 15.4 11 13.8 11.4 C14.4 10.2 15.4 9.8 15.8 9.2 Z"
+      fill="#8B5CF6"
+    />
+    {/* Wing highlight */}
+    <path
+      d="M10.6 10.6 C11.2 9.6 12.4 9.2 13.4 9.8 C12.4 10.4 11.4 10.8 10.6 10.6 Z"
+      fill="white"
+      fillOpacity="0.28"
+    />
+  </svg>
+);
+
 // Pi — dark teal brand color
 export const PiIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 800 800">

@@ -2,7 +2,7 @@ export type VaultNode =
   | { id: string; type: 'folder'; name: string; children: VaultNode[]; isOpen?: boolean }
   | { id: string; type: 'file'; name: string; ext?: string; content?: string };
 
-export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab' | 'claude' | 'codex' | 'pi';
+export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab' | 'claude' | 'codex' | 'pi' | 'productivity';
 export type AttachmentLocation = 'same-folder-as-note' | 'specific-folder';
 export type FileTreeStyle = 'original' | 'hierarchy';
 export type FontSize = 'small' | 'medium' | 'large';
@@ -21,12 +21,13 @@ export interface AttachmentSettings {
   attachmentFolderPath: string;
 }
 
-export type AgentKey = 'claude' | 'codex' | 'pi';
+export type AgentKey = 'claude' | 'codex' | 'pi' | 'productivity';
 
 export interface AgentSettings {
   claude: boolean;
   codex: boolean;
   pi: boolean;
+  productivity: boolean;
   order: AgentKey[];
 }
 

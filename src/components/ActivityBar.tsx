@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { FolderOpen, Search, Globe, SquareTerminal, Settings } from 'lucide-react';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
-import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
+import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import { useActivity } from '../contexts/ActivityContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import type { AgentKey } from '../types';
 
-const AGENT_META: Record<AgentKey, { icon: React.ReactNode; title: string; command: string }> = {
-  claude: { icon: <ClaudeIcon size={18} />, title: 'Claude', command: 'claude\n' },
-  codex:  { icon: <CodexIcon size={18} />,  title: 'Codex',  command: 'codex\n'  },
-  pi:     { icon: <PiIcon size={18} />,     title: 'Pi',     command: 'pi\n'     },
+const AGENT_META: Record<AgentKey, { icon: React.ReactNode; title: string; command?: string }> = {
+  claude:       { icon: <ClaudeIcon size={18} />,       title: 'Claude',       command: 'claude\n' },
+  codex:        { icon: <CodexIcon size={18} />,        title: 'Codex',        command: 'codex\n'  },
+  pi:           { icon: <PiIcon size={18} />,           title: 'Pi',           command: 'pi\n'     },
+  productivity: { icon: <ProductivityIcon size={18} />, title: 'Productivity'                      },
 };
 
 export const ActivityBar: React.FC = () => {
@@ -19,8 +20,8 @@ export const ActivityBar: React.FC = () => {
   const { openTab } = useTabs();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
   const { settings } = useAppSettings();
-  const agents = settings.agents ?? { claude: true, codex: true, pi: true, order: ['claude', 'codex', 'pi'] as AgentKey[] };
-  const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi'];
+  const agents = settings.agents ?? { claude: true, codex: true, pi: true, productivity: true, order: ['claude', 'codex', 'pi', 'productivity'] as AgentKey[] };
+  const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi', 'productivity'];
 
   const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'about:blank', groupId: '' });
   const handleOpenDraw = () => {
