@@ -11,6 +11,9 @@ import { Excalidraw, serializeAsJSON } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
@@ -278,11 +281,15 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
     del: ({ children }: any) => <del style={{ color: 'var(--text-muted)' }}>{children}</del>,
     s: ({ children }: any) => <s style={{ color: 'var(--text-muted)' }}>{children}</s>,
     kbd: ({ children }: any) => <kbd style={{ padding: '2px 6px', fontSize: 12, fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6 }}>{children}</kbd>,
+    mark: ({ children }: any) => <mark style={{ background: 'rgba(255,210,0,0.35)', color: 'inherit', borderRadius: 2, padding: '0 2px' }}>{children}</mark>,
+    sup: ({ children }: any) => <sup>{children}</sup>,
+    sub: ({ children }: any) => <sub>{children}</sub>,
+    section: ({ children }: any) => <section style={{ marginTop: 'var(--space-8)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border)', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{children}</section>,
   };
 
   return (
     <div style={{ fontFamily: 'var(--font-sans)', lineHeight: 'var(--leading-relaxed)', color: 'var(--text-primary)' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={markdownComponents}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, rehypeKatex]} components={markdownComponents}>
         {preprocessObsidianMarkdown(content)}
       </ReactMarkdown>
     </div>

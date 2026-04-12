@@ -66,7 +66,14 @@ export const INTERNAL_EMBED_PREFIX = 'ibsidian://embed/';
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']);
 
 export const preprocessObsidianMarkdown = (value: string) => {
-  const withEmbeds = value.replace(/!\[\[([^[\]\n]+)\]\]/g, (_match, rawInner) => {
+  // Strip Obsidian comments %%...%% (single-line and multi-line)
+  const withoutComments = value.replace(/%%[\s\S]*?%%/g, '');
+
+  // Convert ==highlight== to <mark>highlight</mark> (rehype-raw passes it through)
+  const withHighlights = withoutComments.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+
+  // Convert wikilink embeds ![[...]] before regular wikilinks
+  const withEmbeds = withHighlights.replace(/!\[\[([^[\]\n]+)\]\]/g, (_match, rawInner) => {
     const inner = String(rawInner).trim();
     const [targetPart, aliasPart] = inner.split('|');
     const target = targetPart.trim();
