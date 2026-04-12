@@ -342,7 +342,7 @@ const AgentsPanel: React.FC = () => {
 
 export const SettingsModal: React.FC = () => {
   const { isSettingsOpen, closeSettings } = useActivity();
-  const [activeCategory, setActiveCategory] = useState<CategoryId>('appearance');
+  const [activeCategory, setActiveCategory] = useState<CategoryId>('general');
   const [hoveredNav, setHoveredNav] = useState<CategoryId | null>(null);
   const [isChangelogOpen, setChangelogOpen] = useState(false);
   const [appVersion, setAppVersion] = useState('Unknown');
