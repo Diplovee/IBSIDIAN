@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.11] - 2026-04-12
+
+### Changed
+- Split-pane tab strip now renders through `PaneTabBar.tsx` as the active source of truth for tab/group visuals and drag-drop behavior
+- New tabs opened from the file tree no longer auto-inherit the currently active tab group unless a group is explicitly provided
+
+### Fixed
+- Grouped and non-grouped tabs now render in one continuous pane tab strip flow (reduced section cutoff behavior)
+
 ## [2026.5.10] - 2026-04-12
 
 ### Added

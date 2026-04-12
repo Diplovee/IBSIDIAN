@@ -6,6 +6,8 @@ interface TabsContextType {
   browserGroups: BrowserTabGroup[];
   activeTabId: string | null;
   panes: Pane[];
+  paneSizes: number[];
+  splitDirection: 'horizontal' | 'vertical' | 'right-stack' | 'left-stack';
   activePaneId: string;
   openTab: (tab: Omit<Tab, 'id'>, paneId?: string) => void;
   closeTab: (id: string) => void;
@@ -13,13 +15,15 @@ interface TabsContextType {
   closeTabsToRight: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeAllTabs: () => void;
-  restoreTabs: (tabs: Tab[], activeTabId?: string | null, browserGroups?: BrowserTabGroup[]) => void;
+  restoreTabs: (tabs: Tab[], activeTabId?: string | null, browserGroups?: BrowserTabGroup[], panes?: Pane[], activePaneId?: string, paneSizes?: number[], splitDirection?: 'horizontal' | 'vertical' | 'right-stack' | 'left-stack') => void;
   setActiveTabId: (id: string | null) => void;
   setActivePane: (paneId: string) => void;
   splitRight: () => void;
   splitDown: () => void;
   closePane: (paneId: string) => void;
   moveTabToPane: (tabId: string, targetPaneId: string) => void;
+  moveTabToPaneAt: (tabId: string, targetPaneId: string, nearTabId: string, position: 'before' | 'after') => void;
+  setPaneSizes: (sizes: number[]) => void;
   updateTabTitle: (id: string, title: string) => void;
   updateTabCustomTitle: (id: string, customTitle?: string) => void;
   updateTabFilePath: (id: string, filePath: string) => void;
@@ -45,12 +49,22 @@ const generateId = () => Math.random().toString(36).slice(2, 10);
 const isGroupableType = (type: Tab['type']) => type !== 'terminal' && type !== 'new-tab' && type !== 'claude' && type !== 'codex' && type !== 'pi';
 const stripFileExtension = (name: string) => name.replace(/\.[^.]+$/, '');
 const getTabPaneId = (tab: Tab) => tab.paneId ?? 'main';
+const normalizePaneSizes = (sizes: number[], count: number) => {
+  if (count <= 0) return [];
+  if (sizes.length !== count) return Array.from({ length: count }, () => 1 / count);
+  const clamped = sizes.map(size => Math.max(0.05, size));
+  const sum = clamped.reduce((acc, value) => acc + value, 0);
+  if (sum <= 0) return Array.from({ length: count }, () => 1 / count);
+  return clamped.map(size => size / sum);
+};
 
 export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [browserGroups, setBrowserGroups] = useState<BrowserTabGroup[]>([]);
   const [activeTabId, setActiveTabIdState] = useState<string | null>(null);
   const [panes, setPanes] = useState<Pane[]>([{ id: 'main', activeTabId: null }]);
+  const [paneSizes, setPaneSizesState] = useState<number[]>([1]);
+  const [splitDirection, setSplitDirection] = useState<'horizontal' | 'vertical' | 'right-stack' | 'left-stack'>('horizontal');
   const [activePaneId, setActivePaneId] = useState<string>('main');
 
   const activePane = panes.find(p => p.id === activePaneId) ?? panes[0];
@@ -78,41 +92,82 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPanes(prev => prev.map(p => p.id === targetPaneId ? { ...p, activeTabId: id } : p));
   }, [activePaneId, panes, tabs]);
 
-  const splitPane = useCallback(() => {
+  const setPaneSizes = useCallback((sizes: number[]) => {
+    if (splitDirection === 'right-stack' || splitDirection === 'left-stack') {
+      const primary = Math.max(0.2, Math.min(0.8, sizes[0] ?? 0.5));
+      const stackedTop = Math.max(0.2, Math.min(0.8, sizes[1] ?? 0.5));
+      setPaneSizesState([primary, stackedTop]);
+      return;
+    }
+    setPaneSizesState(prev => normalizePaneSizes(sizes, panes.length || prev.length || 1));
+  }, [panes.length, splitDirection]);
+
+  const splitPane = useCallback((direction: 'horizontal' | 'vertical') => {
     if (panes.length >= 4) return;
 
     const newPaneId = generateId();
-    const currentPane = panes.find(p => p.id === activePaneId) ?? panes[0];
-    const sourceTab = currentPane?.activeTabId ? tabs.find(t => t.id === currentPane.activeTabId) : null;
+    const currentIndex = Math.max(0, panes.findIndex(p => p.id === activePaneId));
 
-    if (sourceTab) {
-      const duplicatedTab: Tab = { ...sourceTab, id: generateId(), paneId: newPaneId };
-      setTabs(prev => [...prev, duplicatedTab]);
-      setPanes(prev => [...prev, { id: newPaneId, activeTabId: duplicatedTab.id }]);
+    const isStackSplit = direction === 'vertical' && panes.length === 2 && splitDirection === 'horizontal';
+    if (isStackSplit) {
+      const mode = currentIndex === 0 ? 'left-stack' : 'right-stack';
+      setSplitDirection(mode);
+      setPanes(prev => {
+        const next = [...prev];
+        next.splice(currentIndex + 1, 0, { id: newPaneId, activeTabId: null });
+        return next;
+      });
+      setPaneSizesState([0.5, 0.5]);
       setActivePaneId(newPaneId);
-      setActiveTabIdState(duplicatedTab.id);
+      setActiveTabIdState(null);
       return;
     }
 
-    setPanes(prev => [...prev, { id: newPaneId, activeTabId: null }]);
+    setSplitDirection(direction);
+
+    setPanes(prev => {
+      const next = [...prev];
+      next.splice(currentIndex + 1, 0, { id: newPaneId, activeTabId: null });
+      return next;
+    });
+    setPaneSizesState(prev => {
+      const normalized = normalizePaneSizes(prev, panes.length);
+      const base = normalized[currentIndex] ?? 1 / Math.max(1, panes.length);
+      const next = [...normalized];
+      next.splice(currentIndex, 1, base / 2, base / 2);
+      return normalizePaneSizes(next, panes.length + 1);
+    });
     setActivePaneId(newPaneId);
     setActiveTabIdState(null);
-  }, [panes, activePaneId, tabs]);
+  }, [panes, activePaneId, splitDirection]);
 
   const splitRight = useCallback(() => {
-    splitPane();
+    splitPane('horizontal');
   }, [splitPane]);
 
   const splitDown = useCallback(() => {
-    splitPane();
+    splitPane('vertical');
   }, [splitPane]);
 
   const closePane = useCallback((paneId: string) => {
     if (panes.length === 1) return;
     if (paneId === 'main') return;
 
+    const removeIndex = panes.findIndex(p => p.id === paneId);
     const remaining = panes.filter(p => p.id !== paneId);
     setPanes(remaining);
+    setPaneSizesState(prev => {
+      if (splitDirection === 'right-stack' || splitDirection === 'left-stack') {
+        return normalizePaneSizes(Array.from({ length: Math.max(1, remaining.length) }, () => 1), Math.max(1, remaining.length));
+      }
+      const normalized = normalizePaneSizes(prev, panes.length);
+      const next = normalized.filter((_, idx) => idx !== removeIndex);
+      if (next.length === 0) return [1];
+      const removed = normalized[removeIndex] ?? 0;
+      if (removeIndex > 0) next[removeIndex - 1] = (next[removeIndex - 1] ?? 0) + removed;
+      else next[0] = (next[0] ?? 0) + removed;
+      return normalizePaneSizes(next, next.length);
+    });
     setTabs(prev => {
       const nextTabs = prev.filter(tab => getTabPaneId(tab) !== paneId);
       setBrowserGroups(prevGroups => {
@@ -122,12 +177,17 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return nextTabs;
     });
 
+    if (remaining.length <= 1 || splitDirection === 'right-stack' || splitDirection === 'left-stack') {
+      setSplitDirection('horizontal');
+      setPaneSizesState(remaining.length <= 1 ? [1] : normalizePaneSizes(Array.from({ length: remaining.length }, () => 1), remaining.length));
+    }
+
     if (activePaneId === paneId) {
       const fallbackPane = remaining[0] ?? null;
       setActivePaneId(fallbackPane?.id ?? 'main');
       setActiveTabIdState(fallbackPane?.activeTabId ?? null);
     }
-  }, [panes, activePaneId]);
+  }, [panes, activePaneId, splitDirection]);
 
   const moveTabToPane = useCallback((tabId: string, targetPaneId: string) => {
     const sourcePaneId = tabs.find(t => t.id === tabId)?.paneId ?? 'main';
@@ -151,15 +211,40 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveTabIdState(tabId);
   }, [tabs]);
 
+  const moveTabToPaneAt = useCallback((tabId: string, targetPaneId: string, nearTabId: string, position: 'before' | 'after') => {
+    const sourcePaneId = tabs.find(t => t.id === tabId)?.paneId ?? 'main';
+    setTabs(prev => {
+      const srcIdx = prev.findIndex(t => t.id === tabId);
+      if (srcIdx === -1) return prev;
+      // Update paneId and move to the correct position relative to nearTabId
+      const withUpdatedPane = prev.map(tab => tab.id === tabId ? { ...tab, paneId: targetPaneId } : tab);
+      const tgtIdx = withUpdatedPane.findIndex(t => t.id === nearTabId);
+      if (tgtIdx === -1) return withUpdatedPane;
+      const result = withUpdatedPane.filter(t => t.id !== tabId);
+      const insertAt = result.findIndex(t => t.id === nearTabId);
+      if (insertAt === -1) return withUpdatedPane;
+      result.splice(position === 'after' ? insertAt + 1 : insertAt, 0, { ...prev[srcIdx], paneId: targetPaneId });
+      return result;
+    });
+    setPanes(prev => prev.map(p => {
+      if (p.id === targetPaneId) return { ...p, activeTabId: tabId };
+      if (p.id === sourcePaneId && p.activeTabId === tabId) {
+        const fallback = tabs.find(tab => tab.id !== tabId && getTabPaneId(tab) === sourcePaneId);
+        return { ...p, activeTabId: fallback?.id ?? null };
+      }
+      return p;
+    }));
+    setActivePaneId(targetPaneId);
+    setActiveTabIdState(tabId);
+  }, [tabs]);
+
   const openTab = useCallback((tab: Omit<Tab, 'id'>, paneId?: string) => {
     const targetPaneId = paneId ?? activePaneId;
 
     setTabs(prev => {
-      const activeGroupId = isGroupableType(tab.type)
-        ? (tab.groupId ?? prev.find(t => t.id === activeTabId)?.groupId)
-        : undefined;
-      const nextGroupId = activeGroupId && browserGroups.some(group => group.id === activeGroupId)
-        ? activeGroupId
+      const requestedGroupId = isGroupableType(tab.type) ? tab.groupId : undefined;
+      const nextGroupId = requestedGroupId && browserGroups.some(group => group.id === requestedGroupId)
+        ? requestedGroupId
         : undefined;
 
       if (tab.type !== 'terminal' && tab.filePath) {
@@ -170,9 +255,6 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setPanes(prevPanes => prevPanes.map(p =>
             p.id === targetPaneId ? { ...p, activeTabId: existingTab.id } : p
           ));
-          if (nextGroupId && existingTab.groupId !== nextGroupId) {
-            return prev.map(t => t.id === existingTab.id ? { ...t, groupId: nextGroupId } : t);
-          }
           return prev;
         }
       }
@@ -200,14 +282,41 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const newTabs = prev.filter(t => !idsToClose.has(t.id));
 
       setPanes(prevPanes => {
-        const updated = prevPanes.map(p => {
+        const paneIdsWithTabs = new Set(newTabs.map(tab => getTabPaneId(tab)));
+        const withUpdatedActive = prevPanes.map(p => {
           if (!p.activeTabId || !idsToClose.has(p.activeTabId)) return p;
           const paneTabs = newTabs.filter(tab => getTabPaneId(tab) === p.id);
           return { ...p, activeTabId: paneTabs.length ? paneTabs[paneTabs.length - 1].id : null };
         });
-        const activePane = updated.find(p => p.id === activePaneId);
-        setActiveTabIdState(activePane?.activeTabId ?? null);
-        return updated;
+
+        const removablePaneIds = new Set(withUpdatedActive.filter(p => p.id !== 'main' && !paneIdsWithTabs.has(p.id)).map(p => p.id));
+        const nextPanes = withUpdatedActive.filter(p => !removablePaneIds.has(p.id));
+
+        if (removablePaneIds.size > 0) {
+          if (splitDirection === 'right-stack' || splitDirection === 'left-stack') {
+            setPaneSizesState(normalizePaneSizes(Array.from({ length: Math.max(1, nextPanes.length) }, () => 1), Math.max(1, nextPanes.length)));
+          } else {
+            setPaneSizesState(prevSizes => {
+              const normalized = normalizePaneSizes(prevSizes, prevPanes.length);
+              const keptSizes = normalized.filter((_, idx) => !removablePaneIds.has(prevPanes[idx].id));
+              return normalizePaneSizes(keptSizes, Math.max(1, nextPanes.length));
+            });
+          }
+        }
+
+        const finalPanes = nextPanes.length ? nextPanes : [{ id: 'main', activeTabId: null }];
+        if (finalPanes.length <= 1 || (splitDirection === 'right-stack' || splitDirection === 'left-stack') && finalPanes.length !== 3) {
+          setSplitDirection('horizontal');
+          setPaneSizesState(finalPanes.length <= 1 ? [1] : normalizePaneSizes(Array.from({ length: finalPanes.length }, () => 1), finalPanes.length));
+        }
+
+        const nextActivePaneId = finalPanes.some(p => p.id === activePaneId)
+          ? activePaneId
+          : finalPanes[0].id;
+        const nextActiveTabId = finalPanes.find(p => p.id === nextActivePaneId)?.activeTabId ?? null;
+        setActivePaneId(nextActivePaneId);
+        setActiveTabIdState(nextActiveTabId);
+        return finalPanes;
       });
 
       setBrowserGroups(prevGroups => {
@@ -217,7 +326,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return newTabs;
     });
-  }, [activePaneId]);
+  }, [activePaneId, splitDirection]);
 
   const closeTab = useCallback((id: string) => {
     closeTabsByIds([id]);
@@ -255,27 +364,62 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     closeTabsByIds(tabs.filter(t => getTabPaneId(t) === pane.id).map(t => t.id));
   }, [activePaneId, closeTabsByIds, panes, tabs]);
 
-  const restoreTabs = useCallback((nextTabs: Tab[], nextActiveTabId: string | null = null, nextBrowserGroups: BrowserTabGroup[] = []) => {
+  const restoreTabs = useCallback((nextTabs: Tab[], nextActiveTabId: string | null = null, nextBrowserGroups: BrowserTabGroup[] = [], nextPanes: Pane[] = [{ id: 'main', activeTabId: null }], nextActivePaneId = 'main', nextPaneSizes: number[] = [1], nextSplitDirection: 'horizontal' | 'vertical' | 'right-stack' | 'left-stack' = 'horizontal') => {
     const validGroupIds = new Set(nextBrowserGroups.map(group => group.id));
+    const incomingPanes = nextPanes.length ? nextPanes : [{ id: 'main', activeTabId: null }];
+    const paneIds = new Set(incomingPanes.map(p => p.id));
+    paneIds.add('main');
+
     const sanitizedTabs = nextTabs.map(tab => {
-      if (!isGroupableType(tab.type)) {
-        return tab.groupId ? { ...tab, groupId: undefined } : tab;
-      }
-      if (!tab.groupId || validGroupIds.has(tab.groupId)) return tab;
-      return { ...tab, groupId: undefined };
+      const nextGroupId = isGroupableType(tab.type) && tab.groupId && validGroupIds.has(tab.groupId)
+        ? tab.groupId
+        : undefined;
+      const paneId = tab.paneId && paneIds.has(tab.paneId) ? tab.paneId : 'main';
+      return {
+        ...tab,
+        paneId,
+        groupId: nextGroupId,
+      };
     });
 
-    const normalizedTabs = sanitizedTabs.map(tab => ({ ...tab, paneId: 'main' }));
-    setTabs(normalizedTabs);
-    setBrowserGroups(nextBrowserGroups);
-    const newActiveTabId = nextActiveTabId && normalizedTabs.some(tab => tab.id === nextActiveTabId)
+    const paneOrder = Array.from(new Set(['main', ...incomingPanes.map(p => p.id)]));
+    const normalizedPanes = paneOrder.map(id => {
+      const paneTabs = sanitizedTabs.filter(tab => getTabPaneId(tab) === id);
+      const savedPane = incomingPanes.find(p => p.id === id);
+      const savedActiveTabId = savedPane?.activeTabId;
+      const activeForPane = savedActiveTabId && paneTabs.some(tab => tab.id === savedActiveTabId)
+        ? savedActiveTabId
+        : paneTabs.length
+          ? paneTabs[paneTabs.length - 1].id
+          : null;
+      return { id, activeTabId: activeForPane };
+    });
+
+    const resolvedActiveTabId = nextActiveTabId && sanitizedTabs.some(tab => tab.id === nextActiveTabId)
       ? nextActiveTabId
-      : normalizedTabs.length > 0
-        ? normalizedTabs[normalizedTabs.length - 1].id
-        : null;
-    setActiveTabIdState(newActiveTabId);
-    setPanes([{ id: 'main', activeTabId: newActiveTabId }]);
-    setActivePaneId('main');
+      : normalizedPanes.find(p => p.id === nextActivePaneId)?.activeTabId
+        ?? normalizedPanes.find(p => p.activeTabId)?.activeTabId
+        ?? null;
+
+    const resolvedActivePaneId = normalizedPanes.some(p => p.id === nextActivePaneId)
+      ? nextActivePaneId
+      : (resolvedActiveTabId
+          ? sanitizedTabs.find(tab => tab.id === resolvedActiveTabId)?.paneId
+          : 'main') ?? 'main';
+
+    setTabs(sanitizedTabs);
+    setBrowserGroups(nextBrowserGroups);
+    setPanes(normalizedPanes);
+    if ((nextSplitDirection === 'right-stack' || nextSplitDirection === 'left-stack') && normalizedPanes.length === 3) {
+      const primary = Math.max(0.2, Math.min(0.8, nextPaneSizes[0] ?? 0.5));
+      const stackedTop = Math.max(0.2, Math.min(0.8, nextPaneSizes[1] ?? 0.5));
+      setPaneSizesState([primary, stackedTop]);
+    } else {
+      setPaneSizesState(normalizePaneSizes(nextPaneSizes, normalizedPanes.length));
+    }
+    setSplitDirection(normalizedPanes.length > 1 ? nextSplitDirection : 'horizontal');
+    setActivePaneId(resolvedActivePaneId);
+    setActiveTabIdState(resolvedActiveTabId);
   }, []);
 
   const updateTabTitle = useCallback((id: string, title: string) => {
@@ -401,6 +545,8 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       browserGroups,
       activeTabId,
       panes,
+      paneSizes,
+      splitDirection,
       activePaneId,
       openTab,
       closeTab,
@@ -416,6 +562,8 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       splitDown,
       closePane,
       moveTabToPane,
+      moveTabToPaneAt,
+      setPaneSizes,
       updateTabTitle,
       updateTabCustomTitle,
       updateTabFilePath,

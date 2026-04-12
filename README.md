@@ -83,10 +83,11 @@ Project Structure
     │   └── preload.ts    contextBridge API (window.api)
     ├── src/
     │   ├── components/
-    │   │   ├── Canvas.tsx          editor / browser / draw / terminal views
+    │   │   ├── Canvas.tsx          editor / browser / draw / terminal views + split pane shell
     │   │   ├── CommandPalette.tsx
     │   │   ├── SidePanel.tsx       file tree, search, settings
-    │   │   ├── TabBar.tsx
+    │   │   ├── PaneTabBar.tsx      active tab strip + grouping UI for pane tabs
+    │   │   ├── TabBar.tsx          legacy/non-mounted tab strip implementation
     │   │   └── VaultSetup.tsx      first-launch screen
     │   ├── contexts/
     │   │   ├── TabsContext.tsx

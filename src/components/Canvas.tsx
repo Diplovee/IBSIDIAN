@@ -20,12 +20,14 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
+import { ExcalidrawIcon } from './ExcalidrawIcon';
+import { PaneTabBar } from './PaneTabBar';
 import {
   Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
-  MoreHorizontal, Code, PanelRight, PanelBottom,
+  MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight,
+  Trash2, ChevronRight, X,
 } from 'lucide-react';
 import {
   CALL_OUT_STYLES,
@@ -46,6 +48,7 @@ import {
 } from '../utils/attachments';
 import type { ExcalidrawSceneFile, Tab } from '../types';
 import { parseExcalidrawFileContent } from '../utils/excalidraw';
+import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
 
 const extractText = (node: React.ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -100,6 +103,7 @@ const normalizeLivePreviewMarkers = (view: EditorView | null) => {
     }
   });
 };
+
 
 const InternalEmbed: React.FC<{ target: string; currentPath?: string | null }> = ({ target, currentPath }) => {
   const { nodes, readFile } = useVault();
@@ -330,8 +334,37 @@ const editorTheme = EditorView.theme({
 });
 
 export const Canvas: React.FC = () => {
-  const { activeTabId, tabs, panes, activePaneId, setActivePane, splitRight, splitDown, closePane } = useTabs();
-  
+  const {
+    activeTabId,
+    tabs,
+    panes,
+    paneSizes,
+    splitDirection,
+    activePaneId,
+    setActivePane,
+    setActiveTabId,
+    openTab,
+    closeTab,
+    closeTabsToLeft,
+    closeTabsToRight,
+    closeOtherTabs,
+    closeAllTabs,
+    reorderTabs,
+    moveTabToPane,
+    moveTabToPaneAt,
+    moveTabToGroup,
+    createBrowserGroup,
+    getBrowserGroup,
+    toggleBrowserGroupCollapsed,
+    splitRight,
+    splitDown,
+    closePane,
+    setPaneSizes,
+  } = useTabs();
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const [stackTabCtxMenu, setStackTabCtxMenu] = useState<{ x: number; y: number; tabId: string; paneId: string } | null>(null);
+  const { prompt: promptModal } = useModal();
+
   const browserTabs = tabs.filter(t => t.type === 'browser');
   const terminalTabs = tabs.filter(t => t.type === 'terminal' || t.type === 'claude' || t.type === 'codex' || t.type === 'pi');
 
@@ -350,6 +383,13 @@ export const Canvas: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [splitRight, closePane, activePaneId]);
+
+  useEffect(() => {
+    if (!stackTabCtxMenu) return;
+    const close = () => setStackTabCtxMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [stackTabCtxMenu]);
 
   const renderPane = (paneId: string) => {
     const pane = panes.find(p => p.id === paneId);
@@ -401,20 +441,183 @@ export const Canvas: React.FC = () => {
     );
   };
 
+  const handleResizeStart = (index: number, event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const container = splitContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const total = splitDirection === 'vertical' ? rect.height : rect.width;
+    if (total <= 0) return;
+
+    const startPos = splitDirection === 'vertical' ? event.clientY : event.clientX;
+    const baseSizes = paneSizes.length === panes.length
+      ? paneSizes
+      : Array.from({ length: panes.length }, () => 1 / panes.length);
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const currentPos = splitDirection === 'vertical' ? moveEvent.clientY : moveEvent.clientX;
+      const deltaRatio = (currentPos - startPos) / total;
+      const next = [...baseSizes];
+      const minSize = 0.12;
+      const left = Math.max(minSize, baseSizes[index] + deltaRatio);
+      const right = Math.max(minSize, baseSizes[index + 1] - deltaRatio);
+      const correction = (left + right) - (baseSizes[index] + baseSizes[index + 1]);
+      next[index] = left - correction / 2;
+      next[index + 1] = right - correction / 2;
+      setPaneSizes(next);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = splitDirection === 'vertical' ? 'row-resize' : 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const renderPaneWithTabBar = (paneId: string) => {
+    const pane = panes.find(p => p.id === paneId);
+    const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
+
+    return (
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <PaneTabBar
+          paneId={paneId}
+          paneTabs={paneTabs}
+          allTabs={tabs}
+          activeTabId={pane?.activeTabId ?? null}
+          getBrowserGroup={getBrowserGroup}
+          setActiveTab={(tabId) => { setActivePane(paneId); setActiveTabId(tabId); }}
+          closeTab={closeTab}
+          openNewTab={() => openTab({ type: 'new-tab', title: 'New tab' }, paneId)}
+          onTabContextMenu={(e, tabId, paneIdForMenu) => {
+            e.preventDefault();
+            setStackTabCtxMenu({ x: e.clientX, y: e.clientY, tabId, paneId: paneIdForMenu });
+          }}
+          reorderTabs={reorderTabs}
+          moveTabToPane={moveTabToPane}
+          moveTabToPaneAt={moveTabToPaneAt}
+          moveTabToGroup={moveTabToGroup}
+          toggleBrowserGroupCollapsed={toggleBrowserGroupCollapsed}
+        />
+        <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>{renderPane(paneId)}</div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-      {panes.length === 1 ? (
-        renderPane(panes[0].id)
-      ) : (
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {panes.map((pane, idx) => (
-            <React.Fragment key={pane.id}>
-              {idx > 0 && <div style={{ width: 2, background: 'var(--border)', opacity: 0.9, flexShrink: 0 }} />}
-              {renderPane(pane.id)}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
+      <div
+        ref={splitContainerRef}
+        style={{ flex: 1, display: 'flex', flexDirection: splitDirection === 'vertical' ? 'column' : 'row', overflow: 'hidden' }}
+      >
+        {panes.map((pane, idx) => (
+          <React.Fragment key={pane.id}>
+            {idx > 0 && (
+              <div
+                onMouseDown={(e) => handleResizeStart(idx - 1, e)}
+                style={{
+                  width: splitDirection === 'vertical' ? '100%' : 4,
+                  height: splitDirection === 'vertical' ? 4 : '100%',
+                  background: 'var(--border)',
+                  opacity: 0.9,
+                  flexShrink: 0,
+                  cursor: splitDirection === 'vertical' ? 'row-resize' : 'col-resize',
+                }}
+              />
+            )}
+            <div style={{ flex: `${Math.max(0.05, paneSizes[idx] ?? (1 / panes.length))} 1 0%`, minHeight: 0, minWidth: 0, display: 'flex' }}>
+              {renderPaneWithTabBar(pane.id)}
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {stackTabCtxMenu && (() => {
+        const targetTab = tabs.find(t => t.id === stackTabCtxMenu.tabId);
+        if (!targetTab) return null;
+        const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === stackTabCtxMenu.paneId);
+        const index = paneTabs.findIndex(t => t.id === targetTab.id);
+        const canLeft = index > 0;
+        const canRight = index >= 0 && index < paneTabs.length - 1;
+        const canOther = paneTabs.length > 1;
+        const isGroupable = isGroupableTab(targetTab);
+        const group = isGroupable ? getBrowserGroup(targetTab.groupId) : null;
+        const MenuItem: React.FC<{ icon: React.ReactNode; label: string; onClick?: () => void; disabled?: boolean; danger?: boolean }> = ({ icon, label, onClick, disabled, danger }) => {
+          const [hovered, setHovered] = React.useState(false);
+          return (
+            <button
+              disabled={disabled}
+              onClick={disabled ? undefined : onClick}
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                paddingLeft: 12, paddingRight: 10, paddingTop: 6, paddingBottom: 6,
+                border: 'none', cursor: disabled ? 'default' : 'pointer',
+                fontSize: 13, textAlign: 'left', opacity: disabled ? 0.4 : 1,
+                background: hovered && !disabled ? 'var(--bg-hover)' : 'transparent',
+                color: danger ? '#ef4444' : 'var(--text-primary)',
+                borderRadius: 6, transition: 'background 0.1s',
+              }}
+            >
+              <span style={{ flexShrink: 0, color: danger ? '#ef4444' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
+              <span style={{ flex: 1 }}>{label}</span>
+            </button>
+          );
+        };
+        const Sep = () => <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />;
+        return (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: stackTabCtxMenu.x,
+              top: stackTabCtxMenu.y,
+              zIndex: 9999,
+              minWidth: 200,
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              paddingTop: 4,
+              paddingBottom: 4,
+            }}
+          >
+            <MenuItem icon={<X size={14} />} label="Close" onClick={() => { closeTab(targetTab.id); setStackTabCtxMenu(null); }} />
+            <MenuItem icon={<PanelLeft size={14} />} label="Close tabs to the left" disabled={!canLeft} onClick={() => { closeTabsToLeft(targetTab.id); setStackTabCtxMenu(null); }} />
+            <MenuItem icon={<PanelRight size={14} />} label="Close tabs to the right" disabled={!canRight} onClick={() => { closeTabsToRight(targetTab.id); setStackTabCtxMenu(null); }} />
+            <MenuItem icon={<FolderOpen size={14} />} label="Close other tabs" disabled={!canOther} onClick={() => { closeOtherTabs(targetTab.id); setStackTabCtxMenu(null); }} />
+            <MenuItem icon={<X size={14} />} label="Close all tabs" onClick={() => { closeAllTabs(); setStackTabCtxMenu(null); }} />
+            <Sep />
+            <MenuItem icon={<PanelRight size={14} />} label="Split right" onClick={() => { setActivePane(stackTabCtxMenu.paneId); setActiveTabId(targetTab.id); splitRight(); setStackTabCtxMenu(null); }} />
+            <MenuItem icon={<PanelBottom size={14} />} label="Split down" onClick={() => { setActivePane(stackTabCtxMenu.paneId); setActiveTabId(targetTab.id); splitDown(); setStackTabCtxMenu(null); }} />
+            {isGroupable && <Sep />}
+            {isGroupable && (group ? (
+              <MenuItem icon={<Link2 size={14} />} label="Remove from group" onClick={() => { moveTabToGroup(targetTab.id, null); setStackTabCtxMenu(null); }} />
+            ) : (
+              <MenuItem icon={<FolderInput size={14} />} label="Create group from tab..." onClick={() => {
+                setStackTabCtxMenu(null);
+                promptCreateGroupFromTab({
+                  tab: targetTab,
+                  prompt: promptModal,
+                  createBrowserGroup,
+                  moveTabToGroup,
+                });
+              }} />
+            ))}
+            {panes.length > 1 && <><Sep /><MenuItem icon={<X size={14} />} label="Close this pane" onClick={() => { closePane(stackTabCtxMenu.paneId); setStackTabCtxMenu(null); }} /></>}
+          </div>
+        );
+      })()}
     </div>
   );
 };
