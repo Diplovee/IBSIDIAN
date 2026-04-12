@@ -436,9 +436,6 @@ export const Canvas: React.FC = () => {
   const [stackTabCtxMenu, setStackTabCtxMenu] = useState<{ x: number; y: number; tabId: string; paneId: string } | null>(null);
   const { prompt: promptModal } = useModal();
 
-  const browserTabs = tabs.filter(t => t.type === 'browser');
-  const terminalTabs = tabs.filter(t => t.type === 'terminal' || t.type === 'claude' || t.type === 'codex' || t.type === 'pi');
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -465,8 +462,9 @@ export const Canvas: React.FC = () => {
   const renderPane = (paneId: string) => {
     const pane = panes.find(p => p.id === paneId);
     const activeTab = pane?.activeTabId ? tabs.find(t => t.id === pane.activeTabId) : null;
-
-    const isActive = paneId === activePaneId;
+    const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
+    const paneBrowserTabs = paneTabs.filter(t => t.type === 'browser');
+    const paneTerminalTabs = paneTabs.filter(t => t.type === 'terminal' || t.type === 'claude' || t.type === 'codex' || t.type === 'pi');
 
     return (
       <div
@@ -474,27 +472,25 @@ export const Canvas: React.FC = () => {
         style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
         onClick={() => setActivePane(paneId)}
       >
-        {activeTab?.type === 'terminal' || activeTab?.type === 'claude' || activeTab?.type === 'codex' || activeTab?.type === 'pi' || activeTab?.type === 'browser' ? (
-          <>
-            {browserTabs.map(t => (
-              <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
-                <BrowserTab tab={t} />
-              </div>
-            ))}
-            {terminalTabs.map(t => (
-              <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
-                <TerminalTab tab={t} />
-              </div>
-            ))}
-          </>
-        ) : activeTab ? (
+        {paneBrowserTabs.map(t => (
+          <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+            <BrowserTab tab={t} />
+          </div>
+        ))}
+        {paneTerminalTabs.map(t => (
+          <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+            <TerminalTab tab={t} />
+          </div>
+        ))}
+
+        {activeTab && activeTab.type !== 'terminal' && activeTab.type !== 'claude' && activeTab.type !== 'codex' && activeTab.type !== 'pi' && activeTab.type !== 'browser' ? (
           <>
             {activeTab.type === 'note' && <EditorTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'draw' && <DrawTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'image' && <ImageTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'new-tab' && <NewTabScreen key={activeTab.id} tab={activeTab} />}
           </>
-        ) : (
+        ) : !activeTab ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
             <div style={{ width: 96, height: 96, background: 'var(--bg-secondary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
               <div style={{ width: 48, height: 48, background: 'var(--accent)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 24, fontWeight: 700 }}>I</div>
@@ -507,7 +503,7 @@ export const Canvas: React.FC = () => {
               <span>Command Palette</span>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     );
   };
