@@ -378,6 +378,13 @@ export const SettingsModal: React.FC = () => {
       const branch = result.branch || 'main';
       const hasUpdate = result.supported && result.updateAvailable;
       localStorage.setItem('ibsidian:update-available', hasUpdate ? 'true' : 'false');
+      if (hasUpdate) {
+        if (result.current) localStorage.setItem('ibsidian:update-current', result.current);
+        if (result.latest) localStorage.setItem('ibsidian:update-latest', result.latest);
+      } else {
+        localStorage.removeItem('ibsidian:update-current');
+        localStorage.removeItem('ibsidian:update-latest');
+      }
       window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
       setCanRestartAfterUpdate(false);
       setUpdateStatus(`${result.message}${result.hasLocalChanges ? ' Local changes detected.' : ''}`);
@@ -401,6 +408,8 @@ export const SettingsModal: React.FC = () => {
       setCanRestartAfterUpdate(result.ok);
       if (result.ok) {
         localStorage.setItem('ibsidian:update-available', 'false');
+        localStorage.removeItem('ibsidian:update-current');
+        localStorage.removeItem('ibsidian:update-latest');
         window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
       }
     } catch (error) {

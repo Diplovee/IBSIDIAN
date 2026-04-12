@@ -18,6 +18,8 @@ const SIDEBAR_KEY = 'ibsidian-sidebar-width';
 const DEFAULT_WIDTH = 240;
 const TABS_KEY_PREFIX = 'ibsidian-tabs:';
 const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
+const UPDATE_CURRENT_KEY = 'ibsidian:update-current';
+const UPDATE_LATEST_KEY = 'ibsidian:update-latest';
 
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
@@ -94,11 +96,15 @@ export const Layout: React.FC = () => {
         const check = await window.api.app.checkForUpdates();
         if (!check.supported || !check.updateAvailable) {
           localStorage.setItem(UPDATE_AVAILABLE_KEY, 'false');
+          localStorage.removeItem(UPDATE_CURRENT_KEY);
+          localStorage.removeItem(UPDATE_LATEST_KEY);
           window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
           return;
         }
 
         localStorage.setItem(UPDATE_AVAILABLE_KEY, 'true');
+        if (check.current) localStorage.setItem(UPDATE_CURRENT_KEY, check.current);
+        if (check.latest) localStorage.setItem(UPDATE_LATEST_KEY, check.latest);
         window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
 
         const shouldUpdate = window.confirm('Ibsidian update available. Update now?');
@@ -108,6 +114,8 @@ export const Layout: React.FC = () => {
         window.alert(result.message);
         if (result.ok) {
           localStorage.setItem(UPDATE_AVAILABLE_KEY, 'false');
+          localStorage.removeItem(UPDATE_CURRENT_KEY);
+          localStorage.removeItem(UPDATE_LATEST_KEY);
           window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
           const shouldRestart = window.confirm('Update installed. Restart now?');
           if (shouldRestart) await window.api.app.restart();

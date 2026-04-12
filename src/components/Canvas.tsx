@@ -57,6 +57,8 @@ import { TipTapEditor } from './editor/TipTapEditor';
 
 const EDITOR_PREFERENCE_KEY = 'editor';
 const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
+const UPDATE_CURRENT_KEY = 'ibsidian:update-current';
+const UPDATE_LATEST_KEY = 'ibsidian:update-latest';
 const getPreferredEditor = () => {
   if (typeof window === 'undefined') return 'codemirror';
   return localStorage.getItem(EDITOR_PREFERENCE_KEY) === 'tiptap' ? 'tiptap' : 'codemirror';
@@ -1045,6 +1047,8 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [tiptapCrashed, setTiptapCrashed] = useState(false);
   const [tipTapEditor, setTipTapEditor] = useState<any | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(() => localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
+  const [updateCurrent, setUpdateCurrent] = useState(() => localStorage.getItem(UPDATE_CURRENT_KEY) || '');
+  const [updateLatest, setUpdateLatest] = useState(() => localStorage.getItem(UPDATE_LATEST_KEY) || '');
 
   useEffect(() => {
     const syncPreference = () => setPreferredEditor(getPreferredEditor());
@@ -1057,7 +1061,11 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   }, []);
 
   useEffect(() => {
-    const syncUpdateStatus = () => setUpdateAvailable(localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
+    const syncUpdateStatus = () => {
+      setUpdateAvailable(localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
+      setUpdateCurrent(localStorage.getItem(UPDATE_CURRENT_KEY) || '');
+      setUpdateLatest(localStorage.getItem(UPDATE_LATEST_KEY) || '');
+    };
     window.addEventListener('storage', syncUpdateStatus);
     window.addEventListener('ibsidian:update-status-changed', syncUpdateStatus as EventListener);
     return () => {
@@ -1529,6 +1537,8 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
       await alert({ title: result.ok ? 'Update complete' : 'Update failed', message: result.message });
       if (result.ok) {
         localStorage.setItem(UPDATE_AVAILABLE_KEY, 'false');
+        localStorage.removeItem(UPDATE_CURRENT_KEY);
+        localStorage.removeItem(UPDATE_LATEST_KEY);
         window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
         const shouldRestart = await confirm({
           title: 'Restart required',
@@ -1678,7 +1688,9 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
                 cursor: 'pointer',
                 animation: '_updateBlink 1s steps(2,end) infinite',
               }}
-              title="Update available"
+              title={updateCurrent && updateLatest
+                ? `Update available\n${updateCurrent.slice(0, 7)} → ${updateLatest.slice(0, 7)}`
+                : 'Update available'}
             >
               <Download size={13} />
             </button>
