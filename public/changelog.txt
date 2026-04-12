@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.13] - 2026-04-12
+
+### Added
+- Linux local installer script and documentation for app menu integration (`bun run install:linux-local`)
+- In-app update controls in Settings (check, apply, and restart)
+- Startup update check prompt plus a blinking update badge with commit-hash tooltip in the editor header
+- DevTools toggle shortcut (`Ctrl+Shift+C`) in Electron main window
+
+### Changed
+- Clarified menu wording to "Open in new app window" for platform-neutral wording
+
+### Fixed
+- Installed app now loads built renderer unless `ELECTRON_RENDERER_URL` is set
+- Terminal sessions persist across tab switches by keeping terminal views mounted per pane
+
 ## [2026.5.10] - 2026-04-11
 
 ### Added

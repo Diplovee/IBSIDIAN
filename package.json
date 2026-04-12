@@ -1,7 +1,7 @@
 {
   "name": "ibsidian",
   "private": true,
-  "version": "2026.5.12",
+  "version": "2026.5.13",
   "license": "Apache-2.0",
   "type": "module",
   "main": "out/main/index.js",
