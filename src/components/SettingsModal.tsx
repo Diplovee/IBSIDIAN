@@ -376,6 +376,9 @@ export const SettingsModal: React.FC = () => {
     try {
       const result = await window.api.app.checkForUpdates();
       const branch = result.branch || 'main';
+      const hasUpdate = result.supported && result.updateAvailable;
+      localStorage.setItem('ibsidian:update-available', hasUpdate ? 'true' : 'false');
+      window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
       setCanRestartAfterUpdate(false);
       setUpdateStatus(`${result.message}${result.hasLocalChanges ? ' Local changes detected.' : ''}`);
       if (result.supported && result.current && result.latest) {
@@ -396,6 +399,10 @@ export const SettingsModal: React.FC = () => {
       setUpdateStatus(result.message);
       setUpdateLog(result.log || '');
       setCanRestartAfterUpdate(result.ok);
+      if (result.ok) {
+        localStorage.setItem('ibsidian:update-available', 'false');
+        window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setUpdateStatus(`Failed to update: ${message}`);

@@ -17,6 +17,7 @@ import { FolderX } from 'lucide-react';
 const SIDEBAR_KEY = 'ibsidian-sidebar-width';
 const DEFAULT_WIDTH = 240;
 const TABS_KEY_PREFIX = 'ibsidian-tabs:';
+const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
 
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
@@ -25,6 +26,7 @@ export const Layout: React.FC = () => {
   const hydratedTabsKeyRef = useRef<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
+  const updateCheckedRef = useRef(false);
   const vaultMissing = !!error && error.includes('not found');
 
   const tabsStorageKey = vault ? `${TABS_KEY_PREFIX}${vault.path}` : null;
@@ -82,6 +84,41 @@ export const Layout: React.FC = () => {
     if (result.status === 'rejected') setRetryFailed(true);
     setRetrying(false);
   }, [refreshFileTree]);
+
+  useEffect(() => {
+    if (!isReady || updateCheckedRef.current) return;
+    updateCheckedRef.current = true;
+
+    const runUpdateCheck = async () => {
+      try {
+        const check = await window.api.app.checkForUpdates();
+        if (!check.supported || !check.updateAvailable) {
+          localStorage.setItem(UPDATE_AVAILABLE_KEY, 'false');
+          window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
+          return;
+        }
+
+        localStorage.setItem(UPDATE_AVAILABLE_KEY, 'true');
+        window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
+
+        const shouldUpdate = window.confirm('Ibsidian update available. Update now?');
+        if (!shouldUpdate) return;
+
+        const result = await window.api.app.applyUpdate();
+        window.alert(result.message);
+        if (result.ok) {
+          localStorage.setItem(UPDATE_AVAILABLE_KEY, 'false');
+          window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
+          const shouldRestart = window.confirm('Update installed. Restart now?');
+          if (shouldRestart) await window.api.app.restart();
+        }
+      } catch (error) {
+        console.warn('Update check failed', error);
+      }
+    };
+
+    void runUpdateCheck();
+  }, [isReady]);
 
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_KEY);

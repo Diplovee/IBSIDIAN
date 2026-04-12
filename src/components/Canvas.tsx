@@ -56,6 +56,7 @@ import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
 import { TipTapEditor } from './editor/TipTapEditor';
 
 const EDITOR_PREFERENCE_KEY = 'editor';
+const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
 const getPreferredEditor = () => {
   if (typeof window === 'undefined') return 'codemirror';
   return localStorage.getItem(EDITOR_PREFERENCE_KEY) === 'tiptap' ? 'tiptap' : 'codemirror';
@@ -1043,6 +1044,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [preferredEditor, setPreferredEditor] = useState<'codemirror' | 'tiptap'>(() => getPreferredEditor());
   const [tiptapCrashed, setTiptapCrashed] = useState(false);
   const [tipTapEditor, setTipTapEditor] = useState<any | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(() => localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
 
   useEffect(() => {
     const syncPreference = () => setPreferredEditor(getPreferredEditor());
@@ -1051,6 +1053,16 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     return () => {
       window.removeEventListener('storage', syncPreference);
       window.removeEventListener('ibsidian:editor-preference-changed', syncPreference as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncUpdateStatus = () => setUpdateAvailable(localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
+    window.addEventListener('storage', syncUpdateStatus);
+    window.addEventListener('ibsidian:update-status-changed', syncUpdateStatus as EventListener);
+    return () => {
+      window.removeEventListener('storage', syncUpdateStatus);
+      window.removeEventListener('ibsidian:update-status-changed', syncUpdateStatus as EventListener);
     };
   }, []);
 
@@ -1503,8 +1515,37 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     window.dispatchEvent(new CustomEvent('ibsidian:editor-preference-changed'));
   };
 
+  const handleUpdateBadgeClick = async () => {
+    const shouldUpdate = await confirm({
+      title: 'Update available',
+      message: 'A new version of Ibsidian is available. Update now?',
+      confirmText: 'Update now',
+      cancelText: 'Later',
+    });
+    if (!shouldUpdate) return;
+
+    try {
+      const result = await window.api.app.applyUpdate();
+      await alert({ title: result.ok ? 'Update complete' : 'Update failed', message: result.message });
+      if (result.ok) {
+        localStorage.setItem(UPDATE_AVAILABLE_KEY, 'false');
+        window.dispatchEvent(new CustomEvent('ibsidian:update-status-changed'));
+        const shouldRestart = await confirm({
+          title: 'Restart required',
+          message: 'Update installed. Restart now?',
+          confirmText: 'Restart',
+          cancelText: 'Later',
+        });
+        if (shouldRestart) await window.api.app.restart();
+      }
+    } catch (error) {
+      await alert({ title: 'Update failed', message: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', overflow: 'hidden' }}>
+      <style>{`@keyframes _updateBlink{0%,100%{opacity:1}50%{opacity:0.25}}`}</style>
       {/* Obsidian-style editor toolbar */}
       <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: 8 }}>
         {/* Back / Forward */}
@@ -1620,6 +1661,28 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           >
             {preferredEditor === 'tiptap' ? 'TT' : 'CM'}
           </button>
+          {updateAvailable && (
+            <button
+              type="button"
+              onClick={() => { void handleUpdateBadgeClick(); }}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                border: '1px solid color-mix(in srgb, var(--accent) 65%, var(--border))',
+                background: 'var(--accent-soft)',
+                color: 'var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                animation: '_updateBlink 1s steps(2,end) infinite',
+              }}
+              title="Update available"
+            >
+              <Download size={13} />
+            </button>
+          )}
           {/* More options */}
           <button
             onClick={() => setMenuOpen(v => !v)}
