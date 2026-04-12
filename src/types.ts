@@ -59,6 +59,12 @@ export interface Tab {
   groupId?: string;
   faviconUrl?: string;
   command?: string;
+  paneId?: string;
+}
+
+export interface Pane {
+  id: string;
+  activeTabId: string | null;
 }
 
 export type ActivityType = 'files' | 'search';

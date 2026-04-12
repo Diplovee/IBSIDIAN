@@ -330,78 +330,89 @@ const editorTheme = EditorView.theme({
 });
 
 export const Canvas: React.FC = () => {
-  const { activeTabId, tabs } = useTabs();
-  const activeTab = tabs.find(t => t.id === activeTabId);
-
-  // Always render all browser and terminal tabs so their embedded state survives tab switches.
-  // Only unmount when the tab is closed (removed from tabs array).
+  const { activeTabId, tabs, panes, activePaneId, setActivePane, splitRight, splitDown, closePane } = useTabs();
+  
   const browserTabs = tabs.filter(t => t.type === 'browser');
   const terminalTabs = tabs.filter(t => t.type === 'terminal' || t.type === 'claude' || t.type === 'codex' || t.type === 'pi');
 
-  const renderActiveTab = () => {
-    if (!activeTab) {
-      return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
-          <div style={{ width: 96, height: 96, background: 'var(--bg-secondary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-            <div style={{ width: 48, height: 48, background: 'var(--accent)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 24, fontWeight: 700 }}>
-              I
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '\\') {
+          e.preventDefault();
+          splitRight();
+        } else if (e.key === 'w' && !e.shiftKey) {
+          e.preventDefault();
+          if (activePaneId !== 'main') closePane(activePaneId);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [splitRight, closePane, activePaneId]);
+
+  const renderPane = (paneId: string) => {
+    const pane = panes.find(p => p.id === paneId);
+    const activeTab = pane?.activeTabId ? tabs.find(t => t.id === pane.activeTabId) : null;
+
+    const isActive = paneId === activePaneId;
+
+    return (
+      <div
+        key={paneId}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
+        onClick={() => setActivePane(paneId)}
+      >
+        {activeTab?.type === 'terminal' || activeTab?.type === 'claude' || activeTab?.type === 'codex' || activeTab?.type === 'pi' || activeTab?.type === 'browser' ? (
+          <>
+            {browserTabs.map(t => (
+              <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+                <BrowserTab tab={t} />
+              </div>
+            ))}
+            {terminalTabs.map(t => (
+              <div key={t.id} style={{ display: activeTab?.id === t.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+                <TerminalTab tab={t} />
+              </div>
+            ))}
+          </>
+        ) : activeTab ? (
+          <>
+            {activeTab.type === 'note' && <EditorTab key={activeTab.id} tab={activeTab} />}
+            {activeTab.type === 'draw' && <DrawTab key={activeTab.id} tab={activeTab} />}
+            {activeTab.type === 'image' && <ImageTab key={activeTab.id} tab={activeTab} />}
+            {activeTab.type === 'new-tab' && <NewTabScreen key={activeTab.id} tab={activeTab} />}
+          </>
+        ) : (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
+            <div style={{ width: 96, height: 96, background: 'var(--bg-secondary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+              <div style={{ width: 48, height: 48, background: 'var(--accent)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 24, fontWeight: 700 }}>I</div>
+            </div>
+            <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Welcome to Ibsidian</h2>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Open a file from the sidebar or create a new one.</p>
+            <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <kbd style={{ padding: '2px 7px', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 5, boxShadow: '0 1px 0 var(--border)', color: 'var(--text-secondary)', lineHeight: '18px' }}>Ctrl</kbd>
+              <kbd style={{ padding: '2px 7px', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 5, boxShadow: '0 1px 0 var(--border)', color: 'var(--text-secondary)', lineHeight: '18px' }}>K</kbd>
+              <span>Command Palette</span>
             </div>
           </div>
-          <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Welcome to Ibsidian</h2>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Open a file from the sidebar or create a new one.</p>
-          <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
-            <kbd style={{ padding: '2px 7px', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 5, boxShadow: '0 1px 0 var(--border)', color: 'var(--text-secondary)', lineHeight: '18px' }}>Ctrl</kbd>
-            <kbd style={{ padding: '2px 7px', fontSize: 12, fontFamily: 'var(--font-mono, monospace)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 5, boxShadow: '0 1px 0 var(--border)', color: 'var(--text-secondary)', lineHeight: '18px' }}>K</kbd>
-            <span>Command Palette</span>
-          </div>
-        </div>
-      );
-    }
-    // Browser and terminal tabs are rendered persistently below; hide this slot when either is active.
-    if (activeTab.type === 'terminal' || activeTab.type === 'claude' || activeTab.type === 'codex' || activeTab.type === 'pi' || activeTab.type === 'browser') return null;
-    switch (activeTab.type) {
-      case 'note': return <EditorTab key={activeTab.id} tab={activeTab} />;
-      case 'draw': return <DrawTab key={activeTab.id} tab={activeTab} />;
-      case 'image': return <ImageTab key={activeTab.id} tab={activeTab} />;
-      case 'new-tab': return <NewTabScreen key={activeTab.id} tab={activeTab} />;
-      default: return <div style={{ flex: 1, background: 'var(--bg-primary)' }} />;
-    }
+        )}
+      </div>
+    );
   };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-      {/* Always-mounted browser tabs — hidden when not active */}
-      {browserTabs.map(t => (
-        <div
-          key={t.id}
-          style={{
-            display: activeTab?.id === t.id ? 'flex' : 'none',
-            flex: 1,
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          <BrowserTab tab={t} />
-        </div>
-      ))}
-      {/* Always-mounted terminal tabs — hidden when not active */}
-      {terminalTabs.map(t => (
-        <div
-          key={t.id}
-          style={{
-            display: activeTab?.id === t.id ? 'flex' : 'none',
-            flex: 1,
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          <TerminalTab tab={t} />
-        </div>
-      ))}
-      {/* Non-browser, non-terminal active tab */}
-      {activeTab?.type !== 'terminal' && activeTab?.type !== 'claude' && activeTab?.type !== 'codex' && activeTab?.type !== 'pi' && activeTab?.type !== 'browser' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {renderActiveTab()}
+      {panes.length === 1 ? (
+        renderPane(panes[0].id)
+      ) : (
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {panes.map((pane, idx) => (
+            <React.Fragment key={pane.id}>
+              {idx > 0 && <div style={{ width: 2, background: 'var(--border)', opacity: 0.9, flexShrink: 0 }} />}
+              {renderPane(pane.id)}
+            </React.Fragment>
+          ))}
         </div>
       )}
     </div>
@@ -749,7 +760,7 @@ const SubMenu: React.FC<SubMenuProps> = ({ icon, label, children }) => {
 
 const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { nodes, getNodeById, updateFileContent, deleteNode, renameNode, renameItem, refreshFileTree, readFile, writeFile, vault } = useVault();
-  const { closeTab, updateTabTitle, updateTabFilePath } = useTabs();
+  const { closeTab, updateTabTitle, updateTabFilePath, splitRight, splitDown } = useTabs();
   const { confirm, prompt, alert } = useModal();
   const { theme } = useActivity();
   const { settings } = useAppSettings();
@@ -1121,8 +1132,8 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               <MenuItem icon={<Copy size={14} />} label="Copy path" onClick={handleCopyPath} hasArrow />
               <MenuSep />
               <SubMenu icon={<ExternalLink size={14} />} label="Open">
-                <MenuItem icon={<PanelRight size={14} />} label="Split right" disabled />
-                <MenuItem icon={<PanelBottom size={14} />} label="Split down" disabled />
+                <MenuItem icon={<PanelRight size={14} />} label="Split left" onClick={() => { setMenuOpen(false); splitRight(); }} />
+                <MenuItem icon={<PanelBottom size={14} />} label="Split down" onClick={() => { setMenuOpen(false); splitDown(); }} />
                 <MenuItem icon={<ExternalLink size={14} />} label="Open in new window" disabled />
                 <MenuSep />
                 <MenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
