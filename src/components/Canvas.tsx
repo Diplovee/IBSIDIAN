@@ -30,7 +30,7 @@ import {
   Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
-  Download, Search, Copy, History, Link2, ArrowUpRight, FolderOpen,
+  Download, Search, Copy, Check, History, Link2, ArrowUpRight, FolderOpen,
   Trash2, ChevronRight, X,
 } from 'lucide-react';
 import {
@@ -208,11 +208,36 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
       }
       return <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', padding: '2px 4px', fontSize: '0.9em' }}>{children}</code>;
     },
-    pre: ({ children }: any) => (
-      <pre style={{ margin: 'var(--space-4) 0', padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, overflowX: 'auto', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.7 }}>
-        {children}
-      </pre>
-    ),
+    pre: ({ children }: any) => {
+      const [copied, setCopied] = useState(false);
+      const extractText = (node: React.ReactNode): string => {
+        if (typeof node === 'string') return node;
+        if (Array.isArray(node)) return node.map(extractText).join('');
+        if (React.isValidElement(node)) return extractText((node.props as any).children);
+        return '';
+      };
+      const handleCopy = () => {
+        const text = extractText(children).replace(/\n$/, '');
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      };
+      return (
+        <div style={{ position: 'relative', margin: 'var(--space-4) 0' }}>
+          <pre style={{ padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, overflowX: 'auto', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.7, margin: 0 }}>
+            {children}
+          </pre>
+          <button
+            onClick={handleCopy}
+            title="Copy"
+            style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: copied ? 'var(--accent)' : 'var(--text-muted)', transition: 'color 0.15s' }}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+          </button>
+        </div>
+      );
+    },
     blockquote: ({ children }: any) => {
       const items = React.Children.toArray(children);
       const first = items[0];
