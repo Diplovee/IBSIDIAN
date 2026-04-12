@@ -9,6 +9,7 @@
     "sync:excalidraw-assets": "node scripts/sync-excalidraw-assets.mjs",
     "dev": "bun run sync:excalidraw-assets && electron-vite dev",
     "build": "bun run sync:excalidraw-assets && electron-vite build",
+    "install:linux-local": "bash scripts/install-linux-local.sh",
     "preview": "bun run sync:excalidraw-assets && electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "clean": "rm -rf out dist",

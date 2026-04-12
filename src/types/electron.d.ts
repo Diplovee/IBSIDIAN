@@ -14,6 +14,21 @@ declare global {
       }
       app: {
         homeDir: () => Promise<string>
+        checkForUpdates: () => Promise<{
+          supported: boolean
+          updateAvailable: boolean
+          current: string | null
+          latest: string | null
+          branch: string | null
+          hasLocalChanges: boolean
+          message: string
+        }>
+        applyUpdate: () => Promise<{
+          ok: boolean
+          message: string
+          log: string
+        }>
+        restart: () => Promise<boolean>
       }
       theme: {
         set: (theme: 'light' | 'dark') => Promise<void>

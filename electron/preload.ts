@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('api', {
   },
   app: {
     homeDir: () => ipcRenderer.invoke('app:home-dir'),
+    checkForUpdates: () => ipcRenderer.invoke('app:updates:check'),
+    applyUpdate: () => ipcRenderer.invoke('app:updates:apply'),
+    restart: () => ipcRenderer.invoke('app:restart'),
   },
   theme: {
     set: (theme: 'light' | 'dark'): Promise<void> =>

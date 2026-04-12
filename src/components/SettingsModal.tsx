@@ -30,16 +30,57 @@ const OptionBtn: React.FC<{ active: boolean; onClick: () => void; children: Reac
   </button>
 );
 
-const GeneralPanel: React.FC<{ appVersion: string; aboutText: string; onOpenChangelog: () => void }> = ({ appVersion, aboutText, onOpenChangelog }) => (
+const GeneralPanel: React.FC<{
+  appVersion: string;
+  aboutText: string;
+  onOpenChangelog: () => void;
+  updateStatus: string;
+  updateBusy: boolean;
+  updateLog: string;
+  canRestartAfterUpdate: boolean;
+  onCheckUpdates: () => void;
+  onApplyUpdate: () => void;
+  onRestartNow: () => void;
+}> = ({ appVersion, aboutText, onOpenChangelog, updateStatus, updateBusy, updateLog, canRestartAfterUpdate, onCheckUpdates, onApplyUpdate, onRestartNow }) => (
   <div>
     <SectionLabel first>Version</SectionLabel>
     <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 10 }}>Ibsidian {appVersion}</div>
-    <button
-      onClick={onOpenChangelog}
-      style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
-    >
-      View changelog
-    </button>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <button
+        onClick={onOpenChangelog}
+        style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+      >
+        View changelog
+      </button>
+      <button
+        onClick={onCheckUpdates}
+        disabled={updateBusy}
+        style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: updateBusy ? 'default' : 'pointer', opacity: updateBusy ? 0.6 : 1 }}
+      >
+        {updateBusy ? 'Checking…' : 'Check updates'}
+      </button>
+      <button
+        onClick={onApplyUpdate}
+        disabled={updateBusy}
+        style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: updateBusy ? 'default' : 'pointer', opacity: updateBusy ? 0.6 : 1 }}
+      >
+        {updateBusy ? 'Updating…' : 'Update now'}
+      </button>
+      {canRestartAfterUpdate && (
+        <button
+          onClick={onRestartNow}
+          style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >
+          Restart now
+        </button>
+      )}
+    </div>
+    <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '8px 0 0' }}>{updateStatus}</p>
+    {updateLog && (
+      <pre style={{ marginTop: 8, padding: 8, borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-mono)', fontSize: 11, maxHeight: 140, overflow: 'auto', color: 'var(--text-secondary)' }}>
+        {updateLog}
+      </pre>
+    )}
     <SectionLabel>About</SectionLabel>
     <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{aboutText}</p>
   </div>
@@ -306,6 +347,10 @@ export const SettingsModal: React.FC = () => {
   const [isChangelogOpen, setChangelogOpen] = useState(false);
   const [appVersion, setAppVersion] = useState('Unknown');
   const [changelogText, setChangelogText] = useState('Loading changelog...');
+  const [updateStatus, setUpdateStatus] = useState('Updates can be checked from your local git clone.');
+  const [updateLog, setUpdateLog] = useState('');
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [canRestartAfterUpdate, setCanRestartAfterUpdate] = useState(false);
   const aboutText = 'Ibsidian is a local-first desktop knowledge vault for notes, drawings, attachments, and research, built with Electron, React, and CodeMirror.';
 
   useEffect(() => {
@@ -324,6 +369,44 @@ export const SettingsModal: React.FC = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isSettingsOpen, isChangelogOpen, closeSettings]);
+
+  const handleCheckUpdates = async () => {
+    setUpdateBusy(true);
+    setUpdateLog('');
+    try {
+      const result = await window.api.app.checkForUpdates();
+      const branch = result.branch || 'main';
+      setCanRestartAfterUpdate(false);
+      setUpdateStatus(`${result.message}${result.hasLocalChanges ? ' Local changes detected.' : ''}`);
+      if (result.supported && result.current && result.latest) {
+        setUpdateLog(`branch: ${branch}\ncurrent: ${result.current}\nlatest:  ${result.latest}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setUpdateStatus(`Failed to check updates: ${message}`);
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    setUpdateBusy(true);
+    try {
+      const result = await window.api.app.applyUpdate();
+      setUpdateStatus(result.message);
+      setUpdateLog(result.log || '');
+      setCanRestartAfterUpdate(result.ok);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setUpdateStatus(`Failed to update: ${message}`);
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
+  const handleRestartNow = async () => {
+    await window.api.app.restart();
+  };
 
   if (!isSettingsOpen) return null;
 
@@ -369,7 +452,20 @@ export const SettingsModal: React.FC = () => {
 
           {/* Right content */}
           <div style={{ flex: 1, overflowY: 'auto', maxHeight: '68vh', padding: '20px 24px' }}>
-            {activeCategory === 'general' && <GeneralPanel appVersion={appVersion} aboutText={aboutText} onOpenChangelog={() => setChangelogOpen(true)} />}
+            {activeCategory === 'general' && (
+              <GeneralPanel
+                appVersion={appVersion}
+                aboutText={aboutText}
+                onOpenChangelog={() => setChangelogOpen(true)}
+                updateStatus={updateStatus}
+                updateBusy={updateBusy}
+                updateLog={updateLog}
+                canRestartAfterUpdate={canRestartAfterUpdate}
+                onCheckUpdates={handleCheckUpdates}
+                onApplyUpdate={handleApplyUpdate}
+                onRestartNow={handleRestartNow}
+              />
+            )}
             {activeCategory === 'appearance' && <AppearancePanel />}
             {activeCategory === 'editor' && <EditorPanel />}
             {activeCategory === 'files' && <FilesPanel />}

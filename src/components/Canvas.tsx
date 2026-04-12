@@ -1644,7 +1644,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               <SubMenu icon={<ExternalLink size={14} />} label="Open">
                 <MenuItem icon={<PanelRight size={14} />} label="Split left" onClick={() => { setMenuOpen(false); splitRight(); }} />
                 <MenuItem icon={<PanelBottom size={14} />} label="Split down" onClick={() => { setMenuOpen(false); splitDown(); }} />
-                <MenuItem icon={<ExternalLink size={14} />} label="Open in new window" disabled />
+                <MenuItem icon={<ExternalLink size={14} />} label="Open in new app window" disabled />
                 <MenuSep />
                 <MenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
                 <MenuItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />

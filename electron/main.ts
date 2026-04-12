@@ -13,7 +13,9 @@ if (process.platform === 'linux') {
 }
 import { join, relative } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm, stat, rename } from 'fs/promises'
+import { existsSync } from 'fs'
 import { randomBytes } from 'crypto'
+import { spawn } from 'child_process'
 import { pathToFileURL } from 'url'
 import chokidar from 'chokidar'
 import * as nodePty from 'node-pty'
@@ -54,6 +56,45 @@ function vaultConfigPath() {
 
 function settingsConfigPath() {
   return join(app.getPath('userData'), 'settings.json')
+}
+
+function findProjectRoot() {
+  const candidates = Array.from(new Set([
+    process.cwd(),
+    app.getAppPath(),
+    join(app.getAppPath(), '..'),
+    join(app.getAppPath(), '../..'),
+    __dirname,
+    join(__dirname, '..'),
+    join(__dirname, '../..'),
+    join(__dirname, '../../..'),
+  ]))
+
+  return candidates.find(path =>
+    existsSync(join(path, '.git')) && existsSync(join(path, 'package.json')),
+  ) ?? null
+}
+
+function runCommand(command: string, args: string[], cwd: string) {
+  return new Promise<{ stdout: string; stderr: string; code: number | null }>((resolve) => {
+    const child = spawn(command, args, { cwd, shell: false })
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk)
+    })
+    child.on('error', (error) => {
+      stderr += error.message
+      resolve({ stdout, stderr, code: 1 })
+    })
+    child.on('close', (code) => {
+      resolve({ stdout, stderr, code })
+    })
+  })
 }
 
 async function saveVaultConfig(vault: Vault) {
@@ -265,6 +306,86 @@ ipcMain.handle('vault:load-saved', async () => {
 })
 
 ipcMain.handle('app:home-dir', () => app.getPath('home'))
+ipcMain.handle('app:updates:check', async () => {
+  const projectRoot = findProjectRoot()
+  if (!projectRoot) {
+    return {
+      supported: false,
+      updateAvailable: false,
+      current: null,
+      latest: null,
+      branch: null,
+      hasLocalChanges: false,
+      message: 'Update check only works in a git clone of IBSIDIAN.',
+    }
+  }
+
+  const branchResult = await runCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], projectRoot)
+  const branch = branchResult.stdout.trim() || 'main'
+  await runCommand('git', ['fetch', 'origin', branch], projectRoot)
+
+  const currentResult = await runCommand('git', ['rev-parse', 'HEAD'], projectRoot)
+  const latestResult = await runCommand('git', ['rev-parse', `origin/${branch}`], projectRoot)
+  const dirtyResult = await runCommand('git', ['status', '--porcelain'], projectRoot)
+
+  const current = currentResult.stdout.trim() || null
+  const latest = latestResult.stdout.trim() || null
+  const hasLocalChanges = Boolean(dirtyResult.stdout.trim())
+  const updateAvailable = Boolean(current && latest && current !== latest)
+
+  return {
+    supported: true,
+    updateAvailable,
+    current,
+    latest,
+    branch,
+    hasLocalChanges,
+    message: updateAvailable
+      ? `Update available on ${branch}.`
+      : `You're up to date on ${branch}.`,
+  }
+})
+ipcMain.handle('app:updates:apply', async () => {
+  const projectRoot = findProjectRoot()
+  if (!projectRoot) {
+    return { ok: false, message: 'Update is only supported in a git clone of IBSIDIAN.', log: '' }
+  }
+
+  const dirtyResult = await runCommand('git', ['status', '--porcelain'], projectRoot)
+  if (dirtyResult.stdout.trim()) {
+    return {
+      ok: false,
+      message: 'Local changes detected. Commit/stash them before updating.',
+      log: dirtyResult.stdout,
+    }
+  }
+
+  const pull = await runCommand('git', ['pull', '--ff-only'], projectRoot)
+  if (pull.code !== 0) {
+    return { ok: false, message: 'git pull failed.', log: `${pull.stdout}\n${pull.stderr}`.trim() }
+  }
+
+  const install = await runCommand('bun', ['install'], projectRoot)
+  if (install.code !== 0) {
+    return { ok: false, message: 'bun install failed after pull.', log: `${install.stdout}\n${install.stderr}`.trim() }
+  }
+
+  const build = await runCommand('bun', ['run', 'build'], projectRoot)
+  if (build.code !== 0) {
+    return { ok: false, message: 'bun run build failed after update.', log: `${build.stdout}\n${build.stderr}`.trim() }
+  }
+
+  return {
+    ok: true,
+    message: 'Updated successfully. Please restart IBSIDIAN to load the new build.',
+    log: `${pull.stdout}\n${install.stdout}\n${build.stdout}`.trim(),
+  }
+})
+ipcMain.handle('app:restart', async () => {
+  app.relaunch()
+  app.exit(0)
+  return true
+})
 ipcMain.handle('theme:set', (_: Electron.IpcMainInvokeEvent, theme: 'light' | 'dark') => {
   nativeTheme.themeSource = theme
 })

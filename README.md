@@ -16,6 +16,7 @@ Quick Start
 * Rebuild native modules: `bun run rebuild`  (first time only)
 * Launch in dev mode: `bun run dev`
 * Production build: `bun run build`
+* Linux app-menu install (local clone): `bun run install:linux-local`
 
 On first launch, pick a folder, name your vault, and click **Create Vault**.
 Welcome files are created automatically.
@@ -65,6 +66,7 @@ Tech Stack
 Documentation
 -------------
 
+* Linux install + app menu launcher: `docs/linux-install.md`
 * Markdown Guide support: `docs/markdown-basic-syntax.md`
 * Release notes: `CHANGELOG.md`
 
