@@ -589,10 +589,11 @@ export const Canvas: React.FC = () => {
           paneCount={panes.length}
           onClosePane={async () => {
             const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
-            if (paneTabs.length > 0) {
-              const ok = await confirmModal({ title: 'Close pane', message: `Close this pane and its ${paneTabs.length} tab${paneTabs.length === 1 ? '' : 's'}?`, confirmLabel: 'Close', danger: true });
-              if (!ok) return;
-            }
+            const msg = paneTabs.length > 0
+              ? `Close this pane and its ${paneTabs.length} tab${paneTabs.length === 1 ? '' : 's'}?`
+              : 'Close this pane?';
+            const ok = await confirmModal({ title: 'Close pane', message: msg, confirmLabel: 'Close', danger: true });
+            if (!ok) return;
             closePane(paneId);
           }}
           onSplitRight={() => { setActivePane(paneId); splitRight(); }}
