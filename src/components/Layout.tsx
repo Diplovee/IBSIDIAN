@@ -2,16 +2,16 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ActivityBar } from './ActivityBar';
 import { TopBar } from './TopBar';
 import { SidePanel } from './SidePanel';
-import { TabBar } from './TabBar';
 import { Canvas } from './Canvas';
 import { CommandPalette } from './CommandPalette';
 import { SettingsModal } from './SettingsModal';
+import { FileSwitcher } from './FileSwitcher';
 import { VaultSetup } from './VaultSetup';
 import { LoadingScreen } from './LoadingScreen';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
-import type { BrowserTabGroup, Tab } from '../types';
+import type { BrowserTabGroup, Pane, Tab } from '../types';
 import { FolderX } from 'lucide-react';
 
 const SIDEBAR_KEY = 'ibsidian-sidebar-width';
@@ -21,7 +21,7 @@ const TABS_KEY_PREFIX = 'ibsidian-tabs:';
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
   const { vault, isReady, error, clearActiveVault, refreshFileTree } = useVault();
-  const { tabs, activeTabId, restoreTabs, browserGroups } = useTabs();
+  const { tabs, activeTabId, restoreTabs, browserGroups, panes, activePaneId, paneSizes, splitDirection } = useTabs();
   const hydratedTabsKeyRef = useRef<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
@@ -39,14 +39,24 @@ export const Layout: React.FC = () => {
     try {
       const saved = localStorage.getItem(tabsStorageKey);
       if (saved) {
-        const parsed = JSON.parse(saved) as { tabs?: Tab[]; activeTabId?: string | null; browserGroups?: BrowserTabGroup[] };
+        const parsed = JSON.parse(saved) as { tabs?: Tab[]; activeTabId?: string | null; browserGroups?: BrowserTabGroup[]; panes?: Pane[]; activePaneId?: string; paneSizes?: number[]; splitDirection?: 'horizontal' | 'vertical' | 'right-stack' | 'left-stack' };
         const savedTabs = Array.isArray(parsed.tabs)
           ? parsed.tabs.filter(tab => tab && typeof tab.id === 'string' && typeof tab.type === 'string' && typeof tab.title === 'string')
           : [];
         const savedGroups = Array.isArray(parsed.browserGroups)
           ? parsed.browserGroups.filter(group => group && typeof group.id === 'string' && typeof group.name === 'string' && typeof group.color === 'string')
           : [];
-        restoreTabs(savedTabs, typeof parsed.activeTabId === 'string' ? parsed.activeTabId : null, savedGroups);
+        const savedPanes = Array.isArray(parsed.panes)
+          ? parsed.panes.filter(pane => pane && typeof pane.id === 'string' && (typeof pane.activeTabId === 'string' || pane.activeTabId === null))
+          : [{ id: 'main', activeTabId: null }];
+        const savedActivePaneId = typeof parsed.activePaneId === 'string' ? parsed.activePaneId : 'main';
+        const savedPaneSizes = Array.isArray(parsed.paneSizes)
+          ? parsed.paneSizes.filter(size => typeof size === 'number' && Number.isFinite(size) && size > 0)
+          : [1];
+        const savedSplitDirection = parsed.splitDirection === 'vertical' || parsed.splitDirection === 'right-stack' || parsed.splitDirection === 'left-stack'
+          ? parsed.splitDirection
+          : 'horizontal';
+        restoreTabs(savedTabs, typeof parsed.activeTabId === 'string' ? parsed.activeTabId : null, savedGroups, savedPanes, savedActivePaneId, savedPaneSizes, savedSplitDirection);
       } else {
         restoreTabs([], null, []);
       }
@@ -59,8 +69,8 @@ export const Layout: React.FC = () => {
 
   useEffect(() => {
     if (!tabsStorageKey || hydratedTabsKeyRef.current !== tabsStorageKey) return;
-    localStorage.setItem(tabsStorageKey, JSON.stringify({ tabs, activeTabId, browserGroups }));
-  }, [tabsStorageKey, tabs, activeTabId, browserGroups]);
+    localStorage.setItem(tabsStorageKey, JSON.stringify({ tabs, activeTabId, browserGroups, panes, activePaneId, paneSizes, splitDirection }));
+  }, [tabsStorageKey, tabs, activeTabId, browserGroups, panes, activePaneId, paneSizes, splitDirection]);
 
   const handleRetry = useCallback(async () => {
     setRetrying(true);
@@ -162,7 +172,6 @@ export const Layout: React.FC = () => {
               </>
             )}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <TabBar />
               <Canvas />
             </div>
           </div>
@@ -170,6 +179,7 @@ export const Layout: React.FC = () => {
       )}
       <SettingsModal />
       <CommandPalette />
+      <FileSwitcher />
     </div>
   );
 };

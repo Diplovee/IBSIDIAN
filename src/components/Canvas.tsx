@@ -22,6 +22,7 @@ import 'xterm/css/xterm.css';
 import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { PaneTabBar } from './PaneTabBar';
+import { EditorContextMenu } from './EditorContextMenu';
 import {
   Globe, SquareTerminal, RefreshCw, ArrowLeft, ArrowRight,
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
@@ -1005,6 +1006,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const anchorCacheRef = useRef(new Map<string, ReturnType<typeof extractMarkdownAnchors>>());
@@ -1018,22 +1020,25 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     anchorCacheRef.current.clear();
   }, [nodes]);
 
-  // Auto-select title on new empty note
-  useEffect(() => {
-    if (content === '' && titleInputRef.current) {
-      titleInputRef.current.focus();
-      titleInputRef.current.select();
-    }
-  }, [tab.filePath]);
-
-  // Load content from backend when tab opens
+  // Load content from backend when tab opens; auto-select title only if file is genuinely empty
   useEffect(() => {
     const nodeContent = (node as any)?.content;
     if (typeof nodeContent === 'string') {
       setContent(nodeContent);
+      if (nodeContent === '' && titleInputRef.current) {
+        titleInputRef.current.focus();
+        titleInputRef.current.select();
+      }
     } else if (vault && tab.filePath) {
       readFile(tab.filePath)
-        .then(text => setContent(text ?? ''))
+        .then(text => {
+          const loaded = text ?? '';
+          setContent(loaded);
+          if (loaded === '' && titleInputRef.current) {
+            titleInputRef.current.focus();
+            titleInputRef.current.select();
+          }
+        })
         .catch(err => handleError(err, 'read file'));
     }
   }, [tab.filePath, vault]);
@@ -1430,25 +1435,35 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               }}
               placeholder="Untitled"
             />
-            <CodeMirror
-              value={content}
-              theme={editorTheme}
-              extensions={liveMarkdownExtensions}
-              onChange={handleChange}
-              onCreateEditor={(view) => {
-                editorViewRef.current = view;
-                requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
-              }}
-              basicSetup={{
-                lineNumbers: false,
-                foldGutter: false,
-                highlightActiveLine: false,
-                highlightActiveLineGutter: false,
-                dropCursor: false,
-                rectangularSelection: false,
-              }}
-              style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
-            />
+            <div onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}>
+              <CodeMirror
+                value={content}
+                theme={editorTheme}
+                extensions={liveMarkdownExtensions}
+                onChange={handleChange}
+                onCreateEditor={(view) => {
+                  editorViewRef.current = view;
+                  requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
+                }}
+                basicSetup={{
+                  lineNumbers: false,
+                  foldGutter: false,
+                  highlightActiveLine: false,
+                  highlightActiveLineGutter: false,
+                  dropCursor: false,
+                  rectangularSelection: false,
+                }}
+                style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
+              />
+            </div>
+            {ctxMenu && editorViewRef.current && (
+              <EditorContextMenu
+                x={ctxMenu.x} y={ctxMenu.y}
+                view={editorViewRef.current}
+                onClose={() => setCtxMenu(null)}
+                currentPath={tab.filePath}
+              />
+            )}
           </div>
         </div>
       </div>

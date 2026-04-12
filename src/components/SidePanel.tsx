@@ -493,11 +493,21 @@ const getTabTypeForPath = (filePath: string): 'note' | 'draw' | 'image' => {
 
 const SearchView: React.FC = () => {
   const { openTab } = useTabs();
+  const { pendingSearch, setPendingSearch } = useActivity();
   const [query, setQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (pendingSearch !== null) {
+      setQuery(pendingSearch);
+      setPendingSearch(null);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [pendingSearch, setPendingSearch]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -540,6 +550,7 @@ const SearchView: React.FC = () => {
           <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', boxSizing: 'border-box' }}>
             <SearchIcon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <input
+              ref={inputRef}
               type="text"
               placeholder="Search vault..."
               value={query}

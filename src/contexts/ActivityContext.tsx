@@ -6,6 +6,7 @@ type Theme = 'light' | 'dark';
 interface ActivityContextType {
   activeActivity: ActivityType | null;
   toggleActivity: (activity: ActivityType) => void;
+  openActivity: (activity: ActivityType) => void;
   isSidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   isSettingsOpen: boolean;
@@ -13,6 +14,8 @@ interface ActivityContextType {
   closeSettings: () => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  pendingSearch: string | null;
+  setPendingSearch: (q: string | null) => void;
 }
 
 const ActivityContext = createContext<ActivityContextType | undefined>(undefined);
@@ -22,6 +25,7 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [theme, setThemeState] = useState<Theme>('light');
+  const [pendingSearch, setPendingSearch] = useState<string | null>(null);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -44,11 +48,16 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [activeActivity]);
 
+  const openActivity = useCallback((activity: ActivityType) => {
+    setSidebarCollapsed(false);
+    setActiveActivity(activity);
+  }, []);
+
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   return (
-    <ActivityContext.Provider value={{ activeActivity, toggleActivity, isSidebarCollapsed, setSidebarCollapsed, isSettingsOpen, openSettings, closeSettings, theme, setTheme }}>
+    <ActivityContext.Provider value={{ activeActivity, toggleActivity, openActivity, isSidebarCollapsed, setSidebarCollapsed, isSettingsOpen, openSettings, closeSettings, theme, setTheme, pendingSearch, setPendingSearch }}>
       {children}
     </ActivityContext.Provider>
   );
