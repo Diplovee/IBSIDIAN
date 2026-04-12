@@ -32,6 +32,7 @@ Features
 * Drawing Canvas     — visual notes via Excalidraw with locally served editor assets
 * Browser Tab        — built-in web browser with favicon-aware tab icons
 * Tab Groups         — group notes, drawings, images, and browser tabs with drag/drop + collapse
+* Library            — browser history, active groups, and saved "forever" groups
 * Terminal           — real PTY shell starting in your vault root
 * Command Palette    — Ctrl+K for quick access to all commands
 * Light / Dark Theme — toggle in the Settings modal

@@ -355,8 +355,8 @@ export const SettingsModal: React.FC = () => {
   const aboutText = 'Ibsidian is a local-first desktop knowledge vault for notes, drawings, attachments, and research, built with Electron, React, and CodeMirror.';
 
   useEffect(() => {
-    fetch('/version.txt').then(r => r.text()).then(text => setAppVersion(text.trim())).catch(() => {});
-    fetch('/changelog.txt').then(r => r.text()).then(text => setChangelogText(text)).catch(() => setChangelogText('Failed to load changelog.'));
+    window.api.app.version().then(v => setAppVersion(v)).catch(() => {});
+    window.api.app.changelog().then(text => setChangelogText(text ?? 'Failed to load changelog.')).catch(() => setChangelogText('Failed to load changelog.'));
   }, []);
 
   useEffect(() => {
@@ -429,7 +429,7 @@ export const SettingsModal: React.FC = () => {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 110, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '8vh', paddingLeft: 16, paddingRight: 16, background: 'rgba(0,0,0,0.25)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.25)' }}
       onClick={() => {
         if (isChangelogOpen) setChangelogOpen(false);
         else closeSettings();
@@ -437,7 +437,7 @@ export const SettingsModal: React.FC = () => {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 780, display: 'flex', flexDirection: 'column', borderRadius: 12, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
+        style={{ width: 'min(780px, calc(100vw - 32px))', height: 'min(620px, calc(100vh - 32px))', display: 'flex', flexDirection: 'column', borderRadius: 12, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', padding: '14px 16px', flexShrink: 0 }}>
@@ -451,9 +451,9 @@ export const SettingsModal: React.FC = () => {
         </div>
 
         {/* Body: sidebar + content */}
-        <div style={{ display: 'flex', minHeight: 0 }}>
+        <div style={{ display: 'flex', minHeight: 0, flex: 1 }}>
           {/* Left nav */}
-          <div style={{ width: 180, flexShrink: 0, background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)', padding: '8px 0' }}>
+          <div style={{ width: 180, flexShrink: 0, background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)', padding: '8px 0', overflowY: 'auto' }}>
             {CATEGORIES.map(cat => (
               <button
                 key={cat.id}
@@ -468,7 +468,7 @@ export const SettingsModal: React.FC = () => {
           </div>
 
           {/* Right content */}
-          <div style={{ flex: 1, overflowY: 'auto', maxHeight: '68vh', padding: '20px 24px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
             {activeCategory === 'general' && (
               <GeneralPanel
                 appVersion={appVersion}

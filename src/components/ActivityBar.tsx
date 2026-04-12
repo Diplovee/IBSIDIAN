@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { FolderOpen, Search, Globe, SquareTerminal, Settings } from 'lucide-react';
+import { FolderOpen, Search, Globe, SquareTerminal, Settings, Library as LibraryIcon } from 'lucide-react';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import { useActivity } from '../contexts/ActivityContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
+import { LibraryModal } from './LibraryModal';
 import type { AgentKey } from '../types';
 
 const AGENT_META: Record<AgentKey, { icon: React.ReactNode; title: string; command?: string }> = {
@@ -20,6 +21,7 @@ export const ActivityBar: React.FC = () => {
   const { openTab } = useTabs();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
   const { settings } = useAppSettings();
+  const [showLibrary, setShowLibrary] = useState(false);
   const agents = settings.agents ?? { claude: true, codex: true, pi: true, productivity: true, order: ['claude', 'codex', 'pi', 'productivity'] as AgentKey[] };
   const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi', 'productivity'];
 
@@ -34,29 +36,33 @@ export const ActivityBar: React.FC = () => {
   const handleOpenTerminal = () => openTab({ type: 'terminal', title: 'Terminal' });
 
   return (
-    <div style={{ width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, paddingBottom: 8, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', zIndex: 50, flexShrink: 0, height: '100%' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'center' }}>
-        <ActivityButton icon={<FolderOpen size={18} />} active={activeActivity === 'files'} onClick={() => toggleActivity('files')} />
-        <ActivityButton icon={<Search size={18} />} active={activeActivity === 'search'} onClick={() => toggleActivity('search')} />
-        <div style={{ width: 24, height: 1, background: 'var(--border)', margin: '4px 0' }} />
-        <ActivityButton icon={<Globe size={18} />} onClick={handleOpenBrowser} />
-        <ActivityButton icon={<ExcalidrawIcon size={18} />} onClick={handleOpenDraw} />
-        <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
-        {order.filter(k => agents[k]).map(key => {
-          const a = AGENT_META[key];
-          return (
-            <ActivityButton
-              key={key}
-              icon={a.icon}
-              onClick={() => openTab({ type: key, title: a.title, command: a.command })}
-            />
-          );
-        })}
+    <>
+      <div style={{ width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, paddingBottom: 8, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', zIndex: 50, flexShrink: 0, height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'center' }}>
+          <ActivityButton icon={<FolderOpen size={18} />} active={activeActivity === 'files'} onClick={() => toggleActivity('files')} />
+          <ActivityButton icon={<Search size={18} />} active={activeActivity === 'search'} onClick={() => toggleActivity('search')} />
+          <div style={{ width: 24, height: 1, background: 'var(--border)', margin: '4px 0' }} />
+          <ActivityButton icon={<Globe size={18} />} onClick={handleOpenBrowser} />
+          <ActivityButton icon={<ExcalidrawIcon size={18} />} onClick={handleOpenDraw} />
+          <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
+          {order.filter(k => agents[k]).map(key => {
+            const a = AGENT_META[key];
+            return (
+              <ActivityButton
+                key={key}
+                icon={a.icon}
+                onClick={() => openTab({ type: key, title: a.title, command: a.command })}
+              />
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+          <ActivityButton icon={<LibraryIcon size={18} />} onClick={() => setShowLibrary(true)} />
+          <ActivityButton icon={<Settings size={18} />} active={isSettingsOpen} onClick={openSettings} />
+        </div>
       </div>
-      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-        <ActivityButton icon={<Settings size={18} />} active={isSettingsOpen} onClick={openSettings} />
-      </div>
-    </div>
+      {showLibrary && <LibraryModal onClose={() => setShowLibrary(false)} />}
+    </>
   );
 };
 
