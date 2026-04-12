@@ -685,7 +685,7 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
         const group = getBrowserGroup(groupCtxMenu.groupId);
         if (!group) return null;
 
-        const GROUP_SWATCHES = ['#1a1a1a', '#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#6b7280', '#7c3aed', '#ec4899', '#06b6d4', '#f97316'];
+        const GROUP_SWATCHES = ['#1a1a1a', '#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#6b7280', '#7c3aed', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#84cc16'];
 
         const MenuItem: React.FC<{ label: string; onClick: () => void; danger?: boolean; icon?: React.ReactNode }> = ({ label, onClick, danger, icon }) => {
           const [hovered, setHovered] = React.useState(false);
