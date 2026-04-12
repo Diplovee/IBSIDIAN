@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.12] - 2026-04-12
+
+### Added
+- Search results now include filename matches (files whose names contain the query), shown in a "Files" section above content matches
+- Clicking a content match in search navigates to the exact line and highlights the matched text in the editor
+- Search results now show a pointer cursor and a hover background to make them clearly interactive
+
+### Fixed
+- Clicking a search result for an already-open file now scrolls and highlights the match instead of doing nothing
+
 ## [2026.5.11] - 2026-04-12
 
 ### Changed

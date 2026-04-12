@@ -60,6 +60,10 @@ export interface Tab {
   faviconUrl?: string;
   command?: string;
   paneId?: string;
+  initialLine?: number;
+  scrollNonce?: number;
+  searchQuery?: string;
+  searchCaseSensitive?: boolean;
 }
 
 export interface Pane {

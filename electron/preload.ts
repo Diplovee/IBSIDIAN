@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('files:url', path),
     dataUrl: (path: string) =>
       ipcRenderer.invoke('files:data-url', path),
+    search: (query: string, options: { caseSensitive: boolean }) =>
+      ipcRenderer.invoke('files:search', query, options),
     onChange: (cb: (evt: { event: string; path: string }) => void) => {
       const handler = (_: Electron.IpcRendererEvent, payload: { event: string; path: string }) => cb(payload)
       ipcRenderer.on('files:changed', handler)

@@ -378,6 +378,48 @@ ipcMain.handle('files:data-url', async (_, filePath: string) => {
   return `data:${mimeType};base64,${buffer.toString('base64')}`
 })
 
+// ── Search IPC ────────────────────────────────────────────────────────────
+ipcMain.handle('files:search', async (_, query: string, options: { caseSensitive: boolean }) => {
+  if (!query.trim()) return []
+  const vault = getVault()
+  const needle = options.caseSensitive ? query : query.toLowerCase()
+  const contentResults: Array<{ path: string; line: number; text: string; matchType: 'content' | 'filename' }> = []
+  const filenameResults: Array<{ path: string; line: number; text: string; matchType: 'content' | 'filename' }> = []
+
+  async function searchDir(dirPath: string) {
+    const entries = await readdir(dirPath, { withFileTypes: true }).catch(() => null)
+    if (!entries) return
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      const fullPath = join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        await searchDir(fullPath)
+      } else {
+        const relPath = relative(vault.path, fullPath).replace(/\\/g, '/')
+        const nameHaystack = options.caseSensitive ? entry.name : entry.name.toLowerCase()
+        if (nameHaystack.includes(needle)) {
+          filenameResults.push({ path: relPath, line: 0, text: '', matchType: 'filename' })
+        }
+        if (entry.name.endsWith('.md') && contentResults.length < 500) {
+          const content = await readFile(fullPath, 'utf8').catch(() => null)
+          if (content === null) continue
+          const lines = content.split('\n')
+          for (let i = 0; i < lines.length; i++) {
+            const haystack = options.caseSensitive ? lines[i] : lines[i].toLowerCase()
+            if (haystack.includes(needle)) {
+              contentResults.push({ path: relPath, line: i + 1, text: lines[i].trim(), matchType: 'content' })
+              if (contentResults.length >= 500) break
+            }
+          }
+        }
+      }
+    }
+  }
+
+  await searchDir(vault.path)
+  return [...filenameResults, ...contentResults]
+})
+
 // ── Terminal IPC ───────────────────────────────────────────────────────────
 ipcMain.handle('terminal:create', async (_, cols: number, rows: number) => {
   const vault = activeVaultId ? vaults.find(v => v.id === activeVaultId) : null

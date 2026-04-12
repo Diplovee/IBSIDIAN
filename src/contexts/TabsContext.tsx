@@ -255,6 +255,12 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setPanes(prevPanes => prevPanes.map(p =>
             p.id === targetPaneId ? { ...p, activeTabId: existingTab.id } : p
           ));
+          if (tab.initialLine != null) {
+            return prev.map(t => t.id === existingTab.id
+              ? { ...t, initialLine: tab.initialLine, searchQuery: tab.searchQuery, searchCaseSensitive: tab.searchCaseSensitive, scrollNonce: Date.now() }
+              : t
+            );
+          }
           return prev;
         }
       }

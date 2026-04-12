@@ -1038,6 +1038,53 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     }
   }, [tab.filePath, vault]);
 
+  // Scroll to initialLine and highlight the search match
+  const scrollAndHighlight = useCallback((lineNum: number, query?: string, caseSensitive?: boolean) => {
+    requestAnimationFrame(() => {
+      const view = editorViewRef.current;
+      if (!view) return;
+      try {
+        const clampedLine = Math.min(lineNum, view.state.doc.lines);
+        const line = view.state.doc.line(clampedLine);
+        if (query) {
+          const lineText = line.text;
+          const idx = caseSensitive ? lineText.indexOf(query) : lineText.toLowerCase().indexOf(query.toLowerCase());
+          if (idx !== -1) {
+            const anchor = line.from + idx;
+            const head = anchor + query.length;
+            view.dispatch({
+              selection: { anchor, head },
+              effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+            });
+            view.focus();
+            return;
+          }
+        }
+        view.dispatch({
+          selection: { anchor: line.from },
+          effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+        });
+        view.focus();
+      } catch {}
+    });
+  }, []);
+
+  // Scroll to initialLine when content first loads
+  const scrolledForContentRef = useRef(false);
+  useEffect(() => { scrolledForContentRef.current = false; }, [tab.filePath]);
+  useEffect(() => {
+    if (!tab.initialLine || !content) return;
+    if (scrolledForContentRef.current) return;
+    scrolledForContentRef.current = true;
+    scrollAndHighlight(tab.initialLine, tab.searchQuery, tab.searchCaseSensitive);
+  }, [content]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-scroll when user clicks a search result for an already-open tab
+  useEffect(() => {
+    if (!tab.scrollNonce || !tab.initialLine) return;
+    scrollAndHighlight(tab.initialLine, tab.searchQuery, tab.searchCaseSensitive);
+  }, [tab.scrollNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {

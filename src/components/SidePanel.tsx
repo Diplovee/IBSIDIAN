@@ -4,7 +4,7 @@ import {
   Folder, FileText, FolderPlus,
   Search as SearchIcon, FilePen, ArrowUpNarrowWide, LayoutList,
   ChevronsUpDown, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
-  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, SlidersHorizontal, Image as ImageFileIcon,
+  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, Image as ImageFileIcon,
 } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
@@ -188,6 +188,19 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
   );
 };
 
+// ── Sort helpers ──────────────────────────────────────────────────────────
+interface SortableNode { type: string; name: string; children?: SortableNode[] }
+function sortVaultNodes<T extends SortableNode>(nodes: T[], order: 'asc' | 'desc'): T[] {
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    const cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    return order === 'asc' ? cmp : -cmp;
+  }).map(node => {
+    if (!node.children) return node;
+    return { ...node, children: sortVaultNodes(node.children as T[], order) };
+  });
+}
+
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
   const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem } = useVault();
@@ -198,9 +211,17 @@ const FileTreeView: React.FC = () => {
   const treeRef = useRef<TreeApi<VaultNode> | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const headerHeight = 44;
   const rowHeight = settings.appearance?.compactMode ? 28 : 36;
   const TreeRenderer = settings.fileTree.style === 'hierarchy' ? TreeNode : OriginalTreeNode;
+
+  const displayNodes = React.useMemo(
+    () => sortOrder === 'none' ? nodes : sortVaultNodes(nodes, sortOrder),
+    [nodes, sortOrder]
+  );
+
+  const handleSort = () => setSortOrder(o => o === 'none' ? 'asc' : o === 'asc' ? 'desc' : 'none');
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -264,9 +285,9 @@ const FileTreeView: React.FC = () => {
           <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'md').then(() => { refreshFileTree(undefined, { showLoading: false }); openTab({ type: 'note', title: name, filePath: `${name}.md` }); }); }} />
           <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'excalidraw').then(() => { refreshFileTree(undefined, { showLoading: false }); openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` }); }); }} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolderRemote('', 'New Folder').then(() => refreshFileTree(undefined, { showLoading: false }))} />
-          <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title="Sort" onClick={() => {}} />
+          <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title={sortOrder === 'none' ? 'Sort A→Z' : sortOrder === 'asc' ? 'Sort Z→A' : 'Remove sort'} active={sortOrder !== 'none'} onClick={handleSort} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
-          <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => {}} />
+          <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => treeRef.current?.closeAll()} />
         </div>
 
         {/* Tree / states */}
@@ -286,7 +307,7 @@ const FileTreeView: React.FC = () => {
           ) : dimensions ? (
             <Tree
               ref={treeRef}
-              data={nodes}
+              data={displayNodes}
               openByDefault={true}
               width={dimensions.width}
               height={dimensions.height - headerHeight}
@@ -460,40 +481,158 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
 };
 
 // ── Search ────────────────────────────────────────────────────────────────
+interface SearchResult { path: string; line: number; text: string; matchType: 'content' | 'filename' }
+
+const getTabTypeForPath = (filePath: string): 'note' | 'draw' | 'image' => {
+  if (filePath.endsWith('.excalidraw')) return 'draw';
+  const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'];
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  if (imageExts.includes(ext)) return 'image';
+  return 'note';
+};
+
 const SearchView: React.FC = () => {
+  const { openTab } = useTabs();
   const [query, setQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setResults([]); setSearching(false); return; }
+    setSearching(true);
+    debounceRef.current = setTimeout(() => {
+      window.api.files.search(query, { caseSensitive })
+        .then(r => { setResults(r as SearchResult[]); setSearching(false); })
+        .catch(() => setSearching(false));
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, caseSensitive]);
+
+  const filenameMatches = results.filter(r => r.matchType === 'filename');
+  const contentResults = results.filter(r => r.matchType !== 'filename');
+
+  // Group content results by file path
+  const grouped = contentResults.reduce<Record<string, SearchResult[]>>((acc, r) => {
+    (acc[r.path] ??= []).push(r);
+    return acc;
+  }, {});
+
+  const highlightMatch = (text: string, q: string, cs: boolean) => {
+    const idx = cs ? text.indexOf(q) : text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return <span>{text}</span>;
+    return <span>{text.slice(0, idx)}<mark style={{ background: 'var(--accent)', color: '#fff', borderRadius: 2, padding: '0 1px' }}>{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</span>;
+  };
+
+  const getDisplayName = (filePath: string) => {
+    const fileName = filePath.includes('/') ? filePath.slice(filePath.lastIndexOf('/') + 1) : filePath;
+    return fileName.replace(/\.md$/, '');
+  };
+
+  const totalContentFiles = Object.keys(grouped).length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden', padding: '8px 10px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, width: '100%', boxSizing: 'border-box' }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', boxSizing: 'border-box' }}>
-          <SearchIcon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--text-primary)' }}
-            autoFocus
-          />
-          <button
-            onClick={() => setCaseSensitive(v => !v)}
-            title="Match case"
-            style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '0 4px', borderRadius: 4, border: 'none', cursor: 'default', background: caseSensitive ? 'var(--accent-soft)' : 'transparent', color: caseSensitive ? 'var(--accent)' : 'var(--text-muted)' }}
-          >
-            Aa
-          </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+      <div style={{ padding: '8px 10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', boxSizing: 'border-box' }}>
+            <SearchIcon size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Search vault..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--text-primary)' }}
+              autoFocus
+            />
+            {searching && <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+            <button
+              onClick={() => setCaseSensitive(v => !v)}
+              title="Match case"
+              style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '0 4px', borderRadius: 4, border: 'none', cursor: 'default', background: caseSensitive ? 'var(--accent-soft)' : 'transparent', color: caseSensitive ? 'var(--accent)' : 'var(--text-muted)' }}
+            >
+              Aa
+            </button>
+          </div>
         </div>
-        <button
-          title="Search filters"
-          style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'default', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
-        >
-          <SlidersHorizontal size={16} />
-        </button>
+        {query.trim() && !searching && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, paddingLeft: 2 }}>
+            {results.length === 0 ? 'No matches' : [
+              filenameMatches.length > 0 && `${filenameMatches.length} file${filenameMatches.length !== 1 ? 's' : ''}`,
+              contentResults.length > 0 && `${contentResults.length} match${contentResults.length !== 1 ? 'es' : ''} in ${totalContentFiles} file${totalContentFiles !== 1 ? 's' : ''}`,
+            ].filter(Boolean).join(', ')}
+            {contentResults.length >= 500 && ' (capped at 500)'}
+          </div>
+        )}
       </div>
-      <div style={{ flex: 1, color: 'var(--text-muted)', fontSize: 13, paddingTop: 8, paddingLeft: 4 }}>
-        <p>No matches found.</p>
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 8 }}>
+        {/* Filename matches */}
+        {filenameMatches.length > 0 && (
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ padding: '4px 12px 2px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Files</div>
+            {filenameMatches.map((hit) => {
+              const fileName = hit.path.includes('/') ? hit.path.slice(hit.path.lastIndexOf('/') + 1) : hit.path;
+              const fileDir = hit.path.includes('/') ? hit.path.slice(0, hit.path.lastIndexOf('/')) : '';
+              const displayName = fileName.replace(/\.md$/, '');
+              const tabType = getTabTypeForPath(hit.path);
+              return (
+                <button
+                  key={hit.path}
+                  onClick={() => openTab({ type: tabType, title: displayName, filePath: hit.path })}
+                  className="search-result-btn"
+                  style={{ width: '100%', textAlign: 'left', padding: '4px 12px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 1 }}
+                >
+                  <span style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {highlightMatch(fileName, query, caseSensitive)}
+                  </span>
+                  {fileDir && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileDir}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* Content matches */}
+        {contentResults.length > 0 && (
+          <div>
+            {filenameMatches.length > 0 && <div style={{ padding: '4px 12px 2px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Content</div>}
+            {Object.entries(grouped).map(([filePath, hits]) => {
+              const fileName = filePath.includes('/') ? filePath.slice(filePath.lastIndexOf('/') + 1) : filePath;
+              const fileDir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '';
+              const displayName = getDisplayName(filePath);
+              return (
+                <div key={filePath} style={{ marginBottom: 4 }}>
+                  <button
+                    onClick={() => openTab({ type: 'note', title: displayName, filePath })}
+                    className="search-result-btn"
+                    style={{ width: '100%', textAlign: 'left', padding: '5px 12px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 1 }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                    {fileDir && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileDir}</span>}
+                  </button>
+                  {hits.map((hit) => (
+                    <button
+                      key={hit.line}
+                      onClick={() => openTab({ type: 'note', title: displayName, filePath, initialLine: hit.line, searchQuery: query, searchCaseSensitive: caseSensitive })}
+                      className="search-result-btn"
+                      style={{ width: '100%', textAlign: 'left', padding: '3px 12px 3px 20px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.5 }}
+                      title={hit.text}
+                    >
+                      <span style={{ color: 'var(--text-muted)', marginRight: 6, fontVariantNumeric: 'tabular-nums', fontSize: 11 }}>{hit.line}</span>
+                      {highlightMatch(hit.text.slice(0, 120), query, caseSensitive)}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {!query.trim() && (
+          <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--text-muted)' }}>Type to search all notes.</div>
+        )}
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } .search-result-btn:hover { background: var(--bg-hover) !important; }`}</style>
     </div>
   );
 };

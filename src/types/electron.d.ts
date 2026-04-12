@@ -32,6 +32,7 @@ declare global {
         rename: (oldPath: string, newPath: string) => Promise<void>
         url: (path: string) => Promise<string>
         dataUrl: (path: string) => Promise<string>
+        search: (query: string, options: { caseSensitive: boolean }) => Promise<Array<{ path: string; line: number; text: string; matchType: 'content' | 'filename' }>>
         onChange: (cb: (event: FileChangeEvent) => void) => () => void
       }
       terminal: {
