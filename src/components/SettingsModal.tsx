@@ -93,11 +93,36 @@ const AppearancePanel: React.FC = () => {
   );
 };
 
-const EditorPanel: React.FC = () => (
-  <div>
-    <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Editor settings coming soon.</p>
-  </div>
-);
+const EDITOR_PREFERENCE_KEY = 'editor';
+
+const EditorPanel: React.FC = () => {
+  const [editor, setEditor] = useState<'codemirror' | 'tiptap'>(() => (
+    localStorage.getItem(EDITOR_PREFERENCE_KEY) === 'tiptap' ? 'tiptap' : 'codemirror'
+  ));
+
+  const setPreferredEditor = (next: 'codemirror' | 'tiptap') => {
+    setEditor(next);
+    localStorage.setItem(EDITOR_PREFERENCE_KEY, next);
+    window.dispatchEvent(new CustomEvent('ibsidian:editor-preference-changed'));
+  };
+
+  return (
+    <div>
+      <SectionLabel first>Primary editor engine</SectionLabel>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <OptionBtn active={editor === 'codemirror'} onClick={() => setPreferredEditor('codemirror')}>
+          CodeMirror
+        </OptionBtn>
+        <OptionBtn active={editor === 'tiptap'} onClick={() => setPreferredEditor('tiptap')}>
+          TipTap (experimental)
+        </OptionBtn>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '8px 0 0' }}>
+        Switches instantly for open notes. If TipTap causes issues, switch back to CodeMirror here.
+      </p>
+    </div>
+  );
+};
 
 const FilesPanel: React.FC = () => {
   const { settings, updateAttachmentSettings } = useAppSettings();

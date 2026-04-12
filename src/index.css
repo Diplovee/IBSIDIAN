@@ -183,6 +183,33 @@ body {
   background: var(--text-muted);
 }
 
+/* TipTap editor spacing */
+.tiptap-editor .ProseMirror {
+  min-height: 240px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  cursor: text;
+}
+
+.tiptap-editor .ProseMirror > * + * {
+  margin-top: 0.6em;
+}
+
+.tiptap-editor .ProseMirror h1,
+.tiptap-editor .ProseMirror h2,
+.tiptap-editor .ProseMirror h3,
+.tiptap-editor .ProseMirror h4,
+.tiptap-editor .ProseMirror h5,
+.tiptap-editor .ProseMirror h6 {
+  line-height: 1.3;
+  margin-top: 1.1em;
+}
+
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 1.4em;
+}
+
 /* Markdown Preview Styles */
 .markdown-body {
   font-family: var(--font-sans);

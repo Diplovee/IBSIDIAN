@@ -53,6 +53,13 @@ import {
 import type { ExcalidrawSceneFile, Tab } from '../types';
 import { parseExcalidrawFileContent } from '../utils/excalidraw';
 import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
+import { TipTapEditor } from './editor/TipTapEditor';
+
+const EDITOR_PREFERENCE_KEY = 'editor';
+const getPreferredEditor = () => {
+  if (typeof window === 'undefined') return 'codemirror';
+  return localStorage.getItem(EDITOR_PREFERENCE_KEY) === 'tiptap' ? 'tiptap' : 'codemirror';
+};
 
 const extractText = (node: React.ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -108,6 +115,26 @@ const normalizeLivePreviewMarkers = (view: EditorView | null) => {
   });
 };
 
+class TipTapErrorBoundary extends React.Component<{ children: React.ReactNode; onError: () => void }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode; onError: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('TipTap crashed, falling back to CodeMirror:', error);
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
 
 const InternalEmbed: React.FC<{ target: string; currentPath?: string | null }> = ({ target, currentPath }) => {
   const { nodes, readFile } = useVault();
@@ -1013,6 +1040,35 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { confirm, prompt, alert } = useModal();
   const { theme } = useActivity();
   const { settings } = useAppSettings();
+  const [preferredEditor, setPreferredEditor] = useState<'codemirror' | 'tiptap'>(() => getPreferredEditor());
+  const [tiptapCrashed, setTiptapCrashed] = useState(false);
+  const [tipTapEditor, setTipTapEditor] = useState<any | null>(null);
+
+  useEffect(() => {
+    const syncPreference = () => setPreferredEditor(getPreferredEditor());
+    window.addEventListener('storage', syncPreference);
+    window.addEventListener('ibsidian:editor-preference-changed', syncPreference as EventListener);
+    return () => {
+      window.removeEventListener('storage', syncPreference);
+      window.removeEventListener('ibsidian:editor-preference-changed', syncPreference as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (preferredEditor !== 'tiptap') {
+      setTiptapCrashed(false);
+      setTipTapEditor(null);
+    }
+  }, [preferredEditor]);
+
+  const handleTipTapCrash = useCallback(() => {
+    setTiptapCrashed(true);
+    setTipTapEditor(null);
+    alert({
+      title: 'TipTap failed',
+      message: 'TipTap crashed in this tab. Showing CodeMirror as a safe fallback. Switch editor in Settings after fixing the error to retry TipTap.',
+    });
+  }, [alert]);
 
   const handleError = useCallback((err: unknown, action: string) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1385,8 +1441,66 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   // Click on scroll area outside editor → focus editor
   const handleScrollAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === scrollAreaRef.current || (e.target as HTMLElement).closest('[data-editor-content-inner="true"]') === null) {
-      if (editorViewRef.current) editorViewRef.current.focus();
+      if (preferredEditor === 'tiptap' && tipTapEditor) {
+        tipTapEditor.commands.focus();
+      } else if (editorViewRef.current) {
+        editorViewRef.current.focus();
+      }
     }
+  };
+
+  const tipTapBlockType = !tipTapEditor ? 'paragraph'
+    : tipTapEditor.isActive('heading', { level: 1 }) ? 'h1'
+    : tipTapEditor.isActive('heading', { level: 2 }) ? 'h2'
+    : tipTapEditor.isActive('heading', { level: 3 }) ? 'h3'
+    : tipTapEditor.isActive('bulletList') ? 'bullet'
+    : tipTapEditor.isActive('orderedList') ? 'ordered'
+    : tipTapEditor.isActive('taskList') ? 'task'
+    : tipTapEditor.isActive('blockquote') ? 'quote'
+    : tipTapEditor.isActive('codeBlock') ? 'code'
+    : 'paragraph';
+
+  const applyTipTapBlockType = (next: string) => {
+    if (!tipTapEditor) return;
+    const chain = tipTapEditor.chain().focus();
+    if (next === 'paragraph') chain.setParagraph().run();
+    if (next === 'h1') chain.toggleHeading({ level: 1 }).run();
+    if (next === 'h2') chain.toggleHeading({ level: 2 }).run();
+    if (next === 'h3') chain.toggleHeading({ level: 3 }).run();
+    if (next === 'bullet') chain.toggleBulletList().run();
+    if (next === 'ordered') chain.toggleOrderedList().run();
+    if (next === 'task') chain.toggleTaskList().run();
+    if (next === 'quote') chain.toggleBlockquote().run();
+    if (next === 'code') chain.toggleCodeBlock().run();
+  };
+
+  const insertTipTapItem = (next: string) => {
+    if (!tipTapEditor) return;
+    const chain = tipTapEditor.chain().focus();
+    if (next === 'hr') chain.setHorizontalRule().run();
+    if (next === 'table') chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    if (next === 'sub') chain.toggleSubscript().run();
+    if (next === 'sup') chain.toggleSuperscript().run();
+    if (next === 'highlight') chain.toggleHighlight().run();
+  };
+
+  const setTipTapLink = () => {
+    if (!tipTapEditor) return;
+    const existing = tipTapEditor.getAttributes('link')?.href as string | undefined;
+    const value = window.prompt('Enter URL', existing || 'https://');
+    if (value === null) return;
+    const url = value.trim();
+    if (!url) {
+      tipTapEditor.chain().focus().unsetLink().run();
+      return;
+    }
+    tipTapEditor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  };
+
+  const setEditorMode = (next: 'codemirror' | 'tiptap') => {
+    localStorage.setItem(EDITOR_PREFERENCE_KEY, next);
+    if (next === 'tiptap') setTiptapCrashed(false);
+    window.dispatchEvent(new CustomEvent('ibsidian:editor-preference-changed'));
   };
 
   return (
@@ -1403,13 +1517,109 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           </button>
         </div>
 
-        {/* Title */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{titleValue}</span>
-        </div>
+        {preferredEditor === 'tiptap' && !tiptapCrashed ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <select
+              value={tipTapBlockType}
+              onChange={(e) => applyTipTapBlockType(e.target.value)}
+              style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, padding: '0 8px' }}
+            >
+              <option value="paragraph">Paragraph</option>
+              <option value="h1">H1</option>
+              <option value="h2">H2</option>
+              <option value="h3">H3</option>
+              <option value="bullet">Bullet</option>
+              <option value="ordered">Numbered</option>
+              <option value="task">Task</option>
+              <option value="quote">Quote</option>
+              <option value="code">Code block</option>
+            </select>
+
+            {[
+              { key: 'bold', label: 'B', run: () => tipTapEditor?.chain().focus().toggleBold().run() },
+              { key: 'italic', label: 'I', run: () => tipTapEditor?.chain().focus().toggleItalic().run() },
+              { key: 'strike', label: 'S', run: () => tipTapEditor?.chain().focus().toggleStrike().run() },
+              { key: 'code', label: '</>', run: () => tipTapEditor?.chain().focus().toggleCode().run() },
+              { key: 'highlight', label: 'HL', run: () => tipTapEditor?.chain().focus().toggleHighlight().run() },
+            ].map(btn => (
+              <button
+                key={btn.key}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={btn.run}
+                style={{
+                  width: 28,
+                  height: 26,
+                  borderRadius: 6,
+                  border: `1px solid ${tipTapEditor?.isActive(btn.key) ? 'var(--accent)' : 'var(--border)'}`,
+                  background: tipTapEditor?.isActive(btn.key) ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+                  color: tipTapEditor?.isActive(btn.key) ? 'var(--accent)' : 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={setTipTapLink}
+              style={{ height: 26, borderRadius: 6, border: `1px solid ${tipTapEditor?.isActive('link') ? 'var(--accent)' : 'var(--border)'}`, background: tipTapEditor?.isActive('link') ? 'var(--accent-soft)' : 'var(--bg-secondary)', color: tipTapEditor?.isActive('link') ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 12, padding: '0 8px', cursor: 'pointer' }}
+            >
+              Link
+            </button>
+
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => tipTapEditor?.chain().focus().undo().run()} style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, padding: '0 8px', cursor: 'pointer' }}>Undo</button>
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => tipTapEditor?.chain().focus().redo().run()} style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, padding: '0 8px', cursor: 'pointer' }}>Redo</button>
+
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!value) return;
+                insertTipTapItem(value);
+                e.target.value = '';
+              }}
+              style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, padding: '0 8px' }}
+            >
+              <option value="">Insert…</option>
+              <option value="hr">Horizontal rule</option>
+              <option value="table">Table</option>
+              <option value="sub">Subscript</option>
+              <option value="sup">Superscript</option>
+              <option value="highlight">Highlight</option>
+            </select>
+          </div>
+        ) : (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{titleValue}</span>
+          </div>
+        )}
 
         {/* Right controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative' }} ref={menuRef}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }} ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setEditorMode(preferredEditor === 'tiptap' ? 'codemirror' : 'tiptap')}
+            style={{
+              height: 24,
+              minWidth: 38,
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: preferredEditor === 'tiptap' ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+              color: preferredEditor === 'tiptap' ? 'var(--accent)' : 'var(--text-secondary)',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '0 8px',
+              cursor: 'pointer',
+            }}
+            title={preferredEditor === 'tiptap' ? 'Switch to CodeMirror' : 'Switch to TipTap'}
+          >
+            {preferredEditor === 'tiptap' ? 'TT' : 'CM'}
+          </button>
           {/* More options */}
           <button
             onClick={() => setMenuOpen(v => !v)}
@@ -1472,25 +1682,37 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               placeholder="Untitled"
             />
             <div onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}>
-              <CodeMirror
-                value={content}
-                theme={editorTheme}
-                extensions={liveMarkdownExtensions}
-                onChange={handleChange}
-                onCreateEditor={(view) => {
-                  editorViewRef.current = view;
-                  requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
-                }}
-                basicSetup={{
-                  lineNumbers: false,
-                  foldGutter: false,
-                  highlightActiveLine: false,
-                  highlightActiveLineGutter: false,
-                  dropCursor: false,
-                  rectangularSelection: false,
-                }}
-                style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
-              />
+              {preferredEditor === 'tiptap' && !tiptapCrashed ? (
+                <TipTapErrorBoundary onError={handleTipTapCrash}>
+                  <TipTapEditor
+                    content={content}
+                    onChange={handleChange}
+                    onEditorReady={setTipTapEditor}
+                    filePath={tab.filePath}
+                    onImagePaste={handleImageInsert}
+                  />
+                </TipTapErrorBoundary>
+              ) : (
+                <CodeMirror
+                  value={content}
+                  theme={editorTheme}
+                  extensions={liveMarkdownExtensions}
+                  onChange={handleChange}
+                  onCreateEditor={(view) => {
+                    editorViewRef.current = view;
+                    requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
+                  }}
+                  basicSetup={{
+                    lineNumbers: false,
+                    foldGutter: false,
+                    highlightActiveLine: false,
+                    highlightActiveLineGutter: false,
+                    dropCursor: false,
+                    rectangularSelection: false,
+                  }}
+                  style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
+                />
+              )}
             </div>
             {ctxMenu && editorViewRef.current && (
               <EditorContextMenu

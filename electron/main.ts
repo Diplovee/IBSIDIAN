@@ -179,6 +179,18 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../../out/renderer/index.html'))
   }
 
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isToggleDevTools = input.type === 'keyDown' && input.control && input.shift && input.key.toLowerCase() === 'c'
+    if (!isToggleDevTools) return
+
+    event.preventDefault()
+    if (mainWindow?.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools()
+    } else {
+      mainWindow?.webContents.openDevTools({ mode: 'detach' })
+    }
+  })
+
   mainWindow.once('ready-to-show', () => mainWindow!.show())
 }
 
