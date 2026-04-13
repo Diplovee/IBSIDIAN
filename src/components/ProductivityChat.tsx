@@ -12,9 +12,19 @@ interface Message {
   content: string;
   toolCallId?: string;
   toolName?: string;
+  toolArgs?: string;
 }
 interface Session { id: string; title: string; messages: Message[]; group: string; }
 type Creds = { access: string; refresh: string; expires: number; accountId: string };
+
+const CODEX_MODELS = [
+  { id: 'codex-mini-latest', label: 'Codex Mini (Latest)' },
+  { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
+  { id: 'gpt-5.1-codex', label: 'Codex' },
+  { id: 'gpt-5.2-codex', label: 'Codex v2' },
+  { id: 'gpt-5.3-codex', label: 'Codex v3' },
+] as const;
+const DEFAULT_MODEL = 'codex-mini-latest';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function dateGroup(ts: number): string {
@@ -34,42 +44,36 @@ async function getValidToken(creds: Creds, setCreds: (c: Creds) => void): Promis
   return refreshed.access;
 }
 
-// ── Tool definitions for the OpenAI API ──────────────────────────────────────
+// ── Tool definitions for the Codex Responses API ─────────────────────────────
 const VAULT_TOOLS = [
   {
     type: 'function' as const,
-    function: {
-      name: 'read_file',
-      description: 'Read the content of a file in the vault. Use relative paths like "daily-priorities.md" or "folder/note.md".',
-      parameters: {
-        type: 'object',
-        properties: { path: { type: 'string', description: 'Relative path to the file inside the vault' } },
-        required: ['path'],
-      },
+    name: 'read_file',
+    description: 'Read the content of a file in the vault. Use relative paths like "daily.md" or "folder/note.md".',
+    parameters: {
+      type: 'object',
+      properties: { path: { type: 'string', description: 'Relative path to the file inside the vault' } },
+      required: ['path'],
     },
   },
   {
     type: 'function' as const,
-    function: {
-      name: 'write_file',
-      description: 'Create or overwrite a file in the vault with the given content.',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: 'Relative path to write, e.g. "notes/todo.md"' },
-          content: { type: 'string', description: 'Full file content to write' },
-        },
-        required: ['path', 'content'],
+    name: 'write_file',
+    description: 'Create or overwrite a file in the vault with the given content.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path to write, e.g. "notes/todo.md"' },
+        content: { type: 'string', description: 'Full file content to write' },
       },
+      required: ['path', 'content'],
     },
   },
   {
     type: 'function' as const,
-    function: {
-      name: 'list_files',
-      description: 'List all files and folders in the vault as a JSON tree.',
-      parameters: { type: 'object', properties: {} },
-    },
+    name: 'list_files',
+    description: 'List all files and folders in the vault as a JSON tree.',
+    parameters: { type: 'object', properties: {} },
   },
 ];
 
@@ -396,6 +400,9 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedModel, setSelectedModel] = useState<string>(
+    () => localStorage.getItem('productivity-model') ?? DEFAULT_MODEL
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -484,25 +491,26 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
     const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.`;
 
-    // Build the message history for the API (filter out 'tool' role messages — they're injected as tool results)
-    type ApiMessage =
-      | { role: 'system' | 'user' | 'assistant'; content: string }
-      | { role: 'tool'; content: string; tool_call_id: string };
-
-    const toApiMessages = (msgs: Message[]): ApiMessage[] => {
-      const result: ApiMessage[] = [{ role: 'system', content: systemPrompt }];
+    // Build input array for the Codex Responses API
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toApiInput = (msgs: Message[]): any[] => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result: any[] = [];
       for (const m of msgs) {
-        if (m.role === 'tool') {
-          result.push({ role: 'tool', content: m.content, tool_call_id: m.toolCallId ?? '' });
-        } else {
-          result.push({ role: m.role as 'user' | 'assistant', content: m.content });
+        if (m.role === 'user') {
+          result.push({ role: 'user', content: [{ type: 'input_text', text: m.content }] });
+        } else if (m.role === 'assistant' && m.content) {
+          result.push({ role: 'assistant', content: [{ type: 'output_text', text: m.content }] });
+        } else if (m.role === 'tool') {
+          result.push({ type: 'function_call', call_id: m.toolCallId ?? '', name: m.toolName ?? '', arguments: m.toolArgs ?? '{}' });
+          result.push({ type: 'function_call_output', call_id: m.toolCallId ?? '', output: m.content });
         }
       }
       return result;
     };
 
     // Agentic loop: stream → handle tool calls → stream again
-    const agentLoop = async (msgs: Message[]): Promise<void> => {
+    const agentLoop = async (msgs: Message[], model: string): Promise<void> => {
       let token = '';
       try {
         token = await getValidToken(creds, setCreds);
@@ -518,17 +526,30 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const toolCalls: any[] = [];
 
+      // Add placeholder BEFORE fetch so errors can replace it
+      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+
       try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        const res = await fetch('https://chatgpt.com/backend-api/codex/responses', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'chatgpt-account-id': creds.accountId,
+            'OpenAI-Beta': 'responses=experimental',
+            'accept': 'text/event-stream',
+            'originator': 'pi',
+          },
           signal: abortRef.current!.signal,
           body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: toApiMessages(msgs),
+            model,
+            store: false,
+            stream: true,
+            instructions: systemPrompt,
+            input: toApiInput(msgs),
             tools: VAULT_TOOLS,
             tool_choice: 'auto',
-            stream: true,
+            text: { verbosity: 'medium' },
           }),
         });
 
@@ -537,15 +558,9 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
           throw new Error(`API error ${res.status}: ${errText}`);
         }
 
-        // Add a placeholder assistant message for streaming
-        setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
-
         const reader = res.body?.getReader();
         const decoder = new TextDecoder();
         if (!reader) throw new Error('No response body');
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const toolCallAccumulator: Record<number, { id: string; name: string; args: string }> = {};
 
         let done = false;
         while (!done) {
@@ -559,42 +574,36 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
             if (!trimmed.startsWith('data: ')) continue;
             const data = trimmed.slice(6);
             if (data === '[DONE]') { done = true; break; }
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta;
-              if (!delta) continue;
+            let parsed: Record<string, unknown>;
+            try { parsed = JSON.parse(data); } catch { continue; }
 
-              if (delta.content) {
-                assistantContent += delta.content;
-                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m));
+            const evtType = parsed.type as string | undefined;
+            if (evtType === 'response.output_text.delta') {
+              assistantContent += (parsed.delta as string) ?? '';
+              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m));
+            } else if (evtType === 'response.output_item.done') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const item = parsed.item as any;
+              if (item?.type === 'function_call') {
+                toolCalls.push({ id: item.call_id, name: item.name, args: item.arguments ?? '{}' });
               }
-
-              if (delta.tool_calls) {
-                for (const tc of delta.tool_calls) {
-                  const idx: number = tc.index ?? 0;
-                  if (!toolCallAccumulator[idx]) {
-                    toolCallAccumulator[idx] = { id: tc.id ?? '', name: tc.function?.name ?? '', args: '' };
-                  }
-                  if (tc.id) toolCallAccumulator[idx].id = tc.id;
-                  if (tc.function?.name) toolCallAccumulator[idx].name = tc.function.name;
-                  if (tc.function?.arguments) toolCallAccumulator[idx].args += tc.function.arguments;
-                }
-              }
-            } catch { /* ignore parse errors */ }
+            } else if (evtType === 'response.completed') {
+              done = true;
+            } else if (evtType === 'error') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const errData = parsed as any;
+              throw new Error(errData.message ?? errData.error?.message ?? 'Stream error');
+            }
           }
-        }
-
-        // Collect completed tool calls
-        for (const tc of Object.values(toolCallAccumulator)) {
-          toolCalls.push(tc);
         }
 
       } catch (err) {
         if ((err as Error)?.name === 'AbortError') {
+          if (!assistantContent) setMessages(prev => prev.filter(m => m.id !== assistantId));
           setIsStreaming(false);
           return;
         }
-        const errMsg: Message = { id: Date.now().toString(), role: 'assistant', content: `Error: ${err instanceof Error ? err.message : String(err)}` };
+        const errMsg: Message = { id: assistantId, role: 'assistant', content: `Error: ${err instanceof Error ? err.message : String(err)}` };
         setMessages(prev => prev.map(m => m.id === assistantId ? errMsg : m));
         setIsStreaming(false);
         return;
@@ -607,20 +616,26 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
       // Handle tool calls
       if (toolCalls.length > 0) {
-        // Add tool_calls info to assistant message (needed for API continuity)
         const toolResultMsgs: Message[] = [];
         for (const tc of toolCalls) {
           let args: Record<string, string> = {};
           try { args = JSON.parse(tc.args); } catch { /* ignore */ }
           const result = await runTool(tc.name, args);
-          const toolMsg: Message = { id: `tr_${Date.now()}_${tc.id}`, role: 'tool', content: result, toolCallId: tc.id, toolName: tc.name };
+          const toolMsg: Message = {
+            id: `tr_${Date.now()}_${tc.id}`,
+            role: 'tool',
+            content: result,
+            toolCallId: tc.id,
+            toolName: tc.name,
+            toolArgs: tc.args,
+          };
           toolResultMsgs.push(toolMsg);
         }
         updatedMsgs = [...updatedMsgs, ...toolResultMsgs];
         setMessages(prev => [...prev, ...toolResultMsgs]);
 
         // Continue the loop with tool results
-        await agentLoop(updatedMsgs);
+        await agentLoop(updatedMsgs, model);
         return;
       }
 
@@ -633,8 +648,8 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       setIsStreaming(false);
     };
 
-    await agentLoop(currentMessages);
-  }, [creds, activeSessionId]);
+    await agentLoop(currentMessages, selectedModel);
+  }, [creds, activeSessionId, selectedModel]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const isEmpty = !activeSessionId || messages.length === 0;
@@ -709,6 +724,16 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', gap: 8, flexShrink: 0 }}>
+          <select
+            value={selectedModel}
+            onChange={e => { setSelectedModel(e.target.value); localStorage.setItem('productivity-model', e.target.value); }}
+            disabled={isStreaming}
+            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', outline: 'none' }}
+          >
+            {CODEX_MODELS.map(m => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
           {messages.length > 0 && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button

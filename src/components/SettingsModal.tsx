@@ -429,6 +429,24 @@ const ProductivityPanel: React.FC = () => {
       </div>
       {loginError && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 10 }}>{loginError}</div>}
 
+      <SectionLabel>Model</SectionLabel>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        Choose the Codex model used by the Productivity agent.
+      </p>
+      <select
+        defaultValue={localStorage.getItem('productivity-model') ?? 'codex-mini-latest'}
+        onChange={e => localStorage.setItem('productivity-model', e.target.value)}
+        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', marginBottom: 20 }}
+      >
+        {[
+          { id: 'codex-mini-latest', label: 'Codex Mini (Latest) — recommended' },
+          { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
+          { id: 'gpt-5.1-codex', label: 'Codex' },
+          { id: 'gpt-5.2-codex', label: 'Codex v2' },
+          { id: 'gpt-5.3-codex', label: 'Codex v3' },
+        ].map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+      </select>
+
       {/* Coming soon providers */}
       {COMING_SOON.map(p => (
         <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 10, opacity: 0.6 }}>
