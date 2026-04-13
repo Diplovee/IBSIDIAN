@@ -1,11 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Search, RotateCcw, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Zap, LogOut, ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import { ProductivityIcon, CodexIcon } from './AgentIcons';
+import { AgentActivityTimeline, AgentActivityItem } from './AgentActivityIndicator';
+import { FileMentionInput, FileMention } from './FileMentionInput';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import type { Tab } from '../types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface FileMention {
+  path: string;
+  title: string;
+}
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'tool';
@@ -13,8 +19,9 @@ interface Message {
   toolCallId?: string;
   toolName?: string;
   toolArgs?: string;
+  mentions?: FileMention[];
 }
-interface Session { id: string; title: string; messages: Message[]; group: string; pinned?: boolean; }
+interface Session { id: string; title: string; messages: Message[]; group: string; pinned?: boolean; activities?: AgentActivityItem[]; }
 type Creds = { access: string; refresh: string; expires: number; accountId: string };
 
 const CODEX_MODELS = [
@@ -615,7 +622,11 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [activities, setActivities] = useState<AgentActivityItem[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [timelineCollapsed, setTimelineCollapsed] = useState(true);
+  const [mentions, setMentions] = useState<FileMention[]>([]);
+  const [inputValue, setInputValue] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(
     () => normalizeModelId(localStorage.getItem('productivity-model'))
@@ -623,8 +634,23 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Reset timeline state on new request
+  useEffect(() => {
+    if (!isStreaming && activities.length > 0) {
+      const timer = setTimeout(() => {
+        setTimelineCollapsed(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, activities]);
+
   // Projects = top-level vault folders
   const projects = nodes.filter(n => n.type === 'folder').map(n => n.name);
+
+  // File options for mention dropdown
+  const fileOptions = nodes
+    .filter(n => n.type === 'file')
+    .map(n => ({ path: n.path, name: n.name }));
 
   // Load stored credentials on mount
   useEffect(() => {
@@ -671,6 +697,10 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     abortRef.current?.abort();
     setActiveSessionId(null);
     setMessages([]);
+    setActivities([]);
+    setTimelineCollapsed(true);
+    setMentions([]);
+    setInputValue('');
   }, []);
 
   const handleSelectSession = useCallback((id: string) => {
@@ -678,6 +708,10 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     const session = sessions.find(s => s.id === id);
     setActiveSessionId(id);
     setMessages(session?.messages ?? []);
+    setActivities(session?.activities ?? []);
+    setTimelineCollapsed(true);
+    setMentions([]);
+    setInputValue('');
   }, [sessions]);
 
   const handleLink = useCallback((url: string) => {
@@ -709,30 +743,42 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   }, []);
 
   // ── Real AI send ────────────────────────────────────────────────────────────
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, currentMentions: FileMention[] = []) => {
     if (!creds) return;
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
-    let currentSessionId = activeSessionId;
-    let currentMessages: Message[] = [];
+    const trimmedText = text.trim();
+    if (!trimmedText) return;
+    const safeMentions = Array.isArray(currentMentions) ? currentMentions : [];
 
-    setMessages(prev => {
-      const next = [...prev, userMsg];
-      currentMessages = next;
-      if (!currentSessionId) {
-        const newId = `s_${Date.now()}`;
-        const newSession: Session = { id: newId, title: buildChatTitle(next), messages: next, group: dateGroup(Date.now()) };
-        setSessions(s => [newSession, ...s]);
-        currentSessionId = newId;
-        setActiveSessionId(newId);
-      }
-      return next;
-    });
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: trimmedText, mentions: safeMentions.length > 0 ? safeMentions : undefined };
+    let currentSessionId = activeSessionId;
+    const baseMessages = currentSessionId ? messages : [];
+    const currentMessages: Message[] = [...baseMessages, userMsg];
+
+    setInputValue('');
+
+    if (!currentSessionId) {
+      const newId = `s_${Date.now()}`;
+      const newSession: Session = { id: newId, title: buildChatTitle(currentMessages), messages: currentMessages, group: dateGroup(Date.now()), activities: [] };
+      setSessions(s => [newSession, ...s]);
+      currentSessionId = newId;
+      setActiveSessionId(newId);
+    }
+
+    setMessages(currentMessages);
 
     setIsStreaming(true);
     abortRef.current = new AbortController();
+    setActivities([]);
+    setTimelineCollapsed(true);
+    setMentions([]);
+    
+    // Build mention context for system prompt
+    const mentionContext = safeMentions.length > 0 
+      ? `\nUser mentioned the following files: ${safeMentions.map(m => `@${m.path}`).join(', ')}. You can use read_file to access them if needed.`
+      : '';
 
-    const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.`;
+    const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
 
     // Build input array for the Codex Responses API
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -771,6 +817,15 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
       // Add placeholder BEFORE fetch so errors can replace it
       setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+      
+      // Add initial activity
+      const analyzingId = `act_${Date.now()}_analyzing`;
+      setActivities(prev => [...prev, {
+        id: analyzingId,
+        type: 'analyzing',
+        message: 'Processing your request',
+        timestamp: Date.now(),
+      }]);
 
       try {
         const res = await fetch('https://chatgpt.com/backend-api/codex/responses', {
@@ -848,6 +903,16 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
         }
         const errMsg: Message = { id: assistantId, role: 'assistant', content: `Error: ${err instanceof Error ? err.message : String(err)}` };
         setMessages(prev => prev.map(m => m.id === assistantId ? errMsg : m));
+        
+        // Add error activity
+        const errorId = `act_${Date.now()}_error`;
+        setActivities(prev => [...prev, {
+          id: errorId,
+          type: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          timestamp: Date.now(),
+        }]);
+        
         setIsStreaming(false);
         return;
       }
@@ -859,10 +924,31 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
       // Handle tool calls
       if (toolCalls.length > 0) {
+        // Add planning activity
+        const planningId = `act_${Date.now()}_planning`;
+        setActivities(prev => [...prev, {
+          id: planningId,
+          type: 'planning',
+          message: `Planning ${toolCalls.length} action${toolCalls.length > 1 ? 's' : ''}`,
+          timestamp: Date.now(),
+        }]);
+
         const toolResultMsgs: Message[] = [];
         for (const tc of toolCalls) {
           let args: Record<string, string> = {};
           try { args = JSON.parse(tc.args); } catch { /* ignore */ }
+          
+          // Add tool execution activity
+          const toolType = tc.name === 'read_file' ? 'reading' : tc.name === 'write_file' ? 'writing' : tc.name === 'list_files' ? 'listing' : 'planning';
+          const toolActivityId = `act_${Date.now()}_${tc.name}`;
+          setActivities(prev => [...prev, {
+            id: toolActivityId,
+            type: toolType,
+            message: `Executing ${tc.name}`,
+            details: args.path || args.content?.slice(0, 50) || JSON.stringify(args).slice(0, 30),
+            timestamp: Date.now(),
+          }]);
+
           const result = await runTool(tc.name, args);
           const toolMsg: Message = {
             id: `tr_${Date.now()}_${tc.id}`,
@@ -877,22 +963,40 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
         updatedMsgs = [...updatedMsgs, ...toolResultMsgs];
         setMessages(prev => [...prev, ...toolResultMsgs]);
 
+        // Add complete activity
+        const completeId = `act_${Date.now()}_complete`;
+        setActivities(prev => [...prev, {
+          id: completeId,
+          type: 'complete',
+          message: 'All actions completed',
+          timestamp: Date.now(),
+        }]);
+
         // Continue the loop with tool results
         await agentLoop(updatedMsgs, model);
         return;
       }
 
+      // Add complete activity for non-tool-call responses
+      const completeId = `act_${Date.now()}_complete`;
+      setActivities(prev => [...prev, {
+        id: completeId,
+        type: 'complete',
+        message: 'Response complete',
+        timestamp: Date.now(),
+      }]);
+
       // Save final session messages
       setMessages(prev => {
         const finalMsgs = prev;
-        setSessions(ss => ss.map(s => s.id === currentSessionId ? { ...s, title: buildChatTitle(finalMsgs), messages: finalMsgs } : s));
+        setSessions(ss => ss.map(s => s.id === currentSessionId ? { ...s, title: buildChatTitle(finalMsgs), messages: finalMsgs, activities } : s));
         return finalMsgs;
       });
       setIsStreaming(false);
     };
 
     await agentLoop(currentMessages, selectedModel);
-  }, [creds, activeSessionId, selectedModel]);
+  }, [creds, activeSessionId, selectedModel, messages]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const isEmpty = !activeSessionId || messages.length === 0;
@@ -1000,38 +1104,96 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
             <h1 style={{ fontSize: 28, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 40, textAlign: 'center' }}>
               What's on the agenda today?
             </h1>
-            <InputBar onSend={handleSend} disabled={isStreaming || !creds} />
+            <FileMentionInput 
+              value={inputValue} 
+              onChange={setInputValue}
+              onSend={() => handleSend(inputValue, mentions)}
+              disabled={isStreaming || !creds}
+              mentions={mentions}
+              onAddMention={(m) => setMentions(prev => [...prev, m])}
+              onRemoveMention={(path) => setMentions(prev => prev.filter(x => x.path !== path))}
+              fileOptions={fileOptions}
+            />
           </div>
         ) : (
           <>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
               <div style={{ maxWidth: 720, margin: '0 auto', padding: '8px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-                {messages.filter(m => m.role !== 'tool').map(msg => (
-                  <div key={msg.id}>
-                    {msg.role === 'user' ? (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <div style={{ maxWidth: '70%', padding: '10px 18px', borderRadius: 999, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 }}>
-                          <RichText text={msg.content} onLink={handleLink} />
+                {(() => {
+                  const assistantMsgs = messages.filter(m => m.role === 'assistant');
+                  const lastAssistantId = assistantMsgs.length > 0 ? assistantMsgs[assistantMsgs.length - 1].id : null;
+                  return messages.filter(m => m.role !== 'tool').map(msg => (
+                    <div key={msg.id}>
+                      {msg.role === 'user' ? (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <div style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px' }}>
+                            {msg.mentions && msg.mentions.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                                {msg.mentions.map(m => (
+                                  <button
+                                    key={m.path}
+                                    onClick={() => openTab({ type: 'file', path: m.path, title: m.title })}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                      padding: '2px 6px 2px 8px',
+                                      borderRadius: 4,
+                                      background: 'rgba(139, 92, 246, 0.15)',
+                                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                                      color: '#8B5CF6',
+                                      fontSize: 10,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14 2 14 8 20 8" />
+                                    </svg>
+                                    <span style={{ fontWeight: 500 }}>{m.title}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            <RichText text={msg.content} onLink={handleLink} />
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.65 }}>
-                          <RichText text={msg.content} onLink={handleLink} />
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {activities.length > 0 && msg.id === lastAssistantId && (
+                            <AgentActivityTimeline
+                              activities={activities}
+                              isActive={isStreaming}
+                              collapsed={timelineCollapsed}
+                              onToggleCollapse={() => setTimelineCollapsed(c => !c)}
+                            />
+                          )}
+                          <div style={{ alignSelf: 'flex-start', maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', padding: '10px 18px', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 }}>
+                            <RichText text={msg.content} onLink={handleLink} />
+                          </div>
+                          {msg.content && <MessageActions content={msg.content} />}
                         </div>
-                        {msg.content && <MessageActions content={msg.content} />}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
-                  <div><TypingDots /></div>
-                )}
+                      )}
+                    </div>
+                  ));
+                })()}
+                 {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
+                   <div><TypingDots /></div>
+                 )}
                 <div ref={bottomRef} />
               </div>
             </div>
             <div style={{ flexShrink: 0, paddingBottom: 16 }}>
-              <InputBar onSend={handleSend} disabled={isStreaming || !creds} />
+            <FileMentionInput 
+              value={inputValue} 
+              onChange={setInputValue}
+              onSend={() => handleSend(inputValue, mentions)}
+              disabled={isStreaming || !creds}
+              mentions={mentions}
+              onAddMention={(m) => setMentions(prev => [...prev, m])}
+              onRemoveMention={(path) => setMentions(prev => prev.filter(x => x.path !== path))}
+              fileOptions={fileOptions}
+            />
             </div>
           </>
         )}

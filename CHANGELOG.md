@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.19] - 2026-04-13
+
+### Fixed
+- Productivity chat no longer carries a previous conversation message into a newly started chat session
+- Sending a message without file mentions now consistently includes a valid `input` payload for the Codex Responses API
+- Assistant response bubbles are restored and styled as bordered user bubbles + borderless assistant bubbles with low-radius corners
+
 ## [2026.5.18] - 2026-04-13
 
 ### Added
