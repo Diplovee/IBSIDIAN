@@ -85,7 +85,7 @@ const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string }> = 
   };
 
   if (isNewTab || !iconSrc || loadFailed) return <Globe size={13} />;
-  return <img src={iconSrc} alt="" draggable={false} onError={handleError} style={{ width: 13, height: 13, borderRadius: 3, objectFit: 'cover' }} />;
+  return <img src={iconSrc || undefined} alt="" draggable={false} onError={handleError} style={{ width: 13, height: 13, borderRadius: 3, objectFit: 'cover' }} />;
 };
 
 const iconForTab = (tab: Tab) => {

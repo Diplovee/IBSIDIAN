@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.18] - 2026-04-13
+
+### Added
+- **Productivity agent** — real AI-powered chat replacing the previous mock UI
+  - ChatGPT (Codex) OAuth login via a dedicated `BrowserWindow` — full Chrome context, no webview restrictions
+  - Login modal shows Productivity + Codex icons connected by an arrow to communicate the authorization relationship
+  - Streaming responses from `gpt-4o` via OpenAI Chat Completions API
+  - Vault file tools: agent can `read_file`, `write_file`, and `list_files` directly in your vault
+  - Full agentic loop — tool calls are executed and results fed back to the model automatically
+  - Sessions persisted to `.pi/productivity-sessions.json` inside the vault; reload across app restarts
+  - Projects sidebar populated from real vault top-level folders (no more hardcoded names)
+  - Clickable URLs in assistant responses open as browser tabs inside IBSIDIAN
+  - Token auto-refresh before expiry
+  - Sign-out button in the Productivity sidebar header
+
+- **Settings → Productivity tab** — new settings category for the Productivity agent
+  - ChatGPT (Codex) provider row: connect / disconnect with green connected indicator and account ID
+  - Groq provider row: "Coming soon" placeholder (ultra-fast Llama & Mixtral inference)
+  - Logout / re-connect actions available without opening the chat
+
+### Fixed
+- `img src=""` warning in `PaneTabBar` — empty favicon URL now passed as `undefined` instead of empty string
+
 ## [2026.5.17] - 2026-04-12
 
 ### Added

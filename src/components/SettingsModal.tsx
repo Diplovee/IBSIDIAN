@@ -1,16 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Sun, Moon } from 'lucide-react';
+import { X, Sun, Moon, Check, LogOut } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import type { AgentKey } from '../types';
 
 const CATEGORIES = [
-  { id: 'general',    label: 'General' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'editor',     label: 'Editor' },
-  { id: 'files',      label: 'Files & Links' },
-  { id: 'agents',     label: 'Agents' },
+  { id: 'general',      label: 'General' },
+  { id: 'appearance',   label: 'Appearance' },
+  { id: 'editor',       label: 'Editor' },
+  { id: 'files',        label: 'Files & Links' },
+  { id: 'agents',       label: 'Agents' },
+  { id: 'productivity', label: 'Productivity' },
 ] as const;
 
 type CategoryId = typeof CATEGORIES[number]['id'];
@@ -341,6 +342,112 @@ const AgentsPanel: React.FC = () => {
   );
 };
 
+// ── Productivity panel ────────────────────────────────────────────────────────
+type CodexCreds = { access: string; refresh: string; expires: number; accountId: string };
+
+const ProductivityPanel: React.FC = () => {
+  const [creds, setCreds] = useState<CodexCreds | null | 'loading'>('loading');
+  const [loginPending, setLoginPending] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.api.auth.codexGet().then(c => setCreds(c)).catch(() => setCreds(null));
+  }, []);
+
+  const handleLogin = async () => {
+    setLoginPending(true);
+    setLoginError(null);
+    try {
+      await window.api.auth.codexStartLogin();
+      const unlisten = window.api.auth.onCodexComplete((payload) => {
+        unlisten();
+        setLoginPending(false);
+        if (payload.error) { setLoginError(payload.error); }
+        else if (payload.creds) { setCreds(payload.creds as CodexCreds); }
+      });
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Login failed');
+      setLoginPending(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await window.api.auth.codexLogout().catch(() => {});
+    setCreds(null);
+  };
+
+  const COMING_SOON = [
+    { name: 'Groq', description: 'Ultra-fast inference with Llama & Mixtral' },
+  ];
+
+  return (
+    <div>
+      <SectionLabel first>Providers</SectionLabel>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
+        Connect AI providers to power the Productivity agent.
+      </p>
+
+      {/* Codex / ChatGPT */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <CodexIcon size={20} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>ChatGPT (Codex)</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+            {creds === 'loading' ? 'Checking…'
+              : creds ? `Connected · ${creds.accountId ? `ID: ${creds.accountId.slice(0, 12)}…` : 'account linked'}`
+              : 'Not connected'}
+          </div>
+        </div>
+        {creds && creds !== 'loading' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#34d399', fontWeight: 500 }}>
+              <Check size={13} /> Connected
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Sign out"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', transition: 'all 0.1s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              <LogOut size={12} /> Sign out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleLogin}
+            disabled={loginPending || creds === 'loading'}
+            style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: loginPending ? 'default' : 'pointer', opacity: (loginPending || creds === 'loading') ? 0.6 : 1, flexShrink: 0, transition: 'background 0.1s' }}
+            onMouseEnter={e => { if (!loginPending) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-primary)'; }}
+          >
+            {loginPending ? 'Opening…' : 'Connect'}
+          </button>
+        )}
+      </div>
+      {loginError && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 10 }}>{loginError}</div>}
+
+      {/* Coming soon providers */}
+      {COMING_SOON.map(p => (
+        <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 10, opacity: 0.6 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>
+            {p.name[0]}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--bg-primary)', color: 'var(--text-muted)', border: '1px solid var(--border)', flexShrink: 0 }}>
+            Coming soon
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export const SettingsModal: React.FC = () => {
   const { isSettingsOpen, closeSettings } = useActivity();
   const [activeCategory, setActiveCategory] = useState<CategoryId>('general');
@@ -487,6 +594,7 @@ export const SettingsModal: React.FC = () => {
             {activeCategory === 'editor' && <EditorPanel />}
             {activeCategory === 'files' && <FilesPanel />}
             {activeCategory === 'agents' && <AgentsPanel />}
+            {activeCategory === 'productivity' && <ProductivityPanel />}
           </div>
         </div>
       </div>

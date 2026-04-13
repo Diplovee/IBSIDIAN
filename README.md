@@ -37,6 +37,7 @@ Features
 * Command Palette    — Ctrl+K for quick access to all commands
 * Light / Dark Theme — toggle in the Settings modal
 * Resizable Sidebar  — drag the panel divider
+* Productivity Agent — AI chat powered by ChatGPT (Codex OAuth); reads and writes vault files; sessions persisted locally
 
 Keyboard Shortcuts
 ------------------

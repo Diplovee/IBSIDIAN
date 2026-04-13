@@ -53,6 +53,13 @@ declare global {
         search: (query: string, options: { caseSensitive: boolean }) => Promise<Array<{ path: string; line: number; text: string; matchType: 'content' | 'filename' }>>
         onChange: (cb: (event: FileChangeEvent) => void) => () => void
       }
+      auth: {
+        codexGet:        () => Promise<{ access: string; refresh: string; expires: number; accountId: string } | null>
+        codexStartLogin: () => Promise<{ url: string }>
+        codexRefresh:    () => Promise<{ access: string; refresh: string; expires: number; accountId: string }>
+        codexLogout:     () => Promise<boolean>
+        onCodexComplete: (cb: (payload: { creds?: { access: string; refresh: string; expires: number; accountId: string }; error?: string }) => void) => () => void
+      }
       terminal: {
         create: (cols: number, rows: number) => Promise<string>
         input: (sessionId: string, data: string) => Promise<void>

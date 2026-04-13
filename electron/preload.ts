@@ -61,6 +61,18 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
+  auth: {
+    codexGet:        () => ipcRenderer.invoke('auth:codex-get'),
+    codexStartLogin: () => ipcRenderer.invoke('auth:codex-start-login'),
+    codexRefresh:    () => ipcRenderer.invoke('auth:codex-refresh'),
+    codexLogout:     () => ipcRenderer.invoke('auth:codex-logout'),
+    onCodexComplete: (cb: (payload: { creds?: unknown; error?: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, payload: { creds?: unknown; error?: string }) => cb(payload)
+      ipcRenderer.on('auth:codex-complete', handler)
+      return () => ipcRenderer.removeListener('auth:codex-complete', handler)
+    },
+  },
+
   terminal: {
     create: (cols: number, rows: number): Promise<string> =>
       ipcRenderer.invoke('terminal:create', cols, rows),

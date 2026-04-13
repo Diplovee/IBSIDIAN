@@ -58,6 +58,150 @@ function settingsConfigPath() {
   return join(app.getPath('userData'), 'settings.json')
 }
 
+// ── Codex OAuth ────────────────────────────────────────────────────────────
+type CodexCreds = { access: string; refresh: string; expires: number; accountId: string }
+
+function codexAuthPath() { return join(app.getPath('userData'), 'codex-auth.json') }
+
+async function saveCodexCreds(c: CodexCreds) {
+  await writeFile(codexAuthPath(), JSON.stringify(c), 'utf8')
+}
+async function loadCodexCreds(): Promise<CodexCreds | null> {
+  try { return JSON.parse(await readFile(codexAuthPath(), 'utf8')) } catch { return null }
+}
+
+ipcMain.handle('auth:codex-get', () => loadCodexCreds())
+
+// Start login: open a dedicated BrowserWindow for the OAuth flow.
+// A BrowserWindow gives auth.openai.com a full Chrome context (no webview restrictions).
+// When the redirect hits localhost:1455/auth/callback we intercept it via will-navigate,
+// close the auth window, exchange the code, and push auth:codex-complete to the renderer.
+ipcMain.handle('auth:codex-start-login', async () => {
+  const { createHash } = await import('node:crypto')
+
+  const verifier = randomBytes(32).toString('base64url')
+  const challenge = createHash('sha256').update(verifier).digest('base64url')
+  const state = randomBytes(16).toString('hex')
+
+  const params = new URLSearchParams({
+    response_type: 'code', client_id: 'app_EMoamEEZ73f0CkXaXp7hrann',
+    redirect_uri: 'http://localhost:1455/auth/callback',
+    scope: 'openid profile email offline_access',
+    code_challenge: challenge, code_challenge_method: 'S256',
+    state, codex_cli_simplified_flow: 'true', originator: 'pi',
+  })
+  const authUrl = `https://auth.openai.com/oauth/authorize?${params}`
+
+  const authWin = new BrowserWindow({
+    width: 520,
+    height: 720,
+    parent: mainWindow ?? undefined,
+    modal: false,
+    title: 'Sign in with ChatGPT',
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+    autoHideMenuBar: true,
+  })
+
+  let handled = false
+
+  const finish = async (code: string | null, err?: string) => {
+    if (handled) return
+    handled = true
+    if (!authWin.isDestroyed()) authWin.close()
+
+    if (err || !code) {
+      mainWindow?.webContents.send('auth:codex-complete', { error: err ?? 'No code received' })
+      return
+    }
+
+    try {
+      const tokenRes = await fetch('https://auth.openai.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code', client_id: 'app_EMoamEEZ73f0CkXaXp7hrann',
+          code, code_verifier: verifier, redirect_uri: 'http://localhost:1455/auth/callback',
+        }),
+      })
+      if (!tokenRes.ok) throw new Error(`Token exchange failed: ${tokenRes.status}`)
+      const tokens = await tokenRes.json() as { access_token?: string; refresh_token?: string; expires_in?: number }
+      if (!tokens.access_token || !tokens.refresh_token) throw new Error('Token response missing fields')
+
+      const jwtParts = tokens.access_token.split('.')
+      const jwtPayload = JSON.parse(Buffer.from(jwtParts[1] ?? '', 'base64').toString())
+      const accountId: string = jwtPayload?.['https://api.openai.com/auth']?.chatgpt_account_id ?? ''
+
+      const creds: CodexCreds = {
+        access: tokens.access_token, refresh: tokens.refresh_token,
+        expires: Date.now() + (tokens.expires_in ?? 3600) * 1000, accountId,
+      }
+      await saveCodexCreds(creds)
+      mainWindow?.webContents.send('auth:codex-complete', { creds })
+    } catch (e) {
+      mainWindow?.webContents.send('auth:codex-complete', { error: String(e) })
+    }
+  }
+
+  authWin.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('http://localhost:1455/auth/callback')) return
+    event.preventDefault()
+    const parsed = new URL(url)
+    const code = parsed.searchParams.get('code')
+    const returnedState = parsed.searchParams.get('state')
+    if (returnedState !== state) { finish(null, 'State mismatch').catch(() => {}); return }
+    finish(code).catch(() => {})
+  })
+
+  // Also catch the redirect via will-redirect (some Electron versions use this)
+  authWin.webContents.on('will-redirect', (event, url) => {
+    if (!url.startsWith('http://localhost:1455/auth/callback')) return
+    event.preventDefault()
+    const parsed = new URL(url)
+    const code = parsed.searchParams.get('code')
+    const returnedState = parsed.searchParams.get('state')
+    if (returnedState !== state) { finish(null, 'State mismatch').catch(() => {}); return }
+    finish(code).catch(() => {})
+  })
+
+  authWin.on('closed', () => {
+    if (!handled) mainWindow?.webContents.send('auth:codex-complete', { error: 'Window closed before completing sign-in' })
+    handled = true
+  })
+
+  authWin.loadURL(authUrl)
+  return {}
+})
+
+ipcMain.handle('auth:codex-refresh', async () => {
+  const creds = await loadCodexCreds()
+  if (!creds) throw new Error('No stored credentials')
+  const tokenRes = await fetch('https://auth.openai.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token', refresh_token: creds.refresh,
+      client_id: 'app_EMoamEEZ73f0CkXaXp7hrann',
+    }),
+  })
+  if (!tokenRes.ok) throw new Error('Token refresh failed')
+  const tokens = await tokenRes.json() as { access_token?: string; refresh_token?: string; expires_in?: number }
+  if (!tokens.access_token || !tokens.refresh_token) throw new Error('Refresh response missing fields')
+  const jwtParts = tokens.access_token.split('.')
+  const jwtPayload = JSON.parse(Buffer.from(jwtParts[1] ?? '', 'base64').toString())
+  const newCreds: CodexCreds = {
+    access: tokens.access_token, refresh: tokens.refresh_token,
+    expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+    accountId: jwtPayload?.['https://api.openai.com/auth']?.chatgpt_account_id ?? creds.accountId,
+  }
+  await saveCodexCreds(newCreds)
+  return newCreds
+})
+
+ipcMain.handle('auth:codex-logout', async () => {
+  try { await rm(codexAuthPath()) } catch { /* already gone */ }
+  return true
+})
+
 function findProjectRoot() {
   const candidates = Array.from(new Set([
     process.cwd(),
