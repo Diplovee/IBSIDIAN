@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.21] - 2026-04-13
+
+### Fixed
+- Browser tab titles now refresh immediately on navigation instead of getting stuck with stale values (for example, lingering as "google")
+- Browser tab favicon fallback now uses each site’s own `/favicon.ico` instead of the Google favicon service
+
+### Changed
+- Browser address bar placeholder text now reads "Search web or type URL"
+
 ## [2026.5.19] - 2026-04-13
 
 ### Fixed

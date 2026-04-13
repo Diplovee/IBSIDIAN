@@ -1876,7 +1876,7 @@ const getUrlOrigin = (url: string) => {
 const deriveBrowserFaviconFallback = (url: string) => {
   const origin = getUrlOrigin(url);
   if (!origin) return undefined;
-  return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(origin)}`;
+  return `${origin}/favicon.ico`;
 };
 
 const getCachedBrowserFavicon = (url: string) => {
@@ -1962,6 +1962,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const updateTabUrlRef = useRef(updateTabUrl);
   const updateTabFaviconRef = useRef(updateTabFavicon);
   useEffect(() => { currentUrlRef.current = currentUrl; }, [currentUrl]);
+  useEffect(() => { tabIdRef.current = tab.id; }, [tab.id]);
   useEffect(() => { updateTabTitleRef.current = updateTabTitle; }, [updateTabTitle]);
   useEffect(() => { updateTabUrlRef.current = updateTabUrl; }, [updateTabUrl]);
   useEffect(() => { updateTabFaviconRef.current = updateTabFavicon; }, [updateTabFavicon]);
@@ -2015,6 +2016,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       setCurrentUrl(nextUrl);
       currentUrlRef.current = nextUrl;
       updateTabUrlRef.current(tabIdRef.current, nextUrl);
+      updateTabTitleRef.current(tabIdRef.current, nextTitle);
       updateTabFaviconRef.current(tabIdRef.current, nextFavicon);
       addToHistory({ url: nextUrl, title: nextTitle, faviconUrl: nextFavicon, visitedAt: Date.now() });
       updateNavState(wv);
@@ -2231,7 +2233,7 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
               type="text"
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
-              placeholder="Search Google or type a URL"
+              placeholder="Search web or type URL"
               style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
             />
           </div>
