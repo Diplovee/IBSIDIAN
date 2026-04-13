@@ -7,22 +7,10 @@ import { MessageActions, RichText, StyledMarkdown, ToolVisualization, TypingDots
 import { LoginModal, ModelPicker, Sidebar } from './productivity/ui';
 import { runProductivityAgent } from './productivity/agent';
 import { VAULT_TOOLS, VISUAL_TOOL_NAMES, runTool } from './productivity/tools';
+import type { ProductivityCreds, ProductivityMessage, ProductivitySession } from './productivity/types';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import type { Tab } from '../types';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'tool';
-  content: string;
-  toolCallId?: string;
-  toolName?: string;
-  toolArgs?: string;
-  mentions?: FileMention[];
-}
-interface Session { id: string; title: string; messages: Message[]; group: string; pinned?: boolean; activities?: AgentActivityItem[]; }
-type Creds = { access: string; refresh: string; expires: number; accountId: string };
 
 const CODEX_MODELS = [
   { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
@@ -49,7 +37,7 @@ function normalizeModelId(model: string | null | undefined): string {
   return DEFAULT_MODEL;
 }
 
-function buildChatTitle(messages: Message[]): string {
+function buildChatTitle(messages: ProductivityMessage[]): string {
   const firstUserMessage = messages.find(message => message.role === 'user');
   const source = firstUserMessage?.content?.trim();
   if (!source) return 'New chat';
@@ -78,11 +66,11 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const { openTab } = useTabs();
   const { vault, nodes } = useVault();
 
-  const [creds, setCreds] = useState<Creds | null>(null);
+  const [creds, setCreds] = useState<ProductivityCreds | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<ProductivitySession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ProductivityMessage[]>([]);
   const [activities, setActivities] = useState<AgentActivityItem[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [timelineCollapsed, setTimelineCollapsed] = useState(true);
@@ -144,7 +132,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     if (!vault) return;
     window.api.files.read('.pi/productivity-sessions.json')
       .then(raw => {
-        const parsed = JSON.parse(raw) as Session[];
+        const parsed = JSON.parse(raw) as ProductivitySession[];
         setSessions(Array.isArray(parsed) ? parsed : []);
       })
       .catch(() => setSessions([]));
@@ -241,19 +229,19 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       : [];
     const effectiveMentions = safeMentions.length > 0 ? safeMentions : inferredMentions;
 
-    const userMsg: Message = {
+    const userMsg: ProductivityMessage = {
       id: Date.now().toString(),
       role: 'user',
       content: trimmedText,
       mentions: effectiveMentions.length > 0 ? effectiveMentions : undefined,
     };
-    const currentMessages: Message[] = [...baseMessages, userMsg];
+    const currentMessages: ProductivityMessage[] = [...baseMessages, userMsg];
 
     setInputValue('');
 
     if (!currentSessionId) {
       const newId = `s_${Date.now()}`;
-      const newSession: Session = { id: newId, title: buildChatTitle(currentMessages), messages: currentMessages, group: dateGroup(Date.now()), activities: [] };
+      const newSession: ProductivitySession = { id: newId, title: buildChatTitle(currentMessages), messages: currentMessages, group: dateGroup(Date.now()), activities: [] };
       setSessions(s => [newSession, ...s]);
       currentSessionId = newId;
       setActiveSessionId(newId);

@@ -3,13 +3,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Copy, MoreHorizontal, RotateCcw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { VISUAL_TOOL_NAMES } from './tools';
+import type { ProductivityMessage } from './types';
 
-export interface ChatMessageLike {
-  id: string;
-  role: 'user' | 'assistant' | 'tool';
-  content: string;
-  toolName?: string;
-}
+export type ChatMessageLike = Pick<ProductivityMessage, 'id' | 'role' | 'content' | 'toolName'>;
 
 export const RichText: React.FC<{ text: string; onLink: (url: string) => void }> = ({ text, onLink }) => {
   const URL_RE = /https?:\/\/[^\s)\]>]+/g;

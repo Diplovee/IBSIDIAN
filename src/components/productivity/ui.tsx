@@ -1,16 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Search, MoreHorizontal, Pencil, LogOut, ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import { ProductivityIcon, CodexIcon } from '../AgentIcons';
+import type { ProductivityCreds, ProductivitySession } from './types';
 
 const MAX_VISIBLE_PROJECTS = 4;
 const GROUPS = ['Pinned', 'Today', 'Yesterday', 'Previous 7 days', 'Older'];
 
-interface SessionItem {
-  id: string;
-  title: string;
-  group: string;
-  pinned?: boolean;
-}
+type SessionItem = Pick<ProductivitySession, 'id' | 'title' | 'group' | 'pinned'>;
 
 interface SessCtxMenu { x: number; y: number; id: string }
 
@@ -289,9 +285,7 @@ export const Sidebar: React.FC<{
   );
 };
 
-export type LoginCreds = { access: string; refresh: string; expires: number; accountId: string };
-
-export const LoginModal: React.FC<{ onLogin: (creds: LoginCreds) => void }> = ({ onLogin }) => {
+export const LoginModal: React.FC<{ onLogin: (creds: ProductivityCreds) => void }> = ({ onLogin }) => {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -306,7 +300,7 @@ export const LoginModal: React.FC<{ onLogin: (creds: LoginCreds) => void }> = ({
           setError(payload.error);
           setPending(false);
         } else if (payload.creds) {
-          onLogin(payload.creds as LoginCreds);
+          onLogin(payload.creds as ProductivityCreds);
         }
       });
     } catch (err) {

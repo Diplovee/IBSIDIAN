@@ -1,39 +1,23 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { AgentActivityItem } from '../AgentActivityIndicator';
-
-interface AgentMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'tool';
-  content: string;
-  toolCallId?: string;
-  toolName?: string;
-  toolArgs?: string;
-  mentions?: { path: string; title: string }[];
-}
-
-interface Creds {
-  access: string;
-  refresh: string;
-  expires: number;
-  accountId: string;
-}
+import type { ProductivityCreds, ProductivityMessage } from './types';
 
 interface RunProductivityAgentParams {
-  creds: Creds;
-  setCreds: (c: Creds) => void;
+  creds: ProductivityCreds;
+  setCreds: (c: ProductivityCreds) => void;
   model: string;
   systemPrompt: string;
-  initialMessages: AgentMessage[];
+  initialMessages: ProductivityMessage[];
   abortSignal: AbortSignal;
   tools: unknown[];
   runTool: (name: string, args: Record<string, unknown>) => Promise<string>;
-  setMessages: Dispatch<SetStateAction<AgentMessage[]>>;
+  setMessages: Dispatch<SetStateAction<ProductivityMessage[]>>;
   setActivities: Dispatch<SetStateAction<AgentActivityItem[]>>;
   setIsStreaming: (v: boolean) => void;
-  onComplete?: (finalMessages: AgentMessage[], finalActivities: AgentActivityItem[]) => void;
+  onComplete?: (finalMessages: ProductivityMessage[], finalActivities: AgentActivityItem[]) => void;
 }
 
-async function getValidToken(creds: Creds, setCreds: (c: Creds) => void): Promise<string> {
+async function getValidToken(creds: ProductivityCreds, setCreds: (c: ProductivityCreds) => void): Promise<string> {
   if (Date.now() < creds.expires - 60_000) return creds.access;
   const refreshed = await window.api.auth.codexRefresh();
   setCreds(refreshed);
@@ -41,7 +25,7 @@ async function getValidToken(creds: Creds, setCreds: (c: Creds) => void): Promis
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toApiInput(msgs: AgentMessage[]): any[] {
+function toApiInput(msgs: ProductivityMessage[]): any[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: any[] = [];
   for (const m of msgs) {
@@ -86,12 +70,12 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
     setActivities(prev => [...prev, activity]);
   };
 
-  const agentLoop = async (msgs: AgentMessage[]): Promise<void> => {
+  const agentLoop = async (msgs: ProductivityMessage[]): Promise<void> => {
     let token = '';
     try {
       token = await getValidToken(creds, setCreds);
     } catch {
-      const errMsg: AgentMessage = { id: Date.now().toString(), role: 'assistant', content: 'Failed to refresh credentials. Please sign in again.' };
+      const errMsg: ProductivityMessage = { id: Date.now().toString(), role: 'assistant', content: 'Failed to refresh credentials. Please sign in again.' };
       setMessages(prev => [...prev, errMsg]);
       setIsStreaming(false);
       return;
@@ -184,7 +168,7 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
         setIsStreaming(false);
         return;
       }
-      const errMsg: AgentMessage = { id: assistantId, role: 'assistant', content: `Error: ${err instanceof Error ? err.message : String(err)}` };
+      const errMsg: ProductivityMessage = { id: assistantId, role: 'assistant', content: `Error: ${err instanceof Error ? err.message : String(err)}` };
       setMessages(prev => prev.map(m => m.id === assistantId ? errMsg : m));
 
       pushActivity({
@@ -198,7 +182,7 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
       return;
     }
 
-    const assistantMsg: AgentMessage = { id: assistantId, role: 'assistant', content: assistantContent };
+    const assistantMsg: ProductivityMessage = { id: assistantId, role: 'assistant', content: assistantContent };
     let updatedMsgs = [...msgs, assistantMsg];
     setMessages(prev => prev.map(m => m.id === assistantId ? assistantMsg : m));
 
@@ -210,7 +194,7 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
         timestamp: Date.now(),
       });
 
-      const toolResultMsgs: AgentMessage[] = [];
+      const toolResultMsgs: ProductivityMessage[] = [];
       for (const tc of toolCalls) {
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.args); } catch { /* ignore */ }
@@ -231,7 +215,7 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
         });
 
         const result = await runTool(tc.name, args);
-        const toolMsg: AgentMessage = {
+        const toolMsg: ProductivityMessage = {
           id: `tr_${Date.now()}_${tc.id}`,
           role: 'tool',
           content: result,
