@@ -468,7 +468,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                       const isLastAssistant = msg.id === lastAssistantId;
                       rows.push(
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-                          <div style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '10px 12px' }}>
+                          <div style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', padding: '10px 12px' }}>
                             {activities.length > 0 && isLastAssistant && (
                               <div style={{ position: isStreaming ? 'sticky' : 'static', top: 8, zIndex: 1, marginBottom: 10 }}>
                                 <AgentActivityTimeline
