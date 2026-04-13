@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.22] - 2026-04-13
+
+### Added
+- Right-click context menu on the Activity Bar Codex agent button to launch Codex with a specific model
+
+### Changed
+- Productivity model picker options now use:
+  - `gpt-5.2`
+  - `gpt-5.3-codex`
+  - `gpt-5.4`
+  - `gpt-5.4-mini`
+- Default Productivity model is now `gpt-5.2`
+- Selecting a Codex model from the Codex Activity Bar context menu also updates the saved `productivity-model` value before launching
+
 ## [2026.5.21] - 2026-04-13
 
 ### Fixed

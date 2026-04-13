@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FolderOpen, Search, Globe, SquareTerminal, Settings, Library as LibraryIcon } from 'lucide-react';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
@@ -16,12 +16,26 @@ const AGENT_META: Record<AgentKey, { icon: React.ReactNode; title: string; comma
   productivity: { icon: <ProductivityIcon size={18} />, title: 'Productivity'                      },
 };
 
+const PRODUCTIVITY_CODEX_MODELS = [
+  { id: 'gpt-5.2', label: 'GPT-5.2' },
+  { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
+  { id: 'gpt-5.4', label: 'GPT-5.4' },
+  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+] as const;
+const DEFAULT_PRODUCTIVITY_CODEX_MODEL = 'gpt-5.2';
+
+const normalizeProductivityCodexModel = (model: string | null | undefined) => {
+  if (PRODUCTIVITY_CODEX_MODELS.some(option => option.id === model)) return model as string;
+  return DEFAULT_PRODUCTIVITY_CODEX_MODEL;
+};
+
 export const ActivityBar: React.FC = () => {
   const { activeActivity, toggleActivity, isSettingsOpen, openSettings } = useActivity();
   const { openTab } = useTabs();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
   const { settings } = useAppSettings();
   const [showLibrary, setShowLibrary] = useState(false);
+  const [codexModelMenu, setCodexModelMenu] = useState<{ x: number; y: number; selectedModel: string } | null>(null);
   const agents = settings.agents ?? { claude: true, codex: true, pi: true, productivity: true, order: ['claude', 'codex', 'pi', 'productivity'] as AgentKey[] };
   const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi', 'productivity'];
 
@@ -35,6 +49,19 @@ export const ActivityBar: React.FC = () => {
   };
   const handleOpenTerminal = () => openTab({ type: 'terminal', title: 'Terminal' });
 
+  const launchCodexWithModel = (model: string) => {
+    const selectedModel = normalizeProductivityCodexModel(model);
+    localStorage.setItem('productivity-model', selectedModel);
+    openTab({ type: 'codex', title: `Codex (${selectedModel})`, command: `codex -m ${selectedModel}\n` });
+  };
+
+  useEffect(() => {
+    if (!codexModelMenu) return;
+    const close = () => setCodexModelMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [codexModelMenu]);
+
   return (
     <>
       <div style={{ width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, paddingBottom: 8, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', zIndex: 50, flexShrink: 0, height: '100%' }}>
@@ -47,10 +74,29 @@ export const ActivityBar: React.FC = () => {
           <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
           {order.filter(k => agents[k]).map(key => {
             const a = AGENT_META[key];
+            if (key === 'codex') {
+              return (
+                <ActivityButton
+                  key={key}
+                  icon={a.icon}
+                  title="Codex (right-click for model)"
+                  onClick={() => openTab({ type: key, title: a.title, command: a.command })}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setCodexModelMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      selectedModel: normalizeProductivityCodexModel(localStorage.getItem('productivity-model')),
+                    });
+                  }}
+                />
+              );
+            }
             return (
               <ActivityButton
                 key={key}
                 icon={a.icon}
+                title={a.title}
                 onClick={() => openTab({ type: key, title: a.title, command: a.command })}
               />
             );
@@ -61,6 +107,52 @@ export const ActivityBar: React.FC = () => {
           <ActivityButton icon={<Settings size={18} />} active={isSettingsOpen} onClick={openSettings} />
         </div>
       </div>
+      {codexModelMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: codexModelMenu.x,
+            top: codexModelMenu.y,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: 'var(--shadow-md)',
+            zIndex: 1000,
+            padding: 4,
+            minWidth: 220,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {PRODUCTIVITY_CODEX_MODELS.map(model => (
+            <button
+              key={model.id}
+              onClick={() => {
+                launchCodexWithModel(model.id);
+                setCodexModelMenu(null);
+              }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                textAlign: 'left',
+                padding: '8px 10px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span>{model.label}</span>
+              {codexModelMenu.selectedModel === model.id && <span style={{ color: 'var(--accent)', fontSize: 12 }}>Selected</span>}
+            </button>
+          ))}
+        </div>
+      )}
       {showLibrary && <LibraryModal onClose={() => setShowLibrary(false)} />}
     </>
   );
@@ -69,14 +161,18 @@ export const ActivityBar: React.FC = () => {
 interface ActivityButtonProps {
   icon: React.ReactNode;
   active?: boolean;
+  title?: string;
   onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-const ActivityButton: React.FC<ActivityButtonProps> = ({ icon, active, onClick }) => {
+const ActivityButton: React.FC<ActivityButtonProps> = ({ icon, active, title, onClick, onContextMenu }) => {
   const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={onClick}
+      onContextMenu={onContextMenu}
+      title={title}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{

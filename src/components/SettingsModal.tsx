@@ -17,12 +17,12 @@ const CATEGORIES = [
 type CategoryId = typeof CATEGORIES[number]['id'];
 
 const PRODUCTIVITY_MODELS = [
-  { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
-  { id: 'gpt-5.1-codex', label: 'Codex — recommended' },
-  { id: 'gpt-5.2-codex', label: 'Codex v2' },
-  { id: 'gpt-5.3-codex', label: 'Codex v3' },
+  { id: 'gpt-5.2', label: 'GPT-5.2 — recommended' },
+  { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
+  { id: 'gpt-5.4', label: 'GPT-5.4' },
+  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
 ] as const;
-const DEFAULT_PRODUCTIVITY_MODEL = 'gpt-5.1-codex';
+const DEFAULT_PRODUCTIVITY_MODEL = 'gpt-5.2';
 
 function normalizeProductivityModel(model: string | null | undefined): string {
   if (model === 'codex-mini-latest') return DEFAULT_PRODUCTIVITY_MODEL;
