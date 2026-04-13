@@ -89,8 +89,8 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
     setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
 
     pushActivity({
-      id: `act_${Date.now()}_analyzing`,
-      type: 'analyzing',
+      id: `act_${Date.now()}_thinking`,
+      type: 'thinking',
       message: 'Processing your request',
       timestamp: Date.now(),
     });
@@ -188,8 +188,8 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
 
     if (toolCalls.length > 0) {
       pushActivity({
-        id: `act_${Date.now()}_planning`,
-        type: 'planning',
+        id: `act_${Date.now()}_thinking_plan`,
+        type: 'thinking',
         message: `Planning ${toolCalls.length} action${toolCalls.length > 1 ? 's' : ''}`,
         timestamp: Date.now(),
       });
@@ -205,11 +205,10 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
             ? args.content.slice(0, 50)
             : JSON.stringify(args).slice(0, 30);
 
-        const toolType = tc.name === 'read_file' ? 'reading' : tc.name === 'write_file' ? 'writing' : tc.name === 'list_files' ? 'listing' : 'planning';
         pushActivity({
           id: `act_${Date.now()}_${tc.name}`,
-          type: toolType,
-          message: `Executing ${tc.name}`,
+          type: 'thinking',
+          message: `Using ${tc.name}`,
           details: detailText,
           timestamp: Date.now(),
         });

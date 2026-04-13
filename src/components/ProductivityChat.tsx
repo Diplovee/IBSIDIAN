@@ -61,6 +61,97 @@ function persistProductivityModel(model: string): string {
   return normalized;
 }
 
+function extractSandcatSegments(text: string): Array<{ name: string; payload: string; start: number; end: number }> {
+  const segments: Array<{ name: string; payload: string; start: number; end: number }> = [];
+  const marker = '(sandcat:';
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const start = text.indexOf(marker, cursor);
+    if (start === -1) break;
+
+    const nameStart = start + marker.length;
+    const nameEnd = text.indexOf(':', nameStart);
+    if (nameEnd === -1) break;
+
+    const name = text.slice(nameStart, nameEnd).trim();
+    let payloadStart = nameEnd + 1;
+    while (payloadStart < text.length && /\s/.test(text[payloadStart])) payloadStart += 1;
+    if (text[payloadStart] !== '{') {
+      cursor = nameEnd + 1;
+      continue;
+    }
+
+    let depth = 0;
+    let payloadEnd = -1;
+    for (let i = payloadStart; i < text.length; i += 1) {
+      const ch = text[i];
+      if (ch === '{') depth += 1;
+      if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          payloadEnd = i;
+          break;
+        }
+      }
+    }
+    if (payloadEnd === -1) break;
+
+    let end = payloadEnd + 1;
+    while (end < text.length && /\s/.test(text[end])) end += 1;
+    if (text[end] === ')') end += 1;
+
+    segments.push({
+      name,
+      payload: text.slice(payloadStart, payloadEnd + 1),
+      start,
+      end,
+    });
+
+    cursor = end;
+  }
+
+  return segments;
+}
+
+function stripSandcatToolMarkup(text: string): string {
+  const withLabels = text.replace(/\[([^\]]+)\]\(sandcat:[\s\S]*?\)/g, '$1');
+  const segments = extractSandcatSegments(withLabels);
+  if (segments.length === 0) return withLabels;
+
+  let out = '';
+  let last = 0;
+  for (const seg of segments) {
+    out += withLabels.slice(last, seg.start);
+    last = seg.end;
+  }
+  out += withLabels.slice(last);
+
+  return out.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function extractEmbeddedVisuals(text: string, sourceId: string): ProductivityMessage[] {
+  const segments = extractSandcatSegments(text);
+  const visuals: ProductivityMessage[] = [];
+
+  segments.forEach((segment, index) => {
+    if (!VISUAL_TOOL_NAMES.has(segment.name)) return;
+    try {
+      const payload = JSON.parse(segment.payload) as Record<string, unknown>;
+      visuals.push({
+        id: `${sourceId}_embedded_${index}`,
+        role: 'tool',
+        toolName: segment.name,
+        content: JSON.stringify(payload),
+      });
+    } catch {
+      // ignore malformed embedded payload
+    }
+  });
+
+  return visuals;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const { openTab } = useTabs();
@@ -463,8 +554,15 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                     i = nextIndex - 1;
 
                     const assistantItems = turnItems.filter(item => item.role === 'assistant');
-                    const visualItems = turnItems.filter(item => item.role === 'tool');
-                    const latestAssistant = assistantItems[assistantItems.length - 1];
+                    const timelineVisualItems = turnItems.filter(item => item.role === 'tool');
+                    const embeddedVisualItems = assistantItems.flatMap(item => extractEmbeddedVisuals(item.content, item.id));
+                    const visualItems = [...timelineVisualItems, ...embeddedVisualItems];
+                    const assistantItemsWithCleanContent = assistantItems.map(item => ({
+                      ...item,
+                      content: stripSandcatToolMarkup(item.content),
+                    }));
+                    const latestAssistant = [...assistantItemsWithCleanContent].reverse().find(item => item.content.trim().length > 0);
+                    const hasAssistantText = assistantItemsWithCleanContent.some(item => item.content.trim().length > 0);
                     const isLatestTurn = nextIndex >= visibleMessages.length;
 
                     rows.push(
@@ -481,8 +579,8 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                             </div>
                           )}
 
-                          {assistantItems.map((assistantItem, index) => (
-                            assistantItem.content ? (
+                          {assistantItemsWithCleanContent.map((assistantItem, index) => (
+                            assistantItem.content.trim().length > 0 ? (
                               <div key={assistantItem.id} style={{ color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '0 6px', marginTop: index > 0 ? 10 : 0 }}>
                                 <StyledMarkdown text={assistantItem.content} onLink={handleLink} />
                               </div>
@@ -490,7 +588,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                           ))}
 
                           {visualItems.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: assistantItems.some(item => item.content) ? 8 : 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: hasAssistantText ? 8 : 0 }}>
                               {visualItems.map(toolMessage => (
                                 <ToolVisualization key={toolMessage.id} message={toolMessage} />
                               ))}
