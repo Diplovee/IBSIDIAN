@@ -48,6 +48,23 @@ function toApiInput(msgs: ProductivityMessage[]): any[] {
   return result;
 }
 
+function describeToolStep(name: string, args: Record<string, unknown>): { message: string; details?: string } {
+  const path = typeof args.path === 'string' ? args.path : undefined;
+  const title = typeof args.title === 'string' ? args.title : undefined;
+
+  if (name === 'read_file') return { message: `Thinking: reading ${path ?? 'file'}`, details: path };
+  if (name === 'write_file') return { message: `Thinking: updating ${path ?? 'file'}`, details: path };
+  if (name === 'list_files') return { message: 'Thinking: scanning vault files' };
+  if (name === 'create_table') return { message: `Thinking: building table${title ? ` (${title})` : ''}`, details: title };
+  if (name === 'create_pie_chart') return { message: `Thinking: building pie chart${title ? ` (${title})` : ''}`, details: title };
+  if (name === 'create_graph') {
+    const graphType = args.graphType === 'line' ? 'line graph' : 'bar graph';
+    return { message: `Thinking: building ${graphType}${title ? ` (${title})` : ''}`, details: title };
+  }
+
+  return { message: `Thinking: using ${name}` };
+}
+
 export async function runProductivityAgent(params: RunProductivityAgentParams): Promise<void> {
   const {
     creds,
@@ -199,17 +216,13 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.args); } catch { /* ignore */ }
 
-        const detailText = typeof args.path === 'string'
-          ? args.path
-          : typeof args.content === 'string'
-            ? args.content.slice(0, 50)
-            : JSON.stringify(args).slice(0, 30);
+        const toolStep = describeToolStep(tc.name, args);
 
         pushActivity({
           id: `act_${Date.now()}_${tc.name}`,
           type: 'thinking',
-          message: `Using ${tc.name}`,
-          details: detailText,
+          message: toolStep.message,
+          details: toolStep.details,
           timestamp: Date.now(),
         });
 
