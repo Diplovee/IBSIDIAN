@@ -350,7 +350,7 @@ const AgentsPanel: React.FC = () => {
                 draggable
                 onDragStart={e => handleDragStart(e, key)}
                 style={{
-                  width: 130, flexShrink: 0,
+                  flex: '1 1 0', minWidth: 0,
                   padding: '16px 12px',
                   borderRadius: 10,
                   border: `1.5px solid ${enabled ? accentColor : 'var(--border)'}`,
