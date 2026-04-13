@@ -409,66 +409,101 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
             <div ref={scrollAreaRef} style={{ flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
               <div style={{ maxWidth: 720, margin: '0 auto', padding: '8px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {(() => {
-                  const assistantMsgs = messages.filter(m => m.role === 'assistant');
+                  const visibleMessages = messages.filter(msg => msg.role !== 'tool' || VISUAL_TOOL_NAMES.has(msg.toolName ?? ''));
+                  const assistantMsgs = visibleMessages.filter(m => m.role === 'assistant');
                   const lastAssistantId = assistantMsgs.length > 0 ? assistantMsgs[assistantMsgs.length - 1].id : null;
-                  return messages
-                    .filter(msg => msg.role !== 'tool' || VISUAL_TOOL_NAMES.has(msg.toolName ?? ''))
-                    .map(msg => (
-                      <div key={msg.id}>
-                        {msg.role === 'user' ? (
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <div style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px' }}>
-                              {msg.mentions && msg.mentions.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                                  {msg.mentions.map(m => (
-                                    <button
-                                      key={m.path}
-                                      onClick={() => openTab({ type: 'file', path: m.path, title: m.title })}
-                                      style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 3,
-                                        padding: '2px 6px 2px 8px',
-                                        borderRadius: 4,
-                                        background: 'rgba(139, 92, 246, 0.15)',
-                                        border: '1px solid rgba(139, 92, 246, 0.3)',
-                                        color: '#8B5CF6',
-                                        fontSize: 10,
-                                        cursor: 'pointer',
-                                      }}
-                                    >
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                        <polyline points="14 2 14 8 20 8" />
-                                      </svg>
-                                      <span style={{ fontWeight: 500 }}>{m.title}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                              <RichText text={msg.content} onLink={handleLink} />
-                            </div>
-                          </div>
-                        ) : msg.role === 'assistant' ? (
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            {activities.length > 0 && msg.id === lastAssistantId && (
-                              <AgentActivityTimeline
-                                activities={activities}
-                                isActive={isStreaming}
-                                collapsed={timelineCollapsed}
-                                onToggleCollapse={() => setTimelineCollapsed(c => !c)}
-                              />
+                  const rows: React.ReactNode[] = [];
+
+                  for (let i = 0; i < visibleMessages.length; i += 1) {
+                    const msg = visibleMessages[i];
+
+                    if (msg.role === 'user') {
+                      rows.push(
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <div style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px' }}>
+                            {msg.mentions && msg.mentions.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                                {msg.mentions.map(m => (
+                                  <button
+                                    key={m.path}
+                                    onClick={() => openTab({ type: 'file', path: m.path, title: m.title })}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                      padding: '2px 6px 2px 8px',
+                                      borderRadius: 4,
+                                      background: 'rgba(139, 92, 246, 0.15)',
+                                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                                      color: '#8B5CF6',
+                                      fontSize: 10,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14 2 14 8 20 8" />
+                                    </svg>
+                                    <span style={{ fontWeight: 500 }}>{m.title}</span>
+                                  </button>
+                                ))}
+                              </div>
                             )}
-                            <div style={{ alignSelf: 'flex-start', maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', padding: '10px 18px', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 }}>
+                            <RichText text={msg.content} onLink={handleLink} />
+                          </div>
+                        </div>
+                      );
+                      continue;
+                    }
+
+                    if (msg.role === 'assistant') {
+                      const visualMessages: typeof visibleMessages = [];
+                      let nextIndex = i + 1;
+                      while (nextIndex < visibleMessages.length && visibleMessages[nextIndex].role === 'tool') {
+                        visualMessages.push(visibleMessages[nextIndex]);
+                        nextIndex += 1;
+                      }
+                      i = nextIndex - 1;
+
+                      const isLastAssistant = msg.id === lastAssistantId;
+                      rows.push(
+                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+                          <div style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '10px 12px' }}>
+                            {activities.length > 0 && isLastAssistant && (
+                              <div style={{ position: isStreaming ? 'sticky' : 'static', top: 8, zIndex: 1, marginBottom: 10 }}>
+                                <AgentActivityTimeline
+                                  activities={activities}
+                                  isActive={isStreaming}
+                                  collapsed={timelineCollapsed}
+                                  onToggleCollapse={() => setTimelineCollapsed(c => !c)}
+                                />
+                              </div>
+                            )}
+                            <div style={{ color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '0 6px' }}>
                               <StyledMarkdown text={msg.content} onLink={handleLink} />
                             </div>
-                            {msg.content && <MessageActions content={msg.content} />}
+                            {visualMessages.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                                {visualMessages.map(toolMessage => (
+                                  <ToolVisualization key={toolMessage.id} message={toolMessage} />
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <ToolVisualization message={msg} />
-                        )}
+                          {msg.content && <MessageActions content={msg.content} />}
+                        </div>
+                      );
+                      continue;
+                    }
+
+                    rows.push(
+                      <div key={msg.id}>
+                        <ToolVisualization message={msg} />
                       </div>
-                    ));
+                    );
+                  }
+
+                  return rows;
                 })()}
                  {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
                    <div><TypingDots /></div>
