@@ -1,17 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, Search, RotateCcw, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Zap, LogOut, ChevronDown, ChevronRight, Pin } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Zap, LogOut, ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import { ProductivityIcon, CodexIcon } from './AgentIcons';
 import { AgentActivityTimeline, AgentActivityItem } from './AgentActivityIndicator';
 import { FileMentionInput, FileMention } from './FileMentionInput';
+import { MessageActions, RichText, StyledMarkdown, ToolVisualization, TypingDots } from './productivity/renderers';
+import { VAULT_TOOLS, VISUAL_TOOL_NAMES, runTool } from './productivity/tools';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import type { Tab } from '../types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface FileMention {
-  path: string;
-  title: string;
-}
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'tool';
@@ -80,138 +78,6 @@ async function getValidToken(creds: Creds, setCreds: (c: Creds) => void): Promis
   setCreds(refreshed);
   return refreshed.access;
 }
-
-// ── Tool definitions for the Codex Responses API ─────────────────────────────
-const VAULT_TOOLS = [
-  {
-    type: 'function' as const,
-    name: 'read_file',
-    description: 'Read the content of a file in the vault. Use relative paths like "daily.md" or "folder/note.md".',
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string', description: 'Relative path to the file inside the vault' } },
-      required: ['path'],
-    },
-  },
-  {
-    type: 'function' as const,
-    name: 'write_file',
-    description: 'Create or overwrite a file in the vault with the given content.',
-    parameters: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: 'Relative path to write, e.g. "notes/todo.md"' },
-        content: { type: 'string', description: 'Full file content to write' },
-      },
-      required: ['path', 'content'],
-    },
-  },
-  {
-    type: 'function' as const,
-    name: 'list_files',
-    description: 'List all files and folders in the vault as a JSON tree.',
-    parameters: { type: 'object', properties: {} },
-  },
-];
-
-async function runTool(name: string, args: Record<string, string>): Promise<string> {
-  try {
-    if (name === 'read_file') {
-      return await window.api.files.read(args['path'] ?? '');
-    }
-    if (name === 'write_file') {
-      await window.api.files.write(args['path'] ?? '', args['content'] ?? '');
-      return `File "${args['path']}" written successfully.`;
-    }
-    if (name === 'list_files') {
-      const tree = await window.api.files.tree();
-      return JSON.stringify(tree, null, 2);
-    }
-    return `Unknown tool: ${name}`;
-  } catch (err) {
-    return `Error: ${err instanceof Error ? err.message : String(err)}`;
-  }
-}
-
-// ── Render text with bold + clickable URLs ────────────────────────────────────
-const RichText: React.FC<{ text: string; onLink: (url: string) => void }> = ({ text, onLink }) => {
-  const URL_RE = /https?:\/\/[^\s)\]>]+/g;
-  const BOLD_RE = /\*\*([^*]+)\*\*/g;
-
-  const lines = text.split('\n');
-  return (
-    <>
-      {lines.map((line, i) => {
-        const segments: React.ReactNode[] = [];
-        let last = 0;
-        const combined = new RegExp(`${URL_RE.source}|${BOLD_RE.source}`, 'g');
-        let m: RegExpExecArray | null;
-        combined.lastIndex = 0;
-        while ((m = combined.exec(line)) !== null) {
-          if (m.index > last) segments.push(<span key={`t${m.index}`}>{line.slice(last, m.index)}</span>);
-          if (m[0].startsWith('http')) {
-            const url = m[0];
-            segments.push(
-              <span
-                key={`u${m.index}`}
-                onClick={() => onLink(url)}
-                style={{ color: '#8B5CF6', cursor: 'pointer', textDecoration: 'underline' }}
-                title={url}
-              >
-                {url}
-              </span>
-            );
-          } else if (m[1]) {
-            segments.push(<strong key={`b${m.index}`}>{m[1]}</strong>);
-          }
-          last = m.index + m[0].length;
-        }
-        if (last < line.length) segments.push(<span key={`te${i}`}>{line.slice(last)}</span>);
-        return (
-          <React.Fragment key={i}>
-            {i > 0 && <br />}
-            {segments}
-          </React.Fragment>
-        );
-      })}
-    </>
-  );
-};
-
-// ── Action button row ─────────────────────────────────────────────────────────
-const MessageActions: React.FC<{ content: string }> = ({ content }) => {
-  const [copied, setCopied] = useState(false);
-  const [liked, setLiked] = useState<null | 'up' | 'down'>(null);
-  const btn = (el: React.ReactNode, onClick?: () => void, active = false) => (
-    <button
-      onClick={onClick}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 5px', borderRadius: 6, color: active ? 'var(--text-primary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', transition: 'color 0.1s' }}
-      onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
-      onMouseLeave={e => (e.currentTarget.style.color = active ? 'var(--text-primary)' : 'var(--text-muted)')}
-    >{el}</button>
-  );
-  return (
-    <div style={{ display: 'flex', gap: 2, marginTop: 6, marginLeft: 2 }}>
-      {btn(<Copy size={14} />, () => { navigator.clipboard.writeText(content).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); })}
-      {copied && <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 2 }}>Copied</span>}
-      {btn(<ThumbsUp size={14} />, () => setLiked(l => l === 'up' ? null : 'up'), liked === 'up')}
-      {btn(<ThumbsDown size={14} />, () => setLiked(l => l === 'down' ? null : 'down'), liked === 'down')}
-      {btn(<Share2 size={14} />)}
-      {btn(<RotateCcw size={14} />)}
-      {btn(<MoreHorizontal size={14} />)}
-    </div>
-  );
-};
-
-// ── Typing dots ───────────────────────────────────────────────────────────────
-const TypingDots: React.FC = () => (
-  <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
-    <style>{`@keyframes _pcDot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-4px)}}`}</style>
-    {[0, 1, 2].map(i => (
-      <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--text-muted)', animation: `_pcDot 1.2s ease-in-out ${i * 0.16}s infinite` }} />
-    ))}
-  </div>
-);
 
 // ── Input bar ─────────────────────────────────────────────────────────────────
 const InputBar: React.FC<{ onSend: (text: string) => void; disabled?: boolean }> = ({ onSend, disabled }) => {
@@ -631,18 +497,30 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const [selectedModel, setSelectedModel] = useState<string>(
     () => normalizeModelId(localStorage.getItem('productivity-model'))
   );
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const mentionsRef = useRef<FileMention[]>([]);
 
-  // Reset timeline state on new request
-  useEffect(() => {
-    if (!isStreaming && activities.length > 0) {
-      const timer = setTimeout(() => {
-        setTimelineCollapsed(true);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isStreaming, activities]);
+  const addMention = useCallback((mention: FileMention) => {
+    setMentions(prev => {
+      if (prev.some(item => item.path === mention.path)) {
+        mentionsRef.current = prev;
+        return prev;
+      }
+      const next = [...prev, mention];
+      mentionsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const removeMention = useCallback((path: string) => {
+    setMentions(prev => {
+      const next = prev.filter(item => item.path !== path);
+      mentionsRef.current = next;
+      return next;
+    });
+  }, []);
 
   // Projects = top-level vault folders
   const projects = nodes.filter(n => n.type === 'folder').map(n => n.name);
@@ -650,7 +528,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   // File options for mention dropdown
   const fileOptions = nodes
     .filter(n => n.type === 'file')
-    .map(n => ({ path: n.path, name: n.name }));
+    .map(n => ({ path: n.id, name: n.name }));
 
   // Load stored credentials on mount
   useEffect(() => {
@@ -688,9 +566,17 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     return () => { if (saveRef.current) clearTimeout(saveRef.current); };
   }, [sessions, vault]);
 
-  // Auto-scroll
+  // Auto-scroll (keep anchored without smooth jump)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scroller = scrollAreaRef.current;
+    if (!scroller) return;
+
+    const distanceToBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    const shouldStickToBottom = isStreaming || distanceToBottom < 140;
+
+    if (shouldStickToBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
   }, [messages, isStreaming]);
 
   const handleNewChat = useCallback(() => {
@@ -700,6 +586,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     setActivities([]);
     setTimelineCollapsed(true);
     setMentions([]);
+    mentionsRef.current = [];
     setInputValue('');
   }, []);
 
@@ -711,6 +598,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     setActivities(session?.activities ?? []);
     setTimelineCollapsed(true);
     setMentions([]);
+    mentionsRef.current = [];
     setInputValue('');
   }, [sessions]);
 
@@ -748,11 +636,22 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
     const trimmedText = text.trim();
     if (!trimmedText) return;
-    const safeMentions = Array.isArray(currentMentions) ? currentMentions : [];
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: trimmedText, mentions: safeMentions.length > 0 ? safeMentions : undefined };
     let currentSessionId = activeSessionId;
     const baseMessages = currentSessionId ? messages : [];
+    const safeMentions = Array.isArray(currentMentions) ? currentMentions : [];
+    const isFileReference = /\b(the|this|that)\s+files?\b/i.test(trimmedText);
+    const inferredMentions = (safeMentions.length === 0 && isFileReference)
+      ? [...baseMessages].reverse().find(message => message.role === 'user' && message.mentions && message.mentions.length > 0)?.mentions ?? []
+      : [];
+    const effectiveMentions = safeMentions.length > 0 ? safeMentions : inferredMentions;
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: trimmedText,
+      mentions: effectiveMentions.length > 0 ? effectiveMentions : undefined,
+    };
     const currentMessages: Message[] = [...baseMessages, userMsg];
 
     setInputValue('');
@@ -772,13 +671,14 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     setActivities([]);
     setTimelineCollapsed(true);
     setMentions([]);
+    mentionsRef.current = [];
     
     // Build mention context for system prompt
-    const mentionContext = safeMentions.length > 0 
-      ? `\nUser mentioned the following files: ${safeMentions.map(m => `@${m.path}`).join(', ')}. You can use read_file to access them if needed.`
+    const mentionContext = effectiveMentions.length > 0 
+      ? `\nUser mentioned the following files: ${effectiveMentions.map(m => `@${m.path}`).join(', ')}. You can use read_file to access them if needed.`
       : '';
 
-    const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
+    const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. You can also generate visual outputs using tools (tables, pie charts, and graphs). Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
 
     // Build input array for the Codex Responses API
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -787,7 +687,14 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       const result: any[] = [];
       for (const m of msgs) {
         if (m.role === 'user') {
-          result.push({ role: 'user', content: [{ type: 'input_text', text: m.content }] });
+          const content = [{ type: 'input_text', text: m.content }];
+          if (m.mentions && m.mentions.length > 0) {
+            content.push({
+              type: 'input_text',
+              text: `Mentioned files: ${m.mentions.map(mention => `@${mention.path}`).join(', ')}. If the request refers to these files, use read_file with the exact path.`,
+            });
+          }
+          result.push({ role: 'user', content });
         } else if (m.role === 'assistant' && m.content) {
           result.push({ role: 'assistant', content: [{ type: 'output_text', text: m.content }] });
         } else if (m.role === 'tool') {
@@ -935,9 +842,15 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
         const toolResultMsgs: Message[] = [];
         for (const tc of toolCalls) {
-          let args: Record<string, string> = {};
+          let args: Record<string, unknown> = {};
           try { args = JSON.parse(tc.args); } catch { /* ignore */ }
-          
+
+          const detailText = typeof args.path === 'string'
+            ? args.path
+            : typeof args.content === 'string'
+              ? args.content.slice(0, 50)
+              : JSON.stringify(args).slice(0, 30);
+
           // Add tool execution activity
           const toolType = tc.name === 'read_file' ? 'reading' : tc.name === 'write_file' ? 'writing' : tc.name === 'list_files' ? 'listing' : 'planning';
           const toolActivityId = `act_${Date.now()}_${tc.name}`;
@@ -945,7 +858,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
             id: toolActivityId,
             type: toolType,
             message: `Executing ${tc.name}`,
-            details: args.path || args.content?.slice(0, 50) || JSON.stringify(args).slice(0, 30),
+            details: detailText,
             timestamp: Date.now(),
           }]);
 
@@ -1107,75 +1020,79 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
             <FileMentionInput 
               value={inputValue} 
               onChange={setInputValue}
-              onSend={() => handleSend(inputValue, mentions)}
+              onSend={() => handleSend(inputValue, mentionsRef.current)}
               disabled={isStreaming || !creds}
               mentions={mentions}
-              onAddMention={(m) => setMentions(prev => [...prev, m])}
-              onRemoveMention={(path) => setMentions(prev => prev.filter(x => x.path !== path))}
+              onAddMention={addMention}
+              onRemoveMention={removeMention}
               fileOptions={fileOptions}
             />
           </div>
         ) : (
           <>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
+            <div ref={scrollAreaRef} style={{ flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
               <div style={{ maxWidth: 720, margin: '0 auto', padding: '8px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {(() => {
                   const assistantMsgs = messages.filter(m => m.role === 'assistant');
                   const lastAssistantId = assistantMsgs.length > 0 ? assistantMsgs[assistantMsgs.length - 1].id : null;
-                  return messages.filter(m => m.role !== 'tool').map(msg => (
-                    <div key={msg.id}>
-                      {msg.role === 'user' ? (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <div style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px' }}>
-                            {msg.mentions && msg.mentions.length > 0 && (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                                {msg.mentions.map(m => (
-                                  <button
-                                    key={m.path}
-                                    onClick={() => openTab({ type: 'file', path: m.path, title: m.title })}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 3,
-                                      padding: '2px 6px 2px 8px',
-                                      borderRadius: 4,
-                                      background: 'rgba(139, 92, 246, 0.15)',
-                                      border: '1px solid rgba(139, 92, 246, 0.3)',
-                                      color: '#8B5CF6',
-                                      fontSize: 10,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                      <polyline points="14 2 14 8 20 8" />
-                                    </svg>
-                                    <span style={{ fontWeight: 500 }}>{m.title}</span>
-                                  </button>
-                                ))}
-                              </div>
+                  return messages
+                    .filter(msg => msg.role !== 'tool' || VISUAL_TOOL_NAMES.has(msg.toolName ?? ''))
+                    .map(msg => (
+                      <div key={msg.id}>
+                        {msg.role === 'user' ? (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <div style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px' }}>
+                              {msg.mentions && msg.mentions.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                                  {msg.mentions.map(m => (
+                                    <button
+                                      key={m.path}
+                                      onClick={() => openTab({ type: 'file', path: m.path, title: m.title })}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 3,
+                                        padding: '2px 6px 2px 8px',
+                                        borderRadius: 4,
+                                        background: 'rgba(139, 92, 246, 0.15)',
+                                        border: '1px solid rgba(139, 92, 246, 0.3)',
+                                        color: '#8B5CF6',
+                                        fontSize: 10,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                        <polyline points="14 2 14 8 20 8" />
+                                      </svg>
+                                      <span style={{ fontWeight: 500 }}>{m.title}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <RichText text={msg.content} onLink={handleLink} />
+                            </div>
+                          </div>
+                        ) : msg.role === 'assistant' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            {activities.length > 0 && msg.id === lastAssistantId && (
+                              <AgentActivityTimeline
+                                activities={activities}
+                                isActive={isStreaming}
+                                collapsed={timelineCollapsed}
+                                onToggleCollapse={() => setTimelineCollapsed(c => !c)}
+                              />
                             )}
-                            <RichText text={msg.content} onLink={handleLink} />
+                            <div style={{ alignSelf: 'flex-start', maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', padding: '10px 18px', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 }}>
+                              <StyledMarkdown text={msg.content} onLink={handleLink} />
+                            </div>
+                            {msg.content && <MessageActions content={msg.content} />}
                           </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          {activities.length > 0 && msg.id === lastAssistantId && (
-                            <AgentActivityTimeline
-                              activities={activities}
-                              isActive={isStreaming}
-                              collapsed={timelineCollapsed}
-                              onToggleCollapse={() => setTimelineCollapsed(c => !c)}
-                            />
-                          )}
-                          <div style={{ alignSelf: 'flex-start', maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', padding: '10px 18px', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 }}>
-                            <RichText text={msg.content} onLink={handleLink} />
-                          </div>
-                          {msg.content && <MessageActions content={msg.content} />}
-                        </div>
-                      )}
-                    </div>
-                  ));
+                        ) : (
+                          <ToolVisualization message={msg} />
+                        )}
+                      </div>
+                    ));
                 })()}
                  {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
                    <div><TypingDots /></div>
@@ -1187,11 +1104,11 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
             <FileMentionInput 
               value={inputValue} 
               onChange={setInputValue}
-              onSend={() => handleSend(inputValue, mentions)}
+              onSend={() => handleSend(inputValue, mentionsRef.current)}
               disabled={isStreaming || !creds}
               mentions={mentions}
-              onAddMention={(m) => setMentions(prev => [...prev, m])}
-              onRemoveMention={(path) => setMentions(prev => prev.filter(x => x.path !== path))}
+              onAddMention={addMention}
+              onRemoveMention={removeMention}
               fileOptions={fileOptions}
             />
             </div>

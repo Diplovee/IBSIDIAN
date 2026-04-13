@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.20] - 2026-04-13
+
+### Added
+- Productivity chat visualization tools: `create_table`, `create_pie_chart`, and `create_graph`
+- Interactive tool result cards in chat for tables, pie charts, and graphs
+
+### Changed
+- Refactored `ProductivityChat.tsx` by extracting render/tool logic into:
+  - `src/components/productivity/renderers.tsx`
+  - `src/components/productivity/tools.ts`
+
+### Fixed
+- File mentions now pass vault-relative paths from `VaultNode.id` so referenced files resolve correctly
+- Follow-up prompts like "the file" can reuse the latest mentioned file context in-session
+
 ## [2026.5.19] - 2026-04-13
 
 ### Fixed
