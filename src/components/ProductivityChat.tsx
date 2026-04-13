@@ -410,8 +410,6 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
               <div style={{ maxWidth: 720, margin: '0 auto', padding: '8px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {(() => {
                   const visibleMessages = messages.filter(msg => msg.role !== 'tool' || VISUAL_TOOL_NAMES.has(msg.toolName ?? ''));
-                  const assistantMsgs = visibleMessages.filter(m => m.role === 'assistant');
-                  const lastAssistantId = assistantMsgs.length > 0 ? assistantMsgs[assistantMsgs.length - 1].id : null;
                   const rows: React.ReactNode[] = [];
 
                   for (let i = 0; i < visibleMessages.length; i += 1) {
@@ -456,49 +454,50 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                       continue;
                     }
 
-                    if (msg.role === 'assistant') {
-                      const visualMessages: typeof visibleMessages = [];
-                      let nextIndex = i + 1;
-                      while (nextIndex < visibleMessages.length && visibleMessages[nextIndex].role === 'tool') {
-                        visualMessages.push(visibleMessages[nextIndex]);
-                        nextIndex += 1;
-                      }
-                      i = nextIndex - 1;
-
-                      const isLastAssistant = msg.id === lastAssistantId;
-                      rows.push(
-                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-                          <div style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', padding: '10px 12px' }}>
-                            {activities.length > 0 && isLastAssistant && (
-                              <div style={{ position: isStreaming ? 'sticky' : 'static', top: 8, zIndex: 1, marginBottom: 10 }}>
-                                <AgentActivityTimeline
-                                  activities={activities}
-                                  isActive={isStreaming}
-                                  collapsed={timelineCollapsed}
-                                  onToggleCollapse={() => setTimelineCollapsed(c => !c)}
-                                />
-                              </div>
-                            )}
-                            <div style={{ color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '0 6px' }}>
-                              <StyledMarkdown text={msg.content} onLink={handleLink} />
-                            </div>
-                            {visualMessages.length > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-                                {visualMessages.map(toolMessage => (
-                                  <ToolVisualization key={toolMessage.id} message={toolMessage} />
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {msg.content && <MessageActions content={msg.content} />}
-                        </div>
-                      );
-                      continue;
+                    const turnItems: typeof visibleMessages = [];
+                    let nextIndex = i;
+                    while (nextIndex < visibleMessages.length && visibleMessages[nextIndex].role !== 'user') {
+                      turnItems.push(visibleMessages[nextIndex]);
+                      nextIndex += 1;
                     }
+                    i = nextIndex - 1;
+
+                    const assistantItems = turnItems.filter(item => item.role === 'assistant');
+                    const visualItems = turnItems.filter(item => item.role === 'tool');
+                    const latestAssistant = assistantItems[assistantItems.length - 1];
+                    const isLatestTurn = nextIndex >= visibleMessages.length;
 
                     rows.push(
-                      <div key={msg.id}>
-                        <ToolVisualization message={msg} />
+                      <div key={`turn_${turnItems[0]?.id ?? i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', padding: '10px 12px' }}>
+                          {activities.length > 0 && isLatestTurn && (
+                            <div style={{ position: isStreaming ? 'sticky' : 'static', top: 8, zIndex: 1, marginBottom: 10 }}>
+                              <AgentActivityTimeline
+                                activities={activities}
+                                isActive={isStreaming}
+                                collapsed={timelineCollapsed}
+                                onToggleCollapse={() => setTimelineCollapsed(c => !c)}
+                              />
+                            </div>
+                          )}
+
+                          {assistantItems.map((assistantItem, index) => (
+                            assistantItem.content ? (
+                              <div key={assistantItem.id} style={{ color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '0 6px', marginTop: index > 0 ? 10 : 0 }}>
+                                <StyledMarkdown text={assistantItem.content} onLink={handleLink} />
+                              </div>
+                            ) : null
+                          ))}
+
+                          {visualItems.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: assistantItems.some(item => item.content) ? 8 : 0 }}>
+                              {visualItems.map(toolMessage => (
+                                <ToolVisualization key={toolMessage.id} message={toolMessage} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {latestAssistant?.content && <MessageActions content={latestAssistant.content} />}
                       </div>
                     );
                   }
