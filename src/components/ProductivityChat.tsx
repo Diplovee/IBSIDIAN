@@ -5,6 +5,7 @@ import { AgentActivityTimeline, AgentActivityItem } from './AgentActivityIndicat
 import { FileMentionInput, FileMention } from './FileMentionInput';
 import { MessageActions, RichText, StyledMarkdown, ToolVisualization, TypingDots } from './productivity/renderers';
 import { LoginModal, ModelPicker, Sidebar } from './productivity/ui';
+import { runProductivityAgent } from './productivity/agent';
 import { VAULT_TOOLS, VISUAL_TOOL_NAMES, runTool } from './productivity/tools';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
@@ -70,13 +71,6 @@ function persistProductivityModel(model: string): string {
   const normalized = normalizeModelId(model);
   localStorage.setItem('productivity-model', normalized);
   return normalized;
-}
-
-async function getValidToken(creds: Creds, setCreds: (c: Creds) => void): Promise<string> {
-  if (Date.now() < creds.expires - 60_000) return creds.access;
-  const refreshed = await window.api.auth.codexRefresh();
-  setCreds(refreshed);
-  return refreshed.access;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -281,235 +275,27 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
     const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. You can also generate visual outputs using tools (tables, pie charts, and graphs). Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
 
-    // Build input array for the Codex Responses API
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toApiInput = (msgs: Message[]): any[] => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any[] = [];
-      for (const m of msgs) {
-        if (m.role === 'user') {
-          const content = [{ type: 'input_text', text: m.content }];
-          if (m.mentions && m.mentions.length > 0) {
-            content.push({
-              type: 'input_text',
-              text: `Mentioned files: ${m.mentions.map(mention => `@${mention.path}`).join(', ')}. If the request refers to these files, use read_file with the exact path.`,
-            });
-          }
-          result.push({ role: 'user', content });
-        } else if (m.role === 'assistant' && m.content) {
-          result.push({ role: 'assistant', content: [{ type: 'output_text', text: m.content }] });
-        } else if (m.role === 'tool') {
-          result.push({ type: 'function_call', call_id: m.toolCallId ?? '', name: m.toolName ?? '', arguments: m.toolArgs ?? '{}' });
-          result.push({ type: 'function_call_output', call_id: m.toolCallId ?? '', output: m.content });
-        }
-      }
-      return result;
-    };
-
-    // Agentic loop: stream → handle tool calls → stream again
-    const agentLoop = async (msgs: Message[], model: string): Promise<void> => {
-      let token = '';
-      try {
-        token = await getValidToken(creds, setCreds);
-      } catch {
-        const errMsg: Message = { id: Date.now().toString(), role: 'assistant', content: 'Failed to refresh credentials. Please sign in again.' };
-        setMessages(prev => [...prev, errMsg]);
-        setIsStreaming(false);
-        return;
-      }
-
-      let assistantContent = '';
-      const assistantId = `a_${Date.now()}`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const toolCalls: any[] = [];
-
-      // Add placeholder BEFORE fetch so errors can replace it
-      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
-      
-      // Add initial activity
-      const analyzingId = `act_${Date.now()}_analyzing`;
-      setActivities(prev => [...prev, {
-        id: analyzingId,
-        type: 'analyzing',
-        message: 'Processing your request',
-        timestamp: Date.now(),
-      }]);
-
-      try {
-        const res = await fetch('https://chatgpt.com/backend-api/codex/responses', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'chatgpt-account-id': creds.accountId,
-            'OpenAI-Beta': 'responses=experimental',
-            'accept': 'text/event-stream',
-            'originator': 'pi',
-          },
-          signal: abortRef.current!.signal,
-          body: JSON.stringify({
-            model,
-            store: false,
-            stream: true,
-            instructions: systemPrompt,
-            input: toApiInput(msgs),
-            tools: VAULT_TOOLS,
-            tool_choice: 'auto',
-            text: { verbosity: 'medium' },
-          }),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => res.statusText);
-          throw new Error(`API error ${res.status}: ${errText}`);
-        }
-
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        if (!reader) throw new Error('No response body');
-
-        let done = false;
-        while (!done) {
-          const { value, done: streamDone } = await reader.read();
-          done = streamDone;
-          if (!value) continue;
-
-          const chunk = decoder.decode(value, { stream: true });
-          for (const line of chunk.split('\n')) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data: ')) continue;
-            const data = trimmed.slice(6);
-            if (data === '[DONE]') { done = true; break; }
-            let parsed: Record<string, unknown>;
-            try { parsed = JSON.parse(data); } catch { continue; }
-
-            const evtType = parsed.type as string | undefined;
-            if (evtType === 'response.output_text.delta') {
-              assistantContent += (parsed.delta as string) ?? '';
-              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m));
-            } else if (evtType === 'response.output_item.done') {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const item = parsed.item as any;
-              if (item?.type === 'function_call') {
-                toolCalls.push({ id: item.call_id, name: item.name, args: item.arguments ?? '{}' });
-              }
-            } else if (evtType === 'response.completed') {
-              done = true;
-            } else if (evtType === 'error') {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const errData = parsed as any;
-              throw new Error(errData.message ?? errData.error?.message ?? 'Stream error');
-            }
-          }
-        }
-
-      } catch (err) {
-        if ((err as Error)?.name === 'AbortError') {
-          if (!assistantContent) setMessages(prev => prev.filter(m => m.id !== assistantId));
-          setIsStreaming(false);
-          return;
-        }
-        const errMsg: Message = { id: assistantId, role: 'assistant', content: `Error: ${err instanceof Error ? err.message : String(err)}` };
-        setMessages(prev => prev.map(m => m.id === assistantId ? errMsg : m));
-        
-        // Add error activity
-        const errorId = `act_${Date.now()}_error`;
-        setActivities(prev => [...prev, {
-          id: errorId,
-          type: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          timestamp: Date.now(),
-        }]);
-        
-        setIsStreaming(false);
-        return;
-      }
-
-      // Finalize assistant message
-      const assistantMsg: Message = { id: assistantId, role: 'assistant', content: assistantContent };
-      let updatedMsgs = [...msgs, assistantMsg];
-      setMessages(prev => prev.map(m => m.id === assistantId ? assistantMsg : m));
-
-      // Handle tool calls
-      if (toolCalls.length > 0) {
-        // Add planning activity
-        const planningId = `act_${Date.now()}_planning`;
-        setActivities(prev => [...prev, {
-          id: planningId,
-          type: 'planning',
-          message: `Planning ${toolCalls.length} action${toolCalls.length > 1 ? 's' : ''}`,
-          timestamp: Date.now(),
-        }]);
-
-        const toolResultMsgs: Message[] = [];
-        for (const tc of toolCalls) {
-          let args: Record<string, unknown> = {};
-          try { args = JSON.parse(tc.args); } catch { /* ignore */ }
-
-          const detailText = typeof args.path === 'string'
-            ? args.path
-            : typeof args.content === 'string'
-              ? args.content.slice(0, 50)
-              : JSON.stringify(args).slice(0, 30);
-
-          // Add tool execution activity
-          const toolType = tc.name === 'read_file' ? 'reading' : tc.name === 'write_file' ? 'writing' : tc.name === 'list_files' ? 'listing' : 'planning';
-          const toolActivityId = `act_${Date.now()}_${tc.name}`;
-          setActivities(prev => [...prev, {
-            id: toolActivityId,
-            type: toolType,
-            message: `Executing ${tc.name}`,
-            details: detailText,
-            timestamp: Date.now(),
-          }]);
-
-          const result = await runTool(tc.name, args);
-          const toolMsg: Message = {
-            id: `tr_${Date.now()}_${tc.id}`,
-            role: 'tool',
-            content: result,
-            toolCallId: tc.id,
-            toolName: tc.name,
-            toolArgs: tc.args,
-          };
-          toolResultMsgs.push(toolMsg);
-        }
-        updatedMsgs = [...updatedMsgs, ...toolResultMsgs];
-        setMessages(prev => [...prev, ...toolResultMsgs]);
-
-        // Add complete activity
-        const completeId = `act_${Date.now()}_complete`;
-        setActivities(prev => [...prev, {
-          id: completeId,
-          type: 'complete',
-          message: 'All actions completed',
-          timestamp: Date.now(),
-        }]);
-
-        // Continue the loop with tool results
-        await agentLoop(updatedMsgs, model);
-        return;
-      }
-
-      // Add complete activity for non-tool-call responses
-      const completeId = `act_${Date.now()}_complete`;
-      setActivities(prev => [...prev, {
-        id: completeId,
-        type: 'complete',
-        message: 'Response complete',
-        timestamp: Date.now(),
-      }]);
-
-      // Save final session messages
-      setMessages(prev => {
-        const finalMsgs = prev;
-        setSessions(ss => ss.map(s => s.id === currentSessionId ? { ...s, title: buildChatTitle(finalMsgs), messages: finalMsgs, activities } : s));
-        return finalMsgs;
-      });
-      setIsStreaming(false);
-    };
-
-    await agentLoop(currentMessages, selectedModel);
+    await runProductivityAgent({
+      creds,
+      setCreds,
+      model: selectedModel,
+      systemPrompt,
+      initialMessages: currentMessages,
+      abortSignal: abortRef.current!.signal,
+      tools: VAULT_TOOLS,
+      runTool,
+      setMessages,
+      setActivities,
+      setIsStreaming,
+      onComplete: (finalMessages, finalActivities) => {
+        setSessions(ss => ss.map(s => s.id === currentSessionId ? {
+          ...s,
+          title: buildChatTitle(finalMessages),
+          messages: finalMessages,
+          activities: finalActivities,
+        } : s));
+      },
+    });
   }, [creds, activeSessionId, selectedModel, messages]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
