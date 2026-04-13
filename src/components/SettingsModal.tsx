@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Sun, Moon, Check, LogOut } from 'lucide-react';
+import { X, Sun, Moon, Check, LogOut, ChevronDown } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
@@ -16,6 +16,20 @@ const CATEGORIES = [
 
 type CategoryId = typeof CATEGORIES[number]['id'];
 
+const PRODUCTIVITY_MODELS = [
+  { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
+  { id: 'gpt-5.1-codex', label: 'Codex — recommended' },
+  { id: 'gpt-5.2-codex', label: 'Codex v2' },
+  { id: 'gpt-5.3-codex', label: 'Codex v3' },
+] as const;
+const DEFAULT_PRODUCTIVITY_MODEL = 'gpt-5.1-codex';
+
+function normalizeProductivityModel(model: string | null | undefined): string {
+  if (model === 'codex-mini-latest') return DEFAULT_PRODUCTIVITY_MODEL;
+  if (PRODUCTIVITY_MODELS.some(option => option.id === model)) return model as string;
+  return DEFAULT_PRODUCTIVITY_MODEL;
+}
+
 const SectionLabel: React.FC<{ children: React.ReactNode; first?: boolean }> = ({ children, first }) => (
   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10, marginTop: first ? 0 : 24 }}>
     {children}
@@ -30,6 +44,51 @@ const OptionBtn: React.FC<{ active: boolean; onClick: () => void; children: Reac
     {children}
   </button>
 );
+
+const ProductivityModelPicker: React.FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const label = PRODUCTIVITY_MODELS.find(model => model.id === value)?.label ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickAway = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickAway);
+    return () => document.removeEventListener('mousedown', handleClickAway);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', marginBottom: 20 }}>
+      <button
+        onClick={() => setOpen(current => !current)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer' }}
+      >
+        <span>{label}</span>
+        <ChevronDown size={14} style={{ opacity: 0.6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.18)', padding: 4, zIndex: 40 }}>
+          {PRODUCTIVITY_MODELS.map(model => (
+            <button
+              key={model.id}
+              onClick={() => {
+                onChange(model.id);
+                setOpen(false);
+              }}
+              style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 7, border: 'none', background: model.id === value ? 'var(--bg-hover)' : 'none', color: model.id === value ? 'var(--text-primary)' : 'var(--text-secondary)', fontSize: 13, cursor: 'pointer' }}
+              onMouseEnter={e => { if (model.id !== value) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { if (model.id !== value) e.currentTarget.style.background = 'none'; }}
+            >
+              {model.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const GeneralPanel: React.FC<{
   appVersion: string;
@@ -349,10 +408,17 @@ const ProductivityPanel: React.FC = () => {
   const [creds, setCreds] = useState<CodexCreds | null | 'loading'>('loading');
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState(() => normalizeProductivityModel(localStorage.getItem('productivity-model')));
 
   useEffect(() => {
     window.api.auth.codexGet().then(c => setCreds(c)).catch(() => setCreds(null));
   }, []);
+
+  useEffect(() => {
+    const normalized = normalizeProductivityModel(selectedModel);
+    localStorage.setItem('productivity-model', normalized);
+    if (normalized !== selectedModel) setSelectedModel(normalized);
+  }, [selectedModel]);
 
   const handleLogin = async () => {
     setLoginPending(true);
@@ -433,19 +499,10 @@ const ProductivityPanel: React.FC = () => {
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
         Choose the Codex model used by the Productivity agent.
       </p>
-      <select
-        defaultValue={localStorage.getItem('productivity-model') ?? 'codex-mini-latest'}
-        onChange={e => localStorage.setItem('productivity-model', e.target.value)}
-        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', marginBottom: 20 }}
-      >
-        {[
-          { id: 'codex-mini-latest', label: 'Codex Mini (Latest) — recommended' },
-          { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
-          { id: 'gpt-5.1-codex', label: 'Codex' },
-          { id: 'gpt-5.2-codex', label: 'Codex v2' },
-          { id: 'gpt-5.3-codex', label: 'Codex v3' },
-        ].map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-      </select>
+      <ProductivityModelPicker
+        value={selectedModel}
+        onChange={value => setSelectedModel(normalizeProductivityModel(value))}
+      />
 
       {/* Coming soon providers */}
       {COMING_SOON.map(p => (

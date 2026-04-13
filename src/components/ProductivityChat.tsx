@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, Search, RotateCcw, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Zap, LogOut } from 'lucide-react';
+import { Plus, Search, RotateCcw, Copy, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Zap, LogOut, ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import { ProductivityIcon, CodexIcon } from './AgentIcons';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
@@ -14,17 +14,17 @@ interface Message {
   toolName?: string;
   toolArgs?: string;
 }
-interface Session { id: string; title: string; messages: Message[]; group: string; }
+interface Session { id: string; title: string; messages: Message[]; group: string; pinned?: boolean; }
 type Creds = { access: string; refresh: string; expires: number; accountId: string };
 
 const CODEX_MODELS = [
-  { id: 'codex-mini-latest', label: 'Codex Mini (Latest)' },
   { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
   { id: 'gpt-5.1-codex', label: 'Codex' },
   { id: 'gpt-5.2-codex', label: 'Codex v2' },
   { id: 'gpt-5.3-codex', label: 'Codex v3' },
 ] as const;
-const DEFAULT_MODEL = 'codex-mini-latest';
+const DEFAULT_MODEL = 'gpt-5.1-codex';
+const MAX_VISIBLE_PROJECTS = 4;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function dateGroup(ts: number): string {
@@ -35,6 +35,36 @@ function dateGroup(ts: number): string {
   if (diffDays === 1) return 'Yesterday';
   if (diffDays <= 7) return 'Previous 7 days';
   return 'Older';
+}
+
+function normalizeModelId(model: string | null | undefined): string {
+  if (model === 'codex-mini-latest') return DEFAULT_MODEL;
+  if (CODEX_MODELS.some(option => option.id === model)) return model as string;
+  return DEFAULT_MODEL;
+}
+
+function buildChatTitle(messages: Message[]): string {
+  const firstUserMessage = messages.find(message => message.role === 'user');
+  const source = firstUserMessage?.content?.trim();
+  if (!source) return 'New chat';
+
+  const cleaned = source
+    .replace(/\s+/g, ' ')
+    .replace(/^(hey|hi|hello|yo)\b[\s,!.:-]*/i, '')
+    .replace(/^(can you|could you|please|help me|i need to|i want to|let'?s)\b[\s,!.:-]*/i, '')
+    .replace(/^(umm+|um+|uh+)\b[\s,!.:-]*/i, '')
+    .trim();
+  const titleSource = cleaned || source;
+  const firstClause = titleSource.split(/[.!?\n]/).find(part => part.trim().length > 0)?.trim() ?? titleSource;
+  const words = firstClause.split(/\s+/).slice(0, 7).join(' ');
+  const titled = words.replace(/\b\w/g, char => char.toUpperCase());
+  return titled.length > 48 ? `${titled.slice(0, 45).trimEnd()}...` : titled;
+}
+
+function persistProductivityModel(model: string): string {
+  const normalized = normalizeModelId(model);
+  localStorage.setItem('productivity-model', normalized);
+  return normalized;
 }
 
 async function getValidToken(creds: Creds, setCreds: (c: Creds) => void): Promise<string> {
@@ -225,6 +255,93 @@ const InputBar: React.FC<{ onSend: (text: string) => void; disabled?: boolean }>
   );
 };
 
+// ── Model picker (custom dropdown) ────────────────────────────────────────────
+const ModelPicker: React.FC<{ value: string; onChange: (v: string) => void; disabled?: boolean }> = ({ value, onChange, disabled }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const label = CODEX_MODELS.find(m => m.id === value)?.label ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => !disabled && setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, cursor: disabled ? 'default' : 'pointer', outline: 'none', opacity: disabled ? 0.5 : 1 }}
+      >
+        {label}
+        <ChevronDown size={12} style={{ opacity: 0.6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', zIndex: 200, minWidth: 160, padding: 4 }}>
+          {CODEX_MODELS.map(m => (
+            <button
+              key={m.id}
+              onClick={() => { onChange(m.id); setOpen(false); }}
+              style={{ width: '100%', textAlign: 'left', padding: '7px 12px', borderRadius: 6, border: 'none', background: m.id === value ? 'var(--bg-hover)' : 'none', color: m.id === value ? 'var(--text-primary)' : 'var(--text-secondary)', fontSize: 13, cursor: 'pointer' }}
+              onMouseEnter={e => { if (m.id !== value) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { if (m.id !== value) e.currentTarget.style.background = 'none'; }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Session context menu ──────────────────────────────────────────────────────
+interface SessCtxMenu { x: number; y: number; id: string }
+
+const SessionContextMenu: React.FC<{
+  menu: SessCtxMenu;
+  session: Session;
+  onClose: () => void;
+  onDelete: (id: string) => void;
+  onRename: (id: string) => void;
+  onPin: (id: string) => void;
+}> = ({ menu, session, onClose, onDelete, onRename, onPin }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x: menu.x, y: menu.y });
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    setPos({ x: menu.x + r.width > vw ? vw - r.width - 8 : menu.x, y: menu.y + r.height > vh ? vh - r.height - 8 : menu.y });
+  }, [menu.x, menu.y]);
+
+  const btn = (label: string, icon: React.ReactNode, action: () => void, danger = false) => (
+    <button
+      key={label}
+      onClick={() => { action(); onClose(); }}
+      style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', border: 'none', background: 'none', color: danger ? '#f87171' : 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', borderRadius: 6 }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+    >{icon}{label}</button>
+  );
+
+  return (
+    <div ref={ref} style={{ position: 'fixed', top: pos.y, left: pos.x, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 9, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 9999, minWidth: 160, padding: 4 }}>
+      {btn(session.pinned ? 'Unpin' : 'Pin', <Pin size={13} />, () => onPin(menu.id))}
+      {btn('Rename', <Pencil size={13} />, () => onRename(menu.id))}
+      {btn('Delete', <MoreHorizontal size={13} />, () => onDelete(menu.id), true)}
+    </div>
+  );
+};
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const Sidebar: React.FC<{
   sessions: Session[];
@@ -232,11 +349,32 @@ const Sidebar: React.FC<{
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
-}> = ({ sessions, projects, activeId, onSelect, onNew }) => {
+  onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onPin: (id: string) => void;
+}> = ({ sessions, projects, activeId, onSelect, onNew, onDelete, onRename, onPin }) => {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const groups = ['Today', 'Yesterday', 'Previous 7 days', 'Older'];
+  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [showAllProjects, setShowAllProjects] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<SessCtxMenu | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const groups = ['Pinned', 'Today', 'Yesterday', 'Previous 7 days', 'Older'];
   const filtered = sessions.filter(s => s.title.toLowerCase().includes(search.toLowerCase()));
+  const visibleProjects = showAllProjects ? projects : projects.slice(0, MAX_VISIBLE_PROJECTS);
+
+  const openCtx = (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, id });
+  };
+
+  const commitRename = (id: string, value: string) => {
+    const nextTitle = value.trim();
+    if (nextTitle) onRename(id, nextTitle);
+    setRenaming(null);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -272,18 +410,50 @@ const Sidebar: React.FC<{
       )}
 
       {projects.length > 0 && (
-        <div style={{ padding: '8px 10px 4px', flexShrink: 0 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', padding: '2px 12px 6px', textTransform: 'uppercase' }}>Projects</div>
-          {projects.map(p => (
-            <button
-              key={p}
-              style={{ width: '100%', textAlign: 'left', padding: '6px 12px', borderRadius: 7, border: 'none', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'background 0.1s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-            >
-              {p}
-            </button>
-          ))}
+        <div style={{ padding: '4px 10px', flexShrink: 0 }}>
+          <button
+            onClick={() => setProjectsOpen(o => !o)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            {projectsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            Projects
+          </button>
+          {projectsOpen && (
+            <>
+              {visibleProjects.map(p => (
+                <button
+                  key={p}
+                  style={{ width: '100%', textAlign: 'left', padding: '5px 12px', borderRadius: 7, border: 'none', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', transition: 'background 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  {p}
+                </button>
+              ))}
+              {projects.length > MAX_VISIBLE_PROJECTS && !showAllProjects && (
+                <button
+                  onClick={() => setShowAllProjects(true)}
+                  style={{ width: '100%', textAlign: 'left', padding: '4px 12px', borderRadius: 6, border: 'none', background: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  …{projects.length - MAX_VISIBLE_PROJECTS} more
+                </button>
+              )}
+              {showAllProjects && projects.length > MAX_VISIBLE_PROJECTS && (
+                <button
+                  onClick={() => setShowAllProjects(false)}
+                  style={{ width: '100%', textAlign: 'left', padding: '4px 12px', borderRadius: 6, border: 'none', background: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  Show less
+                </button>
+              )}
+            </>
+          )}
           <div style={{ width: 'calc(100% - 20px)', margin: '4px 10px', height: 1, background: 'var(--border)' }} />
         </div>
       )}
@@ -293,26 +463,73 @@ const Sidebar: React.FC<{
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', padding: '4px 12px 6px', textTransform: 'uppercase' }}>Recents</div>
         )}
         {groups.map(group => {
-          const items = filtered.filter(s => s.group === group);
+          const items = group === 'Pinned'
+            ? filtered.filter(s => s.pinned)
+            : filtered.filter(s => !s.pinned && s.group === group);
           if (!items.length) return null;
           return (
             <div key={group} style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 12px 4px', opacity: 0.6 }}>{group}</div>
               {items.map(s => (
-                <button
+                <div
                   key={s.id}
-                  onClick={() => onSelect(s.id)}
-                  style={{ width: '100%', textAlign: 'left', padding: '6px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, background: activeId === s.id ? 'var(--bg-hover)' : 'none', color: activeId === s.id ? 'var(--text-primary)' : 'var(--text-secondary)', transition: 'background 0.1s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                  onMouseEnter={e => { if (activeId !== s.id) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { if (activeId !== s.id) e.currentTarget.style.background = 'none'; }}
+                  style={{ position: 'relative' }}
+                  onMouseEnter={() => setHoveredId(s.id)}
+                  onMouseLeave={() => setHoveredId(null)}
                 >
-                  {s.title}
-                </button>
+                  {renaming?.id === s.id ? (
+                    <input
+                      autoFocus
+                      value={renaming.value}
+                      onChange={e => setRenaming(r => r ? { ...r, value: e.target.value } : r)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') commitRename(s.id, renaming.value);
+                        if (e.key === 'Escape') setRenaming(null);
+                      }}
+                      onBlur={() => commitRename(s.id, renaming.value)}
+                      style={{ width: '100%', padding: '5px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => onSelect(s.id)}
+                      onContextMenu={e => openCtx(e, s.id)}
+                      style={{ width: '100%', textAlign: 'left', padding: '6px 28px 6px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, background: activeId === s.id ? 'var(--bg-hover)' : 'none', color: activeId === s.id ? 'var(--text-primary)' : 'var(--text-secondary)', transition: 'background 0.1s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      onMouseEnter={e => { if (activeId !== s.id) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                      onMouseLeave={e => { if (activeId !== s.id) e.currentTarget.style.background = 'none'; }}
+                    >
+                      {s.pinned && <Pin size={10} style={{ display: 'inline', marginRight: 5, opacity: 0.5, verticalAlign: 'middle' }} />}
+                      {s.title}
+                    </button>
+                  )}
+                  {hoveredId === s.id && renaming?.id !== s.id && (
+                    <button
+                      onClick={e => openCtx(e, s.id)}
+                      style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: 5, border: 'none', background: 'var(--bg-hover)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    >
+                      <MoreHorizontal size={13} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           );
         })}
       </div>
+
+      {ctxMenu && (() => {
+        const sess = sessions.find(s => s.id === ctxMenu.id);
+        if (!sess) return null;
+        return (
+          <SessionContextMenu
+            menu={ctxMenu}
+            session={sess}
+            onClose={() => setCtxMenu(null)}
+            onDelete={onDelete}
+            onRename={id => setRenaming({ id, value: sessions.find(s => s.id === id)?.title ?? '' })}
+            onPin={onPin}
+          />
+        );
+      })()}
     </div>
   );
 };
@@ -401,7 +618,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(
-    () => localStorage.getItem('productivity-model') ?? DEFAULT_MODEL
+    () => normalizeModelId(localStorage.getItem('productivity-model'))
   );
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -415,6 +632,13 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       .then(c => { setCreds(c); setAuthLoading(false); })
       .catch(() => setAuthLoading(false));
   }, []);
+
+  useEffect(() => {
+    const normalized = persistProductivityModel(selectedModel);
+    if (normalized !== selectedModel) {
+      setSelectedModel(normalized);
+    }
+  }, [selectedModel]);
 
   // Load sessions from vault
   useEffect(() => {
@@ -430,7 +654,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   // Persist sessions to vault whenever they change
   const saveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!vault || sessions.length === 0) return;
+    if (!vault) return;
     if (saveRef.current) clearTimeout(saveRef.current);
     saveRef.current = setTimeout(() => {
       window.api.files.write('.pi/productivity-sessions.json', JSON.stringify(sessions)).catch(() => {});
@@ -465,6 +689,25 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     setCreds(null);
   }, []);
 
+  const handleDeleteSession = useCallback((id: string) => {
+    abortRef.current?.abort();
+    setSessions(prev => prev.filter(session => session.id !== id));
+    if (id === activeSessionId) {
+      setActiveSessionId(null);
+      setMessages([]);
+    }
+  }, [activeSessionId]);
+
+  const handleRenameSession = useCallback((id: string, title: string) => {
+    const nextTitle = title.trim();
+    if (!nextTitle) return;
+    setSessions(prev => prev.map(session => session.id === id ? { ...session, title: nextTitle } : session));
+  }, []);
+
+  const handlePinSession = useCallback((id: string) => {
+    setSessions(prev => prev.map(session => session.id === id ? { ...session, pinned: !session.pinned } : session));
+  }, []);
+
   // ── Real AI send ────────────────────────────────────────────────────────────
   const handleSend = useCallback(async (text: string) => {
     if (!creds) return;
@@ -478,7 +721,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       currentMessages = next;
       if (!currentSessionId) {
         const newId = `s_${Date.now()}`;
-        const newSession: Session = { id: newId, title: text.slice(0, 50), messages: next, group: dateGroup(Date.now()) };
+        const newSession: Session = { id: newId, title: buildChatTitle(next), messages: next, group: dateGroup(Date.now()) };
         setSessions(s => [newSession, ...s]);
         currentSessionId = newId;
         setActiveSessionId(newId);
@@ -642,7 +885,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       // Save final session messages
       setMessages(prev => {
         const finalMsgs = prev;
-        setSessions(ss => ss.map(s => s.id === currentSessionId ? { ...s, messages: finalMsgs } : s));
+        setSessions(ss => ss.map(s => s.id === currentSessionId ? { ...s, title: buildChatTitle(finalMsgs), messages: finalMsgs } : s));
         return finalMsgs;
       });
       setIsStreaming(false);
@@ -698,7 +941,16 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
               </button>
             </div>
           </div>
-          <Sidebar sessions={sessions} projects={projects} activeId={activeSessionId} onSelect={handleSelectSession} onNew={handleNewChat} />
+          <Sidebar
+            sessions={sessions}
+            projects={projects}
+            activeId={activeSessionId}
+            onSelect={handleSelectSession}
+            onNew={handleNewChat}
+            onDelete={handleDeleteSession}
+            onRename={handleRenameSession}
+            onPin={handlePinSession}
+          />
         </div>
       ) : (
         <div style={{ width: 48, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 10, gap: 4 }}>
@@ -724,16 +976,11 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', gap: 8, flexShrink: 0 }}>
-          <select
+          <ModelPicker
             value={selectedModel}
-            onChange={e => { setSelectedModel(e.target.value); localStorage.setItem('productivity-model', e.target.value); }}
+            onChange={value => setSelectedModel(persistProductivityModel(value))}
             disabled={isStreaming}
-            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', outline: 'none' }}
-          >
-            {CODEX_MODELS.map(m => (
-              <option key={m.id} value={m.id}>{m.label}</option>
-            ))}
-          </select>
+          />
           {messages.length > 0 && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button
