@@ -3,13 +3,6 @@
   "enabled": true,
   "preferences": [
     {
-      "text": "hey , umm i am making this opensource, so what licence is great for, it , or check maybe i already have, also i want it open , but the user…",
-      "createdAt": "2026-04-12T12:48:39.329Z",
-      "updatedAt": "2026-04-12T12:49:02.530Z",
-      "mentions": 2,
-      "source": "user"
-    },
-    {
       "text": "/tmp/pi-clipboard-2ccaa5a3-4eb6-4b5f-9702-2c114e2b34bf.png , tip tap is always failing, Canvas.tsx:1530 TypeError: Cannot read properties o…",
       "createdAt": "2026-04-12T15:46:27.873Z",
       "updatedAt": "2026-04-12T15:47:02.551Z",
@@ -24,6 +17,13 @@
       "source": "user"
     },
     {
+      "text": "hey , umm i am making this opensource, so what licence is great for, it , or check maybe i already have, also i want it open , but the user…",
+      "createdAt": "2026-04-12T12:48:39.329Z",
+      "updatedAt": "2026-04-12T12:49:02.530Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
       "text": "make the close btn on web tabs always visible",
       "createdAt": "2026-04-11T19:54:51.564Z",
       "updatedAt": "2026-04-11T19:54:55.830Z",
@@ -32,13 +32,6 @@
     }
   ],
   "projectFacts": [
-    {
-      "text": "[plugin:vite:react-babel] /home/diplov/IBSIDIAN/src/components/Canvas.tsx: 'return' outside of function.",
-      "createdAt": "2026-04-12T07:59:57.144Z",
-      "updatedAt": "2026-04-12T08:00:50.749Z",
-      "mentions": 2,
-      "source": "user"
-    },
     {
       "text": "Uncaught SyntaxError: The requested module '/node_modules/.vite/deps/@tiptap_extension-table.js?v=725d1e8e' does not provide an export named 'default' (at",
       "createdAt": "2026-04-12T15:44:16.478Z",
@@ -57,6 +50,20 @@
       "text": ", TipTap crashed, falling back to CodeMirror: TypeError: Cannot read properties of null (reading 'nodeType') at renderSpec (chunk-YCGA4BJF.js?v=725d1e8e:3273:1…",
       "createdAt": "2026-04-12T15:46:27.873Z",
       "updatedAt": "2026-04-12T15:47:02.551Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": "/plan i want to implement , the provider, groq, and i want it an option to use the api key, also add it on the model selection in chat, umm but if no api key,…",
+      "createdAt": "2026-04-13T13:26:02.220Z",
+      "updatedAt": "2026-04-13T13:27:09.650Z",
+      "mentions": 2,
+      "source": "user"
+    },
+    {
+      "text": "[plugin:vite:react-babel] /home/diplov/IBSIDIAN/src/components/Canvas.tsx: 'return' outside of function.",
+      "createdAt": "2026-04-12T07:59:57.144Z",
+      "updatedAt": "2026-04-12T08:00:50.749Z",
       "mentions": 2,
       "source": "user"
     },
@@ -98,7 +105,7 @@
       "source": "assistant"
     }
   ],
-  "currentFocus": "add a pin feture for the tabs , and make it excatyle work well",
-  "lastSourceText": "add a pin feture for the tabs , and make it excatyle work well",
-  "lastUpdatedAt": "2026-04-12T21:30:53.217Z"
+  "currentFocus": "okay start",
+  "lastSourceText": "okay start",
+  "lastUpdatedAt": "2026-04-13T13:29:04.970Z"
 }

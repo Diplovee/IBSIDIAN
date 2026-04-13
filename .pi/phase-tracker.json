@@ -3,24 +3,24 @@
   "phases": [
     {
       "id": 1,
-      "name": "Phase 1",
-      "goal": "Implement minimal TipTap wiring and enable flag",
+      "name": "Discovery + model list source",
+      "goal": "Confirm current Groq free models and map existing Productivity provider architecture",
       "status": "in_progress",
       "todos": [
         {
           "id": 1,
-          "text": "Set Canvas useTipTap flag to true",
-          "done": true
+          "text": "Audit current Productivity provider/model flow in ProductivtyChat, SettingsModal, productivity/agent",
+          "done": false
         },
         {
           "id": 2,
-          "text": "Replace TipTapEditor debug UI with actual editor wiring using markdown serializers",
-          "done": true
+          "text": "Verify Groq API compatibility path (OpenAI-compatible chat/completions) and auth header usage",
+          "done": false
         },
         {
           "id": 3,
-          "text": "Keep callbacks stable and prevent update loops when external content changes",
-          "done": true
+          "text": "Collect an initial list of Groq free model IDs from official docs and define refresh strategy",
+          "done": false
         }
       ],
       "testStatus": "unknown",
@@ -29,18 +29,127 @@
     },
     {
       "id": 2,
-      "name": "Phase 2",
-      "goal": "User review and validation sign-off",
+      "name": "Provider + persistence plumbing",
+      "goal": "Add persistent Groq API key + provider preference",
       "status": "not_started",
-      "todos": [],
+      "todos": [
+        {
+          "id": 4,
+          "text": "Add provider selection persistence (codex | groq) in localStorage",
+          "done": false
+        },
+        {
+          "id": 5,
+          "text": "Add secure-ish storage approach for Groq API key (localStorage for now unless you want encrypted main-process storage)",
+          "done": false
+        },
+        {
+          "id": 6,
+          "text": "Implement helper utilities for reading/writing provider settings and key",
+          "done": false
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    },
+    {
+      "id": 3,
+      "name": "UI/UX updates",
+      "goal": "Expose Groq in Settings and chat model picker with key-required UX",
+      "status": "not_started",
+      "todos": [
+        {
+          "id": 7,
+          "text": "Add Groq provider card in Settings → Productivity with connect/disconnect states",
+          "done": false
+        },
+        {
+          "id": 8,
+          "text": "Add Productivity chat provider/model picker entries for Groq",
+          "done": false
+        },
+        {
+          "id": 9,
+          "text": "If provider is Groq and key is missing, show modal prompt to enter key before sending",
+          "done": false
+        },
+        {
+          "id": 10,
+          "text": "Allow entering/changing key from modal and from Settings",
+          "done": false
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    },
+    {
+      "id": 4,
+      "name": "Agent runtime integration",
+      "goal": "Route requests to Codex or Groq based on selected provider/model",
+      "status": "not_started",
+      "todos": [
+        {
+          "id": 11,
+          "text": "Refactor runProductivityAgent to support provider-specific transport",
+          "done": false
+        },
+        {
+          "id": 12,
+          "text": "Keep existing Codex auth flow unchanged",
+          "done": false
+        },
+        {
+          "id": 13,
+          "text": "Add Groq request path with Bearer API key and compatible payload mapping",
+          "done": false
+        },
+        {
+          "id": 14,
+          "text": "Normalize streaming/non-streaming response handling into existing message pipeline",
+          "done": false
+        }
+      ],
+      "testStatus": "unknown",
+      "reviewStatus": "not_requested",
+      "errorCount": 0
+    },
+    {
+      "id": 5,
+      "name": "Validation + release notes",
+      "goal": "Ensure flow works end-to-end and document changes",
+      "status": "not_started",
+      "todos": [
+        {
+          "id": 15,
+          "text": "Manual smoke: Codex unchanged; Groq works with key; missing key modal appears",
+          "done": false
+        },
+        {
+          "id": 16,
+          "text": "Verify provider/model/key persistence across restart",
+          "done": false
+        },
+        {
+          "id": 17,
+          "text": "Update CHANGELOG.md and public/changelog.txt",
+          "done": false
+        },
+        {
+          "id": 18,
+          "text": "Commit and push after your review",
+          "done": false
+        }
+      ],
       "testStatus": "unknown",
       "reviewStatus": "not_requested",
       "errorCount": 0
     }
   ],
-  "nextPhaseId": 3,
-  "nextTodoId": 4,
-  "planTitle": "Enable and wire TipTap editor",
-  "lastUpdatedAt": "2026-04-12T15:34:39.740Z",
-  "currentPhaseId": 1
+  "nextPhaseId": 6,
+  "nextTodoId": 19,
+  "planTitle": "Add Groq provider with API-key flow and model selection",
+  "currentPhaseId": 1,
+  "lastUpdatedAt": "2026-04-13T13:26:51.543Z"
 }

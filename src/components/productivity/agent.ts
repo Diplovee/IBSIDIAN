@@ -1,9 +1,12 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { AgentActivityItem } from '../AgentActivityIndicator';
 import type { ProductivityCreds, ProductivityMessage } from './types';
+import type { ProductivityProvider } from '../../types';
 
 interface RunProductivityAgentParams {
-  creds: ProductivityCreds;
+  provider: ProductivityProvider;
+  openrouterApiKey?: string;
+  creds: ProductivityCreds | null;
   setCreds: (c: ProductivityCreds) => void;
   model: string;
   systemPrompt: string;
@@ -48,6 +51,31 @@ function toApiInput(msgs: ProductivityMessage[]): any[] {
   return result;
 }
 
+function toOpenRouterMessages(msgs: ProductivityMessage[], systemPrompt?: string): Array<{ role: string; content?: string; tool_call_id?: string }> {
+  const messages: Array<{ role: string; content?: string; tool_call_id?: string }> = [];
+  
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+  
+  for (const m of msgs) {
+    if (m.role === 'user') {
+      let content = m.content;
+      const mentions = m.mentions || (m as any).mentions;
+      if (mentions && mentions.length > 0) {
+        const mentionText = mentions.map((mention: any) => `@${mention.path}`).join(', ');
+        content += `\n\nUser mentioned files: ${mentionText}`;
+      }
+      messages.push({ role: 'user', content });
+    } else if (m.role === 'assistant' && m.content) {
+      messages.push({ role: 'assistant', content: m.content });
+    } else if (m.role === 'tool') {
+      messages.push({ role: 'tool', content: m.content ?? '', tool_call_id: m.toolCallId ?? undefined });
+    }
+  }
+  return messages;
+}
+
 function describeToolStep(name: string, args: Record<string, unknown>): { message: string; details?: string } {
   const path = typeof args.path === 'string' ? args.path : undefined;
   const title = typeof args.title === 'string' ? args.title : undefined;
@@ -67,6 +95,8 @@ function describeToolStep(name: string, args: Record<string, unknown>): { messag
 
 export async function runProductivityAgent(params: RunProductivityAgentParams): Promise<void> {
   const {
+    provider,
+    openrouterApiKey,
     creds,
     setCreds,
     model,
@@ -89,13 +119,16 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
 
   const agentLoop = async (msgs: ProductivityMessage[]): Promise<void> => {
     let token = '';
-    try {
-      token = await getValidToken(creds, setCreds);
-    } catch {
-      const errMsg: ProductivityMessage = { id: Date.now().toString(), role: 'assistant', content: 'Failed to refresh credentials. Please sign in again.' };
-      setMessages(prev => [...prev, errMsg]);
-      setIsStreaming(false);
-      return;
+    
+    if (provider === 'codex') {
+      try {
+        token = await getValidToken(creds!, setCreds);
+      } catch {
+        const errMsg: ProductivityMessage = { id: Date.now().toString(), role: 'assistant', content: 'Failed to refresh credentials. Please sign in again.' };
+        setMessages(prev => [...prev, errMsg]);
+        setIsStreaming(false);
+        return;
+      }
     }
 
     let assistantContent = '';
@@ -113,32 +146,81 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
     });
 
     try {
-      const res = await fetch('https://chatgpt.com/backend-api/codex/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'chatgpt-account-id': creds.accountId,
-          'OpenAI-Beta': 'responses=experimental',
-          'accept': 'text/event-stream',
-          'originator': 'pi',
-        },
-        signal: abortSignal,
-        body: JSON.stringify({
-          model,
-          store: false,
-          stream: true,
-          instructions: systemPrompt,
-          input: toApiInput(msgs),
-          tools,
-          tool_choice: 'auto',
-          text: { verbosity: 'medium' },
-        }),
-      });
+      let res: Response;
+      
+      if (provider === 'openrouter') {
+        // OpenRouter uses OpenAI-compatible API
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const toolArray = tools as any[];
+        
+        // Only send tools if we have them
+        if (toolArray && toolArray.length > 0) {
+          res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${openrouterApiKey}`,
+              'HTTP-Referer': 'https://ibsidian.app',
+              'X-Title': 'IBSIDIAN',
+            },
+            signal: abortSignal,
+            body: JSON.stringify({
+              model,
+              messages: toOpenRouterMessages(msgs, systemPrompt),
+              tools: toolArray,
+              stream: true,
+            }),
+          });
+        } else {
+          res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${openrouterApiKey}`,
+              'HTTP-Referer': 'https://ibsidian.app',
+              'X-Title': 'IBSIDIAN',
+            },
+            signal: abortSignal,
+            body: JSON.stringify({
+              model,
+              messages: toOpenRouterMessages(msgs, systemPrompt),
+              stream: true,
+            }),
+          });
+        }
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => res.statusText);
-        throw new Error(`API error ${res.status}: ${errText}`);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => res.statusText);
+          throw new Error(`API error ${res.status}: ${errText}`);
+        }
+      } else {
+        res = await fetch('https://chatgpt.com/backend-api/codex/responses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'chatgpt-account-id': creds!.accountId,
+            'OpenAI-Beta': 'responses=experimental',
+            'accept': 'text/event-stream',
+            'originator': 'pi',
+          },
+          signal: abortSignal,
+          body: JSON.stringify({
+            model,
+            store: false,
+            stream: true,
+            instructions: systemPrompt,
+            input: toApiInput(msgs),
+            tools,
+            tool_choice: 'auto',
+            text: { verbosity: 'medium' },
+          }),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => res.statusText);
+          throw new Error(`API error ${res.status}: ${errText}`);
+        }
       }
 
       const reader = res.body?.getReader();
@@ -152,30 +234,95 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
         if (!value) continue;
 
         const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split('\n')) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data: ')) continue;
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') { done = true; break; }
-          let parsed: Record<string, unknown>;
-          try { parsed = JSON.parse(data); } catch { continue; }
-
-          const evtType = parsed.type as string | undefined;
-          if (evtType === 'response.output_text.delta') {
-            assistantContent += (parsed.delta as string) ?? '';
-            setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m));
-          } else if (evtType === 'response.output_item.done') {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const item = parsed.item as any;
-            if (item?.type === 'function_call') {
-              toolCalls.push({ id: item.call_id, name: item.name, args: item.arguments ?? '{}' });
+        
+        if (provider === 'openrouter') {
+          // OpenRouter uses OpenAI-compatible streaming format
+          for (const line of chunk.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data: ')) continue;
+            const data = trimmed.slice(6);
+            if (data === '[DONE]') { done = true; break; }
+            let parsed: Record<string, unknown>;
+            try { parsed = JSON.parse(data); } catch { continue; }
+            
+            if (parsed.error) {
+              console.error('OpenRouter API error:', parsed.error);
             }
-          } else if (evtType === 'response.completed') {
-            done = true;
-          } else if (evtType === 'error') {
+            
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const errData = parsed as any;
-            throw new Error(errData.message ?? errData.error?.message ?? 'Stream error');
+            const choice = (parsed.choices as any[] | undefined) ?? [];
+            
+            // Handle content delta
+            if (choice[0]?.delta?.content) {
+              assistantContent += choice[0].delta.content;
+              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m));
+            }
+            
+            // Handle tool calls
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const toolCallDelta = choice[0]?.delta?.tool_calls as any[] | undefined;
+            if (toolCallDelta) {
+              for (const tcd of toolCallDelta) {
+                const existingIdx = toolCalls.findIndex(tc => tc.id === tcd.id);
+                if (existingIdx >= 0) {
+                  toolCalls[existingIdx].name = (toolCalls[existingIdx].name || '') + (tcd.function?.name || '');
+                  toolCalls[existingIdx].args = (toolCalls[existingIdx].args || '') + (tcd.function?.arguments || '');
+                } else {
+                  toolCalls.push({ 
+                    id: tcd.id, 
+                    name: tcd.function?.name || '', 
+                    args: tcd.function?.arguments || '' 
+                  });
+                }
+              }
+            }
+            
+            // Also check for non-delta tool_calls (final chunk)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const toolCallsFinal = choice[0]?.message?.tool_calls as any[] | undefined;
+            if (toolCallsFinal) {
+              for (const tc of toolCallsFinal) {
+                if (!toolCalls.some(existing => existing.id === tc.id)) {
+                  toolCalls.push({
+                    id: tc.id,
+                    name: tc.function?.name || '',
+                    args: tc.function?.arguments || ''
+                  });
+                }
+              }
+            }
+            
+            const finishReason = choice[0]?.finish_reason;
+            if (finishReason === 'stop' || finishReason === 'tool_calls') {
+              done = true;
+            }
+          }
+        } else {
+          for (const line of chunk.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data: ')) continue;
+            const data = trimmed.slice(6);
+            if (data === '[DONE]') { done = true; break; }
+            let parsed: Record<string, unknown>;
+            try { parsed = JSON.parse(data); } catch { continue; }
+
+            const evtType = parsed.type as string | undefined;
+            if (evtType === 'response.output_text.delta') {
+              assistantContent += (parsed.delta as string) ?? '';
+              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m));
+            } else if (evtType === 'response.output_item.done') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const item = parsed.item as any;
+              if (item?.type === 'function_call') {
+                toolCalls.push({ id: item.call_id, name: item.name, args: item.arguments ?? '{}' });
+              }
+            } else if (evtType === 'response.completed') {
+              done = true;
+            } else if (evtType === 'error') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const errData = parsed as any;
+              throw new Error(errData.message ?? errData.error?.message ?? 'Stream error');
+            }
           }
         }
       }
@@ -214,7 +361,7 @@ export async function runProductivityAgent(params: RunProductivityAgentParams): 
       const toolResultMsgs: ProductivityMessage[] = [];
       for (const tc of toolCalls) {
         let args: Record<string, unknown> = {};
-        try { args = JSON.parse(tc.args); } catch { /* ignore */ }
+        try { args = JSON.parse(tc.args || '{}'); } catch { /* ignore */ }
 
         const toolStep = describeToolStep(tc.name, args);
 

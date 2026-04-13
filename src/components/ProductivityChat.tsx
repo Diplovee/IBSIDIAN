@@ -4,13 +4,14 @@ import { ProductivityIcon } from './AgentIcons';
 import { AgentActivityTimeline, AgentActivityItem } from './AgentActivityIndicator';
 import { FileMentionInput, FileMention } from './FileMentionInput';
 import { MessageActions, RichText, StyledMarkdown, ToolVisualization, TypingDots } from './productivity/renderers';
-import { LoginModal, ModelPicker, Sidebar } from './productivity/ui';
+import { LoginModal, ModelPicker, Sidebar, GroqApiKeyModal as OpenRouterApiKeyModal } from './productivity/ui';
 import { runProductivityAgent } from './productivity/agent';
 import { VAULT_TOOLS, VISUAL_TOOL_NAMES, runTool } from './productivity/tools';
 import type { ProductivityCreds, ProductivityMessage, ProductivitySession } from './productivity/types';
 import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
-import type { Tab } from '../types';
+import { useAppSettings } from '../contexts/AppSettingsContext';
+import type { Tab, ProductivityProvider } from '../types';
 
 const CODEX_MODELS = [
   { id: 'gpt-5.2', label: 'GPT-5.2' },
@@ -18,7 +19,16 @@ const CODEX_MODELS = [
   { id: 'gpt-5.4', label: 'GPT-5.4' },
   { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
 ] as const;
-const DEFAULT_MODEL = 'gpt-5.2';
+
+const OPENROUTER_MODELS = [
+  { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B' },
+  { id: 'qwen/qwen3-32b', label: 'Qwen 3 32B' },
+  { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
+  { id: 'google/gemma-3-27b-it', label: 'Gemma 3 27B' },
+] as const;
+
+const DEFAULT_CODEX_MODEL = 'gpt-5.2';
+const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function dateGroup(ts: number): string {
@@ -31,10 +41,16 @@ function dateGroup(ts: number): string {
   return 'Older';
 }
 
-function normalizeModelId(model: string | null | undefined): string {
-  if (model === 'codex-mini-latest') return DEFAULT_MODEL;
-  if (CODEX_MODELS.some(option => option.id === model)) return model as string;
-  return DEFAULT_MODEL;
+function normalizeModelId(model: string | null | undefined, provider?: ProductivityProvider): string {
+  if (model === 'codex-mini-latest') return DEFAULT_CODEX_MODEL;
+  const models = provider === 'openrouter' ? OPENROUTER_MODELS : CODEX_MODELS;
+  const defaultModel = provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : DEFAULT_CODEX_MODEL;
+  if (models.some(option => option.id === model)) return model as string;
+  return defaultModel;
+}
+
+function getModelsForProvider(provider: ProductivityProvider) {
+  return provider === 'openrouter' ? OPENROUTER_MODELS : CODEX_MODELS;
 }
 
 function buildChatTitle(messages: ProductivityMessage[]): string {
@@ -55,8 +71,8 @@ function buildChatTitle(messages: ProductivityMessage[]): string {
   return titled.length > 48 ? `${titled.slice(0, 45).trimEnd()}...` : titled;
 }
 
-function persistProductivityModel(model: string): string {
-  const normalized = normalizeModelId(model);
+function persistProductivityModel(model: string, provider: ProductivityProvider): string {
+  const normalized = normalizeModelId(model, provider);
   localStorage.setItem('productivity-model', normalized);
   return normalized;
 }
@@ -156,6 +172,10 @@ function extractEmbeddedVisuals(text: string, sourceId: string): ProductivityMes
 export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const { openTab } = useTabs();
   const { vault, nodes } = useVault();
+  const { settings, updateAgentSettings } = useAppSettings();
+
+  const provider = (settings.agents.productivityProvider ?? 'codex') as ProductivityProvider;
+  const openrouterApiKey = settings.agents.openrouterApiKey;
 
   const [creds, setCreds] = useState<ProductivityCreds | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -169,7 +189,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const [inputValue, setInputValue] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(
-    () => normalizeModelId(localStorage.getItem('productivity-model'))
+    () => normalizeModelId(localStorage.getItem('productivity-model'), provider)
   );
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -206,17 +226,21 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
   // Load stored credentials on mount
   useEffect(() => {
+    if (provider === 'openrouter') {
+      setAuthLoading(false);
+      return;
+    }
     window.api.auth.codexGet()
       .then(c => { setCreds(c); setAuthLoading(false); })
       .catch(() => setAuthLoading(false));
-  }, []);
+  }, [provider]);
 
   useEffect(() => {
-    const normalized = persistProductivityModel(selectedModel);
+    const normalized = persistProductivityModel(selectedModel, provider);
     if (normalized !== selectedModel) {
       setSelectedModel(normalized);
     }
-  }, [selectedModel]);
+  }, [selectedModel, provider]);
 
   // Load sessions from vault
   useEffect(() => {
@@ -306,7 +330,8 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
   // ── Real AI send ────────────────────────────────────────────────────────────
   const handleSend = useCallback(async (text: string, currentMentions: FileMention[] = []) => {
-    if (!creds) return;
+    const effectiveCreds = provider === 'openrouter' ? null : creds;
+    if (provider === 'codex' && !effectiveCreds) return;
 
     const trimmedText = text.trim();
     if (!trimmedText) return;
@@ -355,7 +380,9 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. You can also generate visual outputs using tools (tables, pie charts, and graphs). Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
 
     await runProductivityAgent({
-      creds,
+      provider,
+      openrouterApiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
+      creds: effectiveCreds,
       setCreds,
       model: selectedModel,
       systemPrompt,
@@ -375,7 +402,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
         } : s));
       },
     });
-  }, [creds, activeSessionId, selectedModel, messages]);
+  }, [creds, activeSessionId, selectedModel, messages, provider, openrouterApiKey]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const isEmpty = !activeSessionId || messages.length === 0;
@@ -391,78 +418,34 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   return (
     <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg-primary)', position: 'relative' }}>
 
-      {/* Login modal — shown when not authenticated */}
-      {!creds && <LoginModal onLogin={setCreds} />}
+      {/* Login modal — shown when not authenticated (Codex) */}
+      {provider === 'codex' && !creds && <LoginModal onLogin={setCreds} />}
 
-      {/* Sidebar */}
-      {sidebarOpen ? (
-        <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 12px 4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ProductivityIcon size={18} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Productivity</span>
-            </div>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {creds && (
-                <button
-                  title="Sign out"
-                  onClick={handleLogout}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-                >
-                  <LogOut size={14} />
-                </button>
-              )}
-              <button
-                onClick={() => setSidebarOpen(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 6 }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-              >
-                <PanelLeftClose size={16} />
-              </button>
-            </div>
-          </div>
-          <Sidebar
-            sessions={sessions}
-            projects={projects}
-            activeId={activeSessionId}
-            onSelect={handleSelectSession}
-            onNew={handleNewChat}
-            onDelete={handleDeleteSession}
-            onRename={handleRenameSession}
-            onPin={handlePinSession}
-          />
-        </div>
-      ) : (
-        <div style={{ width: 48, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 10, gap: 4 }}>
-          {[
-            { icon: <PanelLeftOpen size={18} />, onClick: () => setSidebarOpen(true), title: 'Open sidebar' },
-            { icon: <Pencil size={17} />, onClick: handleNewChat, title: 'New chat' },
-            { icon: <Search size={17} />, onClick: () => setSidebarOpen(true), title: 'Search chats' },
-          ].map(({ icon, onClick, title }) => (
-            <button
-              key={title}
-              title={title}
-              onClick={onClick}
-              style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: 'none', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.1s, color 0.1s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >
-              {icon}
-            </button>
-          ))}
-        </div>
+      {/* OpenRouter API key modal - shown when no key configured */}
+      {provider === 'openrouter' && !openrouterApiKey && (
+        <OpenRouterApiKeyModal
+          onSubmit={async (key) => {
+            await updateAgentSettings({ openrouterApiKey: key });
+          }}
+          onCancel={() => {}}
+        />
       )}
 
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+        {/* Experimental warning */}
+        {provider === 'openrouter' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '6px 16px', borderBottom: '1px solid var(--border)', background: 'rgba(249, 115, 22, 0.15)', flexShrink: 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: '#f97316' }}>Experimental — some models may not support tools</span>
+          </div>
+        )}
+        
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', gap: 8, flexShrink: 0 }}>
           <ModelPicker
-            models={CODEX_MODELS}
+            models={getModelsForProvider(provider)}
             value={selectedModel}
-            onChange={value => setSelectedModel(persistProductivityModel(value))}
+            onChange={value => setSelectedModel(persistProductivityModel(value, provider))}
             disabled={isStreaming}
           />
           {messages.length > 0 && (
@@ -488,7 +471,9 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
               value={inputValue} 
               onChange={setInputValue}
               onSend={() => handleSend(inputValue, mentionsRef.current)}
-              disabled={isStreaming || !creds}
+              onStop={() => abortRef.current?.abort()}
+              disabled={isStreaming || (provider === 'codex' && !creds) || (provider === 'openrouter' && !openrouterApiKey)}
+              isStreaming={isStreaming}
               mentions={mentions}
               onAddMention={addMention}
               onRemoveMention={removeMention}
@@ -613,7 +598,9 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
               value={inputValue} 
               onChange={setInputValue}
               onSend={() => handleSend(inputValue, mentionsRef.current)}
-              disabled={isStreaming || !creds}
+              onStop={() => abortRef.current?.abort()}
+              disabled={isStreaming || (provider === 'codex' && !creds) || (provider === 'openrouter' && !openrouterApiKey)}
+              isStreaming={isStreaming}
               mentions={mentions}
               onAddMention={addMention}
               onRemoveMention={removeMention}

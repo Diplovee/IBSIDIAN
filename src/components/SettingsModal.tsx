@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Sun, Moon, Check, LogOut, ChevronDown } from 'lucide-react';
+import { X, Sun, Moon, Check, LogOut, ChevronDown, Key, Unplug } from 'lucide-react';
 import { useActivity } from '../contexts/ActivityContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
-import type { AgentKey } from '../types';
+import type { AgentKey, ProductivityProvider } from '../types';
 
 const CATEGORIES = [
   { id: 'general',      label: 'General' },
@@ -16,18 +16,41 @@ const CATEGORIES = [
 
 type CategoryId = typeof CATEGORIES[number]['id'];
 
-const PRODUCTIVITY_MODELS = [
+const OpenRouterIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M16.778 1.844v1.919q-.569-.026-1.138-.032q-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237c-2.911 2.066-2.731 1.95-4.14 2.75c-.396.223-1.342.574-2.185.798c-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799c1.41.798 1.228.683 4.14 2.75c2.126 1.509 4.22 2.11 6.148 2.236c.88.058 1.716.041 2.555.005v1.918l7.222-4.168l-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021c-1.364-.09-2.417-.357-3.979-1.465c-2.244-1.593-2.866-2.027-3.68-2.508c.889-.518 1.449-.906 3.822-2.59c1.56-1.109 2.614-1.377 3.978-1.466c.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/>
+  </svg>
+);
+
+const GroqIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="#f97316">
+    <path d="M3 3v18h18V3zm11.72 13.37c-.41.38-.82.66-1.33.87l-.21.09c-.83.3-1.82.21-2.63-.1c-.45-.21-.82-.46-1.19-.8c.33-.41.66-.75 1.07-1.07l.27.21c.5.35 1 .47 1.61.41c.62-.12 1.12-.4 1.52-.9c.37-.61.41-1.09.41-1.8V10.4c0-.72-.15-1.18-.6-1.74c-.61-.49-1.17-.74-1.96-.7c-.66.11-1.19.42-1.59.95c-.33.53-.48 1.07-.37 1.69c.2.68.45 1.25 1.07 1.61c.52.27.98.32 1.56.33h.25c.2.02.4.02.61.03V14c-1.49.06-2.65.06-3.84-.97a4.22 4.22 0 0 1-1.23-2.8c.04-.88.35-1.6.86-2.32l.15-.23c1.43-1.51 3.7-1.61 5.31-.31l.17.14c.58.52.96 1.25 1.08 2.01c0 .16.01.33.01.49v3.6c0 1.05-.3 1.95-1.02 2.74Z"/>
+  </svg>
+);
+
+const CODEX_MODELS = [
   { id: 'gpt-5.2', label: 'GPT-5.2 — recommended' },
   { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
   { id: 'gpt-5.4', label: 'GPT-5.4' },
   { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
 ] as const;
-const DEFAULT_PRODUCTIVITY_MODEL = 'gpt-5.2';
 
-function normalizeProductivityModel(model: string | null | undefined): string {
-  if (model === 'codex-mini-latest') return DEFAULT_PRODUCTIVITY_MODEL;
-  if (PRODUCTIVITY_MODELS.some(option => option.id === model)) return model as string;
-  return DEFAULT_PRODUCTIVITY_MODEL;
+const OPENROUTER_MODELS = [
+  { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B — best quality' },
+  { id: 'qwen/qwen3-32b', label: 'Qwen 3 32B — fast' },
+  { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat — free' },
+  { id: 'google/gemma-3-27b-it', label: 'Gemma 3 27B — free' },
+] as const;
+
+const DEFAULT_CODEX_MODEL = 'gpt-5.2';
+const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct';
+
+function normalizeProductivityModel(model: string | null | undefined, provider?: ProductivityProvider): string {
+  const models = provider === 'openrouter' ? OPENROUTER_MODELS : CODEX_MODELS;
+  const defaultModel = provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : DEFAULT_CODEX_MODEL;
+  if (model === 'codex-mini-latest') return DEFAULT_CODEX_MODEL;
+  if (models.some(option => option.id === model)) return model as string;
+  return defaultModel;
 }
 
 const SectionLabel: React.FC<{ children: React.ReactNode; first?: boolean }> = ({ children, first }) => (
@@ -45,10 +68,11 @@ const OptionBtn: React.FC<{ active: boolean; onClick: () => void; children: Reac
   </button>
 );
 
-const ProductivityModelPicker: React.FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
+const ProductivityModelPicker: React.FC<{ value: string; onChange: (value: string) => void; provider: ProductivityProvider }> = ({ value, onChange, provider }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const label = PRODUCTIVITY_MODELS.find(model => model.id === value)?.label ?? value;
+  const models = provider === 'openrouter' ? OPENROUTER_MODELS : CODEX_MODELS;
+  const label = models.find(model => model.id === value)?.label ?? value;
 
   useEffect(() => {
     if (!open) return;
@@ -69,8 +93,8 @@ const ProductivityModelPicker: React.FC<{ value: string; onChange: (value: strin
         <ChevronDown size={14} style={{ opacity: 0.6, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.18)', padding: 4, zIndex: 40 }}>
-          {PRODUCTIVITY_MODELS.map(model => (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.18)', padding: 4, zIndex: 40, maxHeight: 240, overflowY: 'auto' }}>
+          {models.map(model => (
             <button
               key={model.id}
               onClick={() => {
@@ -405,20 +429,24 @@ const AgentsPanel: React.FC = () => {
 type CodexCreds = { access: string; refresh: string; expires: number; accountId: string };
 
 const ProductivityPanel: React.FC = () => {
+  const { settings, updateAgentSettings } = useAppSettings();
   const [creds, setCreds] = useState<CodexCreds | null | 'loading'>('loading');
   const [loginPending, setLoginPending] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState(() => normalizeProductivityModel(localStorage.getItem('productivity-model')));
+  const provider = settings.agents.productivityProvider ?? 'codex';
+  const [selectedModel, setSelectedModel] = useState(() => normalizeProductivityModel(localStorage.getItem('productivity-model'), provider));
+  const [groqKeyInput, setGroqKeyInput] = useState('');
+  const [groqKeySaving, setGroqKeySaving] = useState(false);
 
   useEffect(() => {
     window.api.auth.codexGet().then(c => setCreds(c)).catch(() => setCreds(null));
   }, []);
 
   useEffect(() => {
-    const normalized = normalizeProductivityModel(selectedModel);
+    const normalized = normalizeProductivityModel(selectedModel, provider);
     localStorage.setItem('productivity-model', normalized);
     if (normalized !== selectedModel) setSelectedModel(normalized);
-  }, [selectedModel]);
+  }, [selectedModel, provider]);
 
   const handleLogin = async () => {
     setLoginPending(true);
@@ -442,83 +470,159 @@ const ProductivityPanel: React.FC = () => {
     setCreds(null);
   };
 
-  const COMING_SOON = [
-    { name: 'Groq', description: 'Ultra-fast inference with Llama & Mixtral' },
-  ];
+  const handleProviderChange = async (newProvider: ProductivityProvider) => {
+    await updateAgentSettings({ productivityProvider: newProvider });
+  };
+
+  const handleSaveOpenRouterKey = async () => {
+    if (!openrouterKeyInput.trim()) return;
+    setOpenrouterKeySaving(true);
+    await updateAgentSettings({ openrouterApiKey: openrouterKeyInput.trim() });
+    setOpenrouterKeyInput('');
+    setOpenrouterKeySaving(false);
+  };
+
+  const handleRemoveOpenRouterKey = async () => {
+    await updateAgentSettings({ openrouterApiKey: undefined });
+  };
+
+  const hasOpenRouterKey = !!settings.agents.openrouterApiKey;
+
+  const [openrouterKeyInput, setOpenrouterKeyInput] = useState('');
+  const [openrouterKeySaving, setOpenrouterKeySaving] = useState(false);
 
   return (
     <div>
-      <SectionLabel first>Providers</SectionLabel>
+      <SectionLabel first>Provider</SectionLabel>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
-        Connect AI providers to power the Productivity agent.
+        Choose which AI provider powers the Productivity agent.
       </p>
-
-      {/* Codex / ChatGPT */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <CodexIcon size={20} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>ChatGPT (Codex)</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-            {creds === 'loading' ? 'Checking…'
-              : creds ? `Connected · ${creds.accountId ? `ID: ${creds.accountId.slice(0, 12)}…` : 'account linked'}`
-              : 'Not connected'}
-          </div>
-        </div>
-        {creds && creds !== 'loading' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#34d399', fontWeight: 500 }}>
-              <Check size={13} /> Connected
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Sign out"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', transition: 'all 0.1s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >
-              <LogOut size={12} /> Sign out
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleLogin}
-            disabled={loginPending || creds === 'loading'}
-            style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: loginPending ? 'default' : 'pointer', opacity: (loginPending || creds === 'loading') ? 0.6 : 1, flexShrink: 0, transition: 'background 0.1s' }}
-            onMouseEnter={e => { if (!loginPending) e.currentTarget.style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-primary)'; }}
-          >
-            {loginPending ? 'Opening…' : 'Connect'}
-          </button>
-        )}
+      
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button
+          onClick={() => handleProviderChange('codex')}
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: `1px solid ${provider === 'codex' ? 'var(--accent)' : 'var(--border)'}`, background: provider === 'codex' ? 'var(--accent-soft)' : 'transparent', color: provider === 'codex' ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}
+        >
+          <CodexIcon size={16} /> Codex
+        </button>
+        <button
+          onClick={() => handleProviderChange('openrouter')}
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: `1px solid ${provider === 'openrouter' ? 'var(--accent)' : 'var(--border)'}`, background: provider === 'openrouter' ? 'var(--accent-soft)' : 'transparent', color: provider === 'openrouter' ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}
+        >
+          <OpenRouterIcon size={16} /> OpenRouter
+        </button>
       </div>
-      {loginError && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 10 }}>{loginError}</div>}
+
+      {provider === 'openrouter' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 8, border: '1px solid #f97316', background: 'rgba(249, 115, 22, 0.1)', marginBottom: 16 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: '#f97316' }}>OpenRouter is experimental — some models may not support tools</span>
+        </div>
+      )}
+
+      {provider === 'codex' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CodexIcon size={20} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>ChatGPT (Codex)</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                {creds === 'loading' ? 'Checking…'
+                  : creds ? `Connected · ${creds.accountId ? `ID: ${creds.accountId.slice(0, 12)}…` : 'account linked'}`
+                  : 'Not connected'}
+              </div>
+            </div>
+            {creds && creds !== 'loading' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#34d399', fontWeight: 500 }}>
+                  <Check size={13} /> Connected
+                </div>
+                <button
+                  onClick={handleLogout}
+                  title="Sign out"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', transition: 'all 0.1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                >
+                  <LogOut size={12} /> Sign out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleLogin}
+                disabled={loginPending || creds === 'loading'}
+                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: loginPending ? 'default' : 'pointer', opacity: (loginPending || creds === 'loading') ? 0.6 : 1, flexShrink: 0, transition: 'background 0.1s' }}
+                onMouseEnter={e => { if (!loginPending) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-primary)'; }}
+              >
+                {loginPending ? 'Opening…' : 'Connect'}
+              </button>
+            )}
+          </div>
+          {loginError && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 10 }}>{loginError}</div>}
+        </>
+      )}
+
+      {provider === 'openrouter' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 20 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <OpenRouterIcon size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>OpenRouter</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              {hasOpenRouterKey ? 'API key configured' : 'No API key — free tier available'}
+            </div>
+          </div>
+          {hasOpenRouterKey ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#34d399', fontWeight: 500 }}>
+                <Check size={13} /> Configured
+              </div>
+              <button
+                onClick={handleRemoveOpenRouterKey}
+                title="Remove API key"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', transition: 'all 0.1s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              >
+                <Unplug size={12} /> Remove
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <input
+                type="password"
+                placeholder="sk-or-••••••••••••••••"
+                value={openrouterKeyInput}
+                onChange={e => setOpenrouterKeyInput(e.target.value)}
+                style={{ width: 160, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12 }}
+              />
+              <button
+                onClick={handleSaveOpenRouterKey}
+                disabled={!openrouterKeyInput.trim() || openrouterKeySaving}
+                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, cursor: openrouterKeyInput.trim() && !openrouterKeySaving ? 'pointer' : 'default', opacity: openrouterKeyInput.trim() && !openrouterKeySaving ? 1 : 0.5, flexShrink: 0, transition: 'background 0.1s' }}
+                onMouseEnter={e => { if (openrouterKeyInput.trim() && !openrouterKeySaving) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-primary)'; }}
+              >
+                {openrouterKeySaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <SectionLabel>Model</SectionLabel>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
-        Choose the Codex model used by the Productivity agent.
+        Choose the model used by the Productivity agent.
       </p>
       <ProductivityModelPicker
         value={selectedModel}
-        onChange={value => setSelectedModel(normalizeProductivityModel(value))}
+        onChange={value => setSelectedModel(normalizeProductivityModel(value, provider))}
+        provider={provider}
       />
-
-      {/* Coming soon providers */}
-      {COMING_SOON.map(p => (
-        <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', marginBottom: 10, opacity: 0.6 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>
-            {p.name[0]}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div>
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 5, background: 'var(--bg-primary)', color: 'var(--text-muted)', border: '1px solid var(--border)', flexShrink: 0 }}>
-            Coming soon
-          </div>
-        </div>
-      ))}
     </div>
   );
 };

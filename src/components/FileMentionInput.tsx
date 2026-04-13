@@ -10,7 +10,9 @@ interface FileMentionInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onStop?: () => void;
   disabled?: boolean;
+  isStreaming?: boolean;
   mentions: FileMention[];
   onAddMention: (mention: FileMention) => void;
   onRemoveMention: (path: string) => void;
@@ -21,7 +23,9 @@ export const FileMentionInput: React.FC<FileMentionInputProps> = ({
   value,
   onChange,
   onSend,
+  onStop,
   disabled,
+  isStreaming,
   mentions,
   onAddMention,
   onRemoveMention,
@@ -187,15 +191,28 @@ export const FileMentionInput: React.FC<FileMentionInputProps> = ({
           style={{ flex: 1, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text-primary)', fontSize: 16, lineHeight: 1.5, fontFamily: 'inherit', maxHeight: 140, overflow: 'auto', padding: 0, margin: 0, display: 'block' }}
         />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          <button
-            onClick={send}
-            disabled={disabled}
-            style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: disabled ? 'default' : 'pointer', background: disabled ? 'var(--bg-primary)' : 'var(--text-primary)', color: disabled ? 'var(--text-muted)' : 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" />
-            </svg>
-          </button>
+          {isStreaming ? (
+            <button
+              onClick={onStop}
+              title="Stop"
+              style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#f87171', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s', flexShrink: 0 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={send}
+              disabled={disabled}
+              title="Send"
+              style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: disabled ? 'default' : 'pointer', background: disabled ? 'var(--bg-primary)' : 'var(--text-primary)', color: disabled ? 'var(--text-muted)' : 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 3L4 14h7l-2 7 9-11h-7l2-7z" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 

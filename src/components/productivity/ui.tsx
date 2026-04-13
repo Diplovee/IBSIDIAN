@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Search, MoreHorizontal, Pencil, LogOut, ChevronDown, ChevronRight, Pin } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, LogOut, ChevronDown, ChevronRight, Pin, Key } from 'lucide-react';
 import { ProductivityIcon, CodexIcon } from '../AgentIcons';
 import type { ProductivityCreds, ProductivitySession } from './types';
+import { useAppSettings } from '../../contexts/AppSettingsContext';
 
 const MAX_VISIBLE_PROJECTS = 4;
 const GROUPS = ['Pinned', 'Today', 'Yesterday', 'Previous 7 days', 'Older'];
@@ -345,6 +346,81 @@ export const LoginModal: React.FC<{ onLogin: (creds: ProductivityCreds) => void 
           )}
         </button>
         {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
+        <style>{`@keyframes _spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    </div>
+  );
+};
+
+export const GroqApiKeyModal: React.FC<{ onSubmit: (apiKey: string) => void; onCancel: () => void }> = ({ onSubmit, onCancel }) => {
+  const [key, setKey] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (!key.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onSubmit(key.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save');
+    }
+    setSaving(false);
+  };
+
+  const OpenRouterIcon = ({ size = 20 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M16.778 1.844v1.919q-.569-.026-1.138-.032q-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237c-2.911 2.066-2.731 1.95-4.14 2.75c-.396.223-1.342.574-2.185.798c-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799c1.41.798 1.228.683 4.14 2.75c2.126 1.509 4.22 2.11 6.148 2.236c.88.058 1.716.041 2.555.005v1.918l7.222-4.168l-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021c-1.364-.09-2.417-.357-3.979-1.465c-2.244-1.593-2.866-2.027-3.68-2.508c.889-.518 1.449-.906 3.822-2.59c1.56-1.109 2.614-1.377 3.978-1.466c.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/>
+    </svg>
+  );
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', zIndex: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 40, borderRadius: 16, border: '1px solid var(--border)', background: 'var(--bg-secondary)', maxWidth: 360, width: '100%', textAlign: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--bg-primary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <OpenRouterIcon size={28} />
+          </div>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ opacity: 0.35, flexShrink: 0 }}>
+            <path d="M4 10h12M12 6l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--bg-primary)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ProductivityIcon size={28} />
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Connect to OpenRouter</div>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>Enter your OpenRouter API key to get started. Free models available.</div>
+        </div>
+        <input
+          type="password"
+          placeholder="sk-or-••••••••••••••••"
+          value={key}
+          onChange={e => setKey(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14 }}
+        />
+        {error && <div style={{ fontSize: 12, color: '#f87171' }}>{error}</div>}
+        <button
+          onClick={handleSubmit}
+          disabled={!key.trim() || saving}
+          style={{ width: '100%', padding: '12px 24px', borderRadius: 10, border: 'none', background: !key.trim() || saving ? 'var(--bg-hover)' : '#8b5cf6', color: !key.trim() || saving ? 'var(--text-muted)' : 'white', fontSize: 15, fontWeight: 600, cursor: !key.trim() || saving ? 'default' : 'pointer', transition: 'background 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+        >
+          {saving ? (
+            <>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--text-muted)', borderTopColor: 'transparent', animation: '_spin 0.7s linear infinite' }} />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <OpenRouterIcon /> Connect with OpenRouter
+            </>
+          )}
+        </button>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          Get free API key at <button onClick={() => window.open('https://openrouter.ai/keys', '_blank')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>openrouter.ai</button>
+        </div>
         <style>{`@keyframes _spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>

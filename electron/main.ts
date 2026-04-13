@@ -46,6 +46,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     codex: true,
     pi: true,
     order: ['claude', 'codex', 'pi'] as ('claude' | 'codex' | 'pi')[],
+    productivity: true,
+    productivityProvider: 'codex',
+    openrouterApiKey: undefined,
   },
 }
 
@@ -289,6 +292,9 @@ async function loadSettingsConfig(): Promise<AppSettings> {
         codex: typeof parsed.agents?.codex === 'boolean' ? parsed.agents.codex : DEFAULT_SETTINGS.agents.codex,
         pi: typeof parsed.agents?.pi === 'boolean' ? parsed.agents.pi : DEFAULT_SETTINGS.agents.pi,
         order: (Array.isArray(parsed.agents?.order) && parsed.agents.order.length ? parsed.agents.order : DEFAULT_SETTINGS.agents.order) as ('claude' | 'codex' | 'pi')[],
+        productivity: typeof parsed.agents?.productivity === 'boolean' ? parsed.agents.productivity : DEFAULT_SETTINGS.agents.productivity,
+        productivityProvider: (parsed.agents?.productivityProvider === 'codex' || parsed.agents?.productivityProvider === 'openrouter') ? parsed.agents.productivityProvider : DEFAULT_SETTINGS.agents.productivityProvider,
+        openrouterApiKey: typeof parsed.agents?.openrouterApiKey === 'string' ? parsed.agents.openrouterApiKey : DEFAULT_SETTINGS.agents.openrouterApiKey,
       },
     }
   } catch {
@@ -577,6 +583,9 @@ ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
       codex: typeof settings.agents?.codex === 'boolean' ? settings.agents.codex : DEFAULT_SETTINGS.agents.codex,
       pi: typeof settings.agents?.pi === 'boolean' ? settings.agents.pi : DEFAULT_SETTINGS.agents.pi,
       order: (Array.isArray(settings.agents?.order) && settings.agents.order.length ? settings.agents.order : DEFAULT_SETTINGS.agents.order) as ('claude' | 'codex' | 'pi')[],
+      productivity: typeof settings.agents?.productivity === 'boolean' ? settings.agents.productivity : DEFAULT_SETTINGS.agents.productivity,
+      productivityProvider: (settings.agents?.productivityProvider === 'codex' || settings.agents?.productivityProvider === 'openrouter') ? settings.agents.productivityProvider : DEFAULT_SETTINGS.agents.productivityProvider,
+      openrouterApiKey: typeof settings.agents?.openrouterApiKey === 'string' ? settings.agents.openrouterApiKey : DEFAULT_SETTINGS.agents.openrouterApiKey,
     },
   }
   await saveSettingsConfig(normalized)

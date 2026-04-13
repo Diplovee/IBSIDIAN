@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     pi: true,
     productivity: true,
     order: ['claude', 'codex', 'pi', 'productivity'] as AgentKey[],
+    productivityProvider: 'codex',
+    openrouterApiKey: undefined,
   },
 };
 
@@ -45,6 +47,8 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           ...DEFAULT_SETTINGS.agents,
           ...loaded.agents,
           productivity: loaded.agents?.productivity ?? DEFAULT_SETTINGS.agents.productivity,
+          productivityProvider: loaded.agents?.productivityProvider ?? DEFAULT_SETTINGS.agents.productivityProvider,
+          openrouterApiKey: loaded.agents?.openrouterApiKey ?? DEFAULT_SETTINGS.agents.openrouterApiKey,
           order: (() => {
             const saved: AgentKey[] = loaded.agents?.order?.length ? loaded.agents.order : DEFAULT_SETTINGS.agents.order;
             const missing = DEFAULT_SETTINGS.agents.order.filter(k => !saved.includes(k));

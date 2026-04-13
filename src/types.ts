@@ -23,12 +23,16 @@ export interface AttachmentSettings {
 
 export type AgentKey = 'claude' | 'codex' | 'pi' | 'productivity';
 
+export type ProductivityProvider = 'codex' | 'openrouter';
+
 export interface AgentSettings {
   claude: boolean;
   codex: boolean;
   pi: boolean;
   productivity: boolean;
   order: AgentKey[];
+  productivityProvider?: ProductivityProvider;
+  openrouterApiKey?: string;
 }
 
 export interface AppSettings {
