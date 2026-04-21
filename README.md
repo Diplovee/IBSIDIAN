@@ -21,6 +21,13 @@ Quick Start
 On first launch, pick a folder, name your vault, and click **Create Vault**.
 Welcome files are created automatically.
 
+NixOS Notes
+-----------
+
+* `bun run rebuild` runs through a Nix shell to provide Python + build tools required by `node-gyp` for `node-pty`
+* `bun run dev` injects `libglvnd` (`libEGL.so.1`) into `NIX_LD_LIBRARY_PATH` before launching Electron
+* These wrappers reduce host setup friction while system-wide `nix-ld` libraries/tooling are being finalized
+
 Features
 --------
 
