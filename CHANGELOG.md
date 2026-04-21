@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.23] - 2026-04-21
+
+### Fixed
+- Productivity agent left sidebar is visible again in the chat view (sessions/projects panel restored)
+- Added a header toggle button to show/hide the Productivity sidebar
+
 ## [2026.5.22] - 2026-04-13
 
 ### Added

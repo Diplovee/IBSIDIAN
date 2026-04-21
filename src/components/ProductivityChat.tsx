@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, Search, PanelLeftClose, PanelLeftOpen, Pencil, LogOut } from 'lucide-react';
-import { ProductivityIcon } from './AgentIcons';
+import { Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { AgentActivityTimeline, AgentActivityItem } from './AgentActivityIndicator';
 import { FileMentionInput, FileMention } from './FileMentionInput';
 import { MessageActions, RichText, StyledMarkdown, ToolVisualization, TypingDots } from './productivity/renderers';
@@ -304,11 +303,6 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     openTab({ type: 'browser', title: url, url });
   }, [openTab]);
 
-  const handleLogout = useCallback(async () => {
-    await window.api.auth.codexLogout().catch(() => {});
-    setCreds(null);
-  }, []);
-
   const handleDeleteSession = useCallback((id: string) => {
     abortRef.current?.abort();
     setSessions(prev => prev.filter(session => session.id !== id));
@@ -431,6 +425,21 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
         />
       )}
 
+      {sidebarOpen && (
+        <div style={{ width: 280, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+          <Sidebar
+            sessions={sessions}
+            projects={projects}
+            activeId={activeSessionId}
+            onSelect={handleSelectSession}
+            onNew={handleNewChat}
+            onDelete={handleDeleteSession}
+            onRename={handleRenameSession}
+            onPin={handlePinSession}
+          />
+        </div>
+      )}
+
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
         {/* Experimental warning */}
@@ -442,6 +451,24 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
         )}
         
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => setSidebarOpen(open => !open)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+            }}
+            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+          >
+            {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+          </button>
           <ModelPicker
             models={getModelsForProvider(provider)}
             value={selectedModel}
