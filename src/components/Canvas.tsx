@@ -56,6 +56,7 @@ import type { ExcalidrawSceneFile, Tab } from '../types';
 import { parseExcalidrawFileContent } from '../utils/excalidraw';
 import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
 import { TipTapEditor } from './editor/TipTapEditor';
+import { normalizeNewItemName } from '../utils/fileNaming';
 
 const EDITOR_PREFERENCE_KEY = 'editor';
 const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
@@ -729,15 +730,18 @@ export const Canvas: React.FC = () => {
 const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
   const { closeTab, openTab } = useTabs();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
+  const { prompt: promptModal } = useModal();
 
-  const handleNewNote = useCallback(() => {
-    const name = nextUntitledName();
+  const handleNewNote = useCallback(async () => {
+    const requestedName = await promptModal({ title: 'New note', placeholder: 'Note name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
+    if (!requestedName) return;
+    const name = normalizeNewItemName(requestedName, 'md');
     createFileRemote('', name, 'md').then(() => {
       refreshFileTree(undefined, { showLoading: false });
       closeTab(tab.id);
       openTab({ type: 'note', title: name, filePath: `${name}.md` });
     });
-  }, [tab.id, closeTab, openTab, createFileRemote, refreshFileTree, nextUntitledName]);
+  }, [tab.id, closeTab, openTab, createFileRemote, refreshFileTree, nextUntitledName, promptModal]);
 
   const LinkBtn: React.FC<{ label: string; shortcut?: string; onClick: () => void }> = ({ label, shortcut, onClick }) => {
     const [h, setH] = useState(false);

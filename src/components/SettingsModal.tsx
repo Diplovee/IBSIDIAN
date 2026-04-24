@@ -59,6 +59,76 @@ const SectionLabel: React.FC<{ children: React.ReactNode; first?: boolean }> = (
   </div>
 );
 
+const ChangelogContent: React.FC<{ text: string }> = ({ text }) => {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  const renderInline = (value: string) => {
+    const parts = value.split(/(`[^`]+`)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return (
+          <code key={index} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 5px', color: 'var(--text-primary)' }}>
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      return part;
+    });
+  };
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    const items = listItems;
+    listItems = [];
+    elements.push(
+      <ul key={`list-${elements.length}`} style={{ margin: '8px 0 18px', paddingLeft: 20, color: 'var(--text-secondary)', lineHeight: 1.55, fontSize: 13 }}>
+        {items.map((item, index) => <li key={index} style={{ marginBottom: 6 }}>{renderInline(item)}</li>)}
+      </ul>
+    );
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+    if (trimmed.startsWith('# ')) return;
+    if (trimmed.startsWith('## ')) {
+      flushList();
+      elements.push(
+        <div key={`release-${elements.length}`} style={{ marginTop: elements.length ? 24 : 0, marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 18, fontWeight: 750, color: 'var(--text-primary)' }}>{renderInline(trimmed.slice(3))}</div>
+        </div>
+      );
+      return;
+    }
+    if (trimmed.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <div key={`section-${elements.length}`} style={{ marginTop: 14, marginBottom: 6, fontSize: 12, fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', color: 'var(--accent)' }}>
+          {trimmed.slice(4)}
+        </div>
+      );
+      return;
+    }
+    if (trimmed.startsWith('- ')) {
+      listItems.push(trimmed.slice(2));
+      return;
+    }
+    flushList();
+    elements.push(
+      <p key={`p-${elements.length}`} style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>
+          {renderInline(trimmed)}
+      </p>
+    );
+  });
+  flushList();
+
+  return <div>{elements}</div>;
+};
+
 const OptionBtn: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
   <button
     onClick={onClick}
@@ -796,10 +866,8 @@ export const SettingsModal: React.FC = () => {
                 <X size={14} color="var(--bg-primary)" />
               </button>
             </div>
-            <div style={{ overflowY: 'auto', padding: 16 }}>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, color: 'var(--text-primary)' }}>
-                {changelogText}
-              </pre>
+            <div style={{ overflowY: 'auto', padding: '18px 20px 22px' }}>
+              <ChangelogContent text={changelogText} />
             </div>
           </div>
         </div>

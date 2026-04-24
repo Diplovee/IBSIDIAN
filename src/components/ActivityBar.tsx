@@ -7,7 +7,9 @@ import { useTabs } from '../contexts/TabsContext';
 import { useVault } from '../contexts/VaultContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { LibraryModal } from './LibraryModal';
+import { useModal } from './Modal';
 import type { AgentKey } from '../types';
+import { normalizeNewItemName } from '../utils/fileNaming';
 
 const AGENT_META: Record<AgentKey, { icon: React.ReactNode; title: string; command?: string }> = {
   claude:       { icon: <ClaudeIcon size={18} />,       title: 'Claude',       command: 'claude\n' },
@@ -33,6 +35,7 @@ export const ActivityBar: React.FC = () => {
   const { activeActivity, toggleActivity, isSettingsOpen, openSettings } = useActivity();
   const { openTab } = useTabs();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
+  const { prompt } = useModal();
   const { settings } = useAppSettings();
   const [showLibrary, setShowLibrary] = useState(false);
   const [codexModelMenu, setCodexModelMenu] = useState<{ x: number; y: number; selectedModel: string } | null>(null);
@@ -40,8 +43,10 @@ export const ActivityBar: React.FC = () => {
   const order: AgentKey[] = agents.order?.length ? agents.order : ['claude', 'codex', 'pi', 'productivity'];
 
   const handleOpenBrowser = () => openTab({ type: 'browser', title: 'New Tab', url: 'about:blank', groupId: '' });
-  const handleOpenDraw = () => {
-    const name = nextUntitledName();
+  const handleOpenDraw = async () => {
+    const requestedName = await prompt({ title: 'New drawing', placeholder: 'Drawing name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
+    if (!requestedName) return;
+    const name = normalizeNewItemName(requestedName, 'excalidraw');
     createFileRemote('', name, 'excalidraw').then(() => {
       refreshFileTree(undefined, { showLoading: false });
       openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });

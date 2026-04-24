@@ -21,6 +21,11 @@ import chokidar from 'chokidar'
 import * as nodePty from 'node-pty'
 
 const isDev = !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
+const rendererAssetPath = (name: string) => {
+  const devPath = join(process.cwd(), 'public', name)
+  if (existsSync(devPath)) return devPath
+  return join(__dirname, '../renderer', name)
+}
 
 // ── Vault state ────────────────────────────────────────────────────────────
 type Vault = { id: string; name: string; path: string }
@@ -539,9 +544,8 @@ ipcMain.handle('app:restart', async () => {
 })
 
 ipcMain.handle('app:version', async () => {
-  const rendererDir = join(__dirname, '../renderer')
   try {
-    const text = await readFile(join(rendererDir, 'version.txt'), 'utf-8')
+    const text = await readFile(rendererAssetPath('version.txt'), 'utf-8')
     return text.trim()
   } catch {
     return 'Unknown'
@@ -549,9 +553,8 @@ ipcMain.handle('app:version', async () => {
 })
 
 ipcMain.handle('app:changelog', async () => {
-  const rendererDir = join(__dirname, '../renderer')
   try {
-    return await readFile(join(rendererDir, 'changelog.txt'), 'utf-8')
+    return await readFile(rendererAssetPath('changelog.txt'), 'utf-8')
   } catch {
     return null
   }

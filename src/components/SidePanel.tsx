@@ -13,6 +13,7 @@ import { useAppSettings } from '../contexts/AppSettingsContext';
 import { useModal } from './Modal';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { VaultNode } from '../types';
+import { normalizeNewItemName } from '../utils/fileNaming';
 
 // ── Shared context so Node (outside FileTreeView) can trigger actions ─────
 interface TreeCtx {
@@ -217,7 +218,7 @@ const filterTreeNodes = (nodes: VaultNode[]): VaultNode[] =>
 const FileTreeView: React.FC = () => {
   const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem, expandFolder } = useVault();
   const { openTab } = useTabs();
-  const { confirm } = useModal();
+  const { confirm, prompt } = useModal();
   const { settings } = useAppSettings();
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<VaultNode> | null>(null);
@@ -291,14 +292,38 @@ const FileTreeView: React.FC = () => {
     });
   }, [confirm, deleteItem, refreshFileTree]);
 
+  const createNamedFile = useCallback(async (ext: 'md' | 'excalidraw') => {
+    const requestedName = await prompt({
+      title: ext === 'md' ? 'New note' : 'New drawing',
+      placeholder: ext === 'md' ? 'Note name' : 'Drawing name',
+      defaultValue: nextUntitledName(),
+      confirmLabel: 'Create',
+    });
+    if (!requestedName) return;
+
+    const name = normalizeNewItemName(requestedName, ext);
+    createFileRemote('', name, ext).then(() => {
+      refreshFileTree(undefined, { showLoading: false });
+      openTab({ type: ext === 'md' ? 'note' : 'draw', title: name, filePath: `${name}.${ext}` });
+    });
+  }, [createFileRemote, nextUntitledName, openTab, prompt, refreshFileTree]);
+
+  const createNamedFolder = useCallback(async () => {
+    const requestedName = await prompt({ title: 'New folder', placeholder: 'Folder name', defaultValue: 'New Folder', confirmLabel: 'Create' });
+    if (!requestedName) return;
+
+    const name = normalizeNewItemName(requestedName);
+    createFolderRemote('', name).then(() => refreshFileTree(undefined, { showLoading: false }));
+  }, [createFolderRemote, prompt, refreshFileTree]);
+
   return (
     <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'md').then(() => { refreshFileTree(undefined, { showLoading: false }); openTab({ type: 'note', title: name, filePath: `${name}.md` }); }); }} />
-          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => { const name = nextUntitledName(); createFileRemote('', name, 'excalidraw').then(() => { refreshFileTree(undefined, { showLoading: false }); openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` }); }); }} />
-          <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={() => createFolderRemote('', 'New Folder').then(() => refreshFileTree(undefined, { showLoading: false }))} />
+          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => createNamedFile('md')} />
+          <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => createNamedFile('excalidraw')} />
+          <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title={sortOrder === 'none' ? 'Sort A→Z' : sortOrder === 'asc' ? 'Sort Z→A' : 'Remove sort'} active={sortOrder !== 'none'} onClick={handleSort} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
           <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => treeRef.current?.closeAll()} />

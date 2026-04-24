@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.24] - 2026-04-24
+
+### Added
+- New note, drawing, and folder actions now ask for a name before creating the item, avoiding the create-then-rename flow.
+- Browser tab favicons now show a loading spinner while pages load.
+
+### Fixed
+- The tab-bar add menu now renders above the canvas instead of being clipped behind it.
+- Browser tab favicon loading is more reliable with multiple fallback candidates for sites that do not report a favicon directly.
+
 ## [2026.5.23] - 2026-04-21
 
 ### Fixed

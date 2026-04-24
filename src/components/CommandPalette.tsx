@@ -3,6 +3,8 @@ import { X } from 'lucide-react';
 import { useTabs } from '../contexts/TabsContext';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
+import { useModal } from './Modal';
+import { normalizeNewItemName } from '../utils/fileNaming';
 
 export const CommandPalette: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,19 +15,29 @@ export const CommandPalette: React.FC = () => {
   const { openTab } = useTabs();
   const { toggleActivity, setSidebarCollapsed, isSidebarCollapsed, openSettings } = useActivity();
   const { createFileRemote, createFolderRemote, refreshFileTree, nextUntitledName } = useVault();
+  const { prompt } = useModal();
 
   const commands = [
-    { label: 'New Note', shortcut: 'N', action: () => {
-      const name = nextUntitledName();
+    { label: 'New Note', shortcut: 'N', action: async () => {
+      const requestedName = await prompt({ title: 'New note', placeholder: 'Note name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
+      if (!requestedName) return;
+      const name = normalizeNewItemName(requestedName, 'md');
       createFileRemote('', name, 'md').then(() => {
         refreshFileTree(undefined, { showLoading: false });
         openTab({ type: 'note', title: name, filePath: `${name}.md` });
       });
     }},
-    { label: 'New Folder', shortcut: 'F', action: () => createFolderRemote('', 'New Folder').then(() => refreshFileTree(undefined, { showLoading: false })) },
+    { label: 'New Folder', shortcut: 'F', action: async () => {
+      const requestedName = await prompt({ title: 'New folder', placeholder: 'Folder name', defaultValue: 'New Folder', confirmLabel: 'Create' });
+      if (!requestedName) return;
+      const name = normalizeNewItemName(requestedName);
+      createFolderRemote('', name).then(() => refreshFileTree(undefined, { showLoading: false }));
+    } },
     { label: 'Open Browser',   shortcut: 'B', action: () => openTab({ type: 'browser', title: 'New Tab', url: 'about:blank', groupId: '' }) },
-    { label: 'Open Drawing',   shortcut: 'D', action: () => {
-      const name = nextUntitledName();
+    { label: 'Open Drawing',   shortcut: 'D', action: async () => {
+      const requestedName = await prompt({ title: 'New drawing', placeholder: 'Drawing name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
+      if (!requestedName) return;
+      const name = normalizeNewItemName(requestedName, 'excalidraw');
       createFileRemote('', name, 'excalidraw').then(() => {
         refreshFileTree(undefined, { showLoading: false });
         openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
