@@ -7,13 +7,19 @@ import type { ProductivityMessage } from './types';
 
 export type ChatMessageLike = Pick<ProductivityMessage, 'id' | 'role' | 'content' | 'toolName'>;
 
+const selectableTextStyle: React.CSSProperties = {
+  userSelect: 'text',
+  WebkitUserSelect: 'text',
+  cursor: 'text',
+};
+
 export const RichText: React.FC<{ text: string; onLink: (url: string) => void }> = ({ text, onLink }) => {
   const URL_RE = /https?:\/\/[^\s)\]>]+/g;
   const BOLD_RE = /\*\*([^*]+)\*\*/g;
 
   const lines = text.split('\n');
   return (
-    <>
+    <span style={selectableTextStyle}>
       {lines.map((line, i) => {
         const segments: React.ReactNode[] = [];
         let last = 0;
@@ -47,7 +53,7 @@ export const RichText: React.FC<{ text: string; onLink: (url: string) => void }>
           </React.Fragment>
         );
       })}
-    </>
+    </span>
   );
 };
 
@@ -55,24 +61,24 @@ export const StyledMarkdown: React.FC<{ text: string; onLink: (url: string) => v
   <ReactMarkdown
     remarkPlugins={[remarkGfm]}
     components={{
-      p: ({ children }) => <p style={{ margin: 0, marginBottom: 10 }}>{children}</p>,
-      ul: ({ children }) => <ul style={{ margin: '0 0 10px 18px', padding: 0 }}>{children}</ul>,
-      ol: ({ children }) => <ol style={{ margin: '0 0 10px 18px', padding: 0 }}>{children}</ol>,
-      li: ({ children }) => <li style={{ marginBottom: 4 }}>{children}</li>,
-      h1: ({ children }) => <h1 style={{ fontSize: 22, margin: '0 0 10px', fontWeight: 700 }}>{children}</h1>,
-      h2: ({ children }) => <h2 style={{ fontSize: 19, margin: '0 0 10px', fontWeight: 700 }}>{children}</h2>,
-      h3: ({ children }) => <h3 style={{ fontSize: 16, margin: '0 0 8px', fontWeight: 700 }}>{children}</h3>,
-      blockquote: ({ children }) => <blockquote style={{ margin: '0 0 10px', padding: '4px 0 4px 10px', borderLeft: '3px solid var(--border)', color: 'var(--text-secondary)' }}>{children}</blockquote>,
+      p: ({ children }) => <p style={{ ...selectableTextStyle, margin: 0, marginBottom: 10 }}>{children}</p>,
+      ul: ({ children }) => <ul style={{ ...selectableTextStyle, margin: '0 0 10px 18px', padding: 0 }}>{children}</ul>,
+      ol: ({ children }) => <ol style={{ ...selectableTextStyle, margin: '0 0 10px 18px', padding: 0 }}>{children}</ol>,
+      li: ({ children }) => <li style={{ ...selectableTextStyle, marginBottom: 4 }}>{children}</li>,
+      h1: ({ children }) => <h1 style={{ ...selectableTextStyle, fontSize: 22, margin: '0 0 10px', fontWeight: 700 }}>{children}</h1>,
+      h2: ({ children }) => <h2 style={{ ...selectableTextStyle, fontSize: 19, margin: '0 0 10px', fontWeight: 700 }}>{children}</h2>,
+      h3: ({ children }) => <h3 style={{ ...selectableTextStyle, fontSize: 16, margin: '0 0 8px', fontWeight: 700 }}>{children}</h3>,
+      blockquote: ({ children }) => <blockquote style={{ ...selectableTextStyle, margin: '0 0 10px', padding: '4px 0 4px 10px', borderLeft: '3px solid var(--border)', color: 'var(--text-secondary)' }}>{children}</blockquote>,
       code: ({ children, className, ...props }) => {
         const isBlock = Boolean(className);
         if (isBlock) {
           return (
-            <code className={className} {...props} style={{ display: 'block', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', overflowX: 'auto', fontSize: 12 }}>
+            <code className={className} {...props} style={{ ...selectableTextStyle, display: 'block', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', overflowX: 'auto', fontSize: 12 }}>
               {children}
             </code>
           );
         }
-        return <code {...props} style={{ background: 'var(--bg-hover)', borderRadius: 4, padding: '1px 5px', fontSize: 12 }}>{children}</code>;
+        return <code {...props} style={{ ...selectableTextStyle, background: 'var(--bg-hover)', borderRadius: 4, padding: '1px 5px', fontSize: 12 }}>{children}</code>;
       },
       a: ({ href, children }) => (
         <a
@@ -245,7 +251,7 @@ export const ToolVisualization: React.FC<{ message: ChatMessageLike }> = ({ mess
   return null;
 };
 
-export const MessageActions: React.FC<{ content: string }> = ({ content }) => {
+export const MessageActions: React.FC<{ content: string; onRegenerate?: () => void }> = ({ content, onRegenerate }) => {
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState<null | 'up' | 'down'>(null);
   const btn = (el: React.ReactNode, onClick?: () => void, active = false) => (
@@ -263,7 +269,7 @@ export const MessageActions: React.FC<{ content: string }> = ({ content }) => {
       {btn(<ThumbsUp size={14} />, () => setLiked(l => l === 'up' ? null : 'up'), liked === 'up')}
       {btn(<ThumbsDown size={14} />, () => setLiked(l => l === 'down' ? null : 'down'), liked === 'down')}
       {btn(<Share2 size={14} />)}
-      {btn(<RotateCcw size={14} />)}
+      {btn(<RotateCcw size={14} />, onRegenerate)}
       {btn(<MoreHorizontal size={14} />)}
     </div>
   );

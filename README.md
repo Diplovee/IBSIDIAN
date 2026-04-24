@@ -25,7 +25,8 @@ NixOS Notes
 -----------
 
 * `bun run rebuild` runs through a Nix shell to provide Python + build tools required by `node-gyp` for `node-pty`
-* `bun run dev` injects `libglvnd` (`libEGL.so.1`) into `NIX_LD_LIBRARY_PATH` before launching Electron
+* `bun run dev` and the installed launcher both source `scripts/source-nix-runtime.sh` to auto-export common Electron runtime libraries into `NIX_LD_LIBRARY_PATH`
+* A `flake.nix` is included for `nix develop`, `nix run .`, `nix run .#dev`, `nix run .#rebuild`, and `nix run .#install-local`
 * These wrappers reduce host setup friction while system-wide `nix-ld` libraries/tooling are being finalized
 
 Features
@@ -76,6 +77,7 @@ Documentation
 -------------
 
 * Linux install + app menu launcher: `docs/linux-install.md`
+* Nix flake entrypoint: `flake.nix`
 * Markdown Guide support: `docs/markdown-basic-syntax.md`
 * Release notes: `CHANGELOG.md`
 

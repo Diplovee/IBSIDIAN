@@ -43,7 +43,7 @@ interface LibraryModalProps {
 export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<ModalTab>('active');
   const { savedGroups, history, saveGroup, deleteSavedGroup, clearHistory } = useLibrary();
-  const { browserGroups, tabs, openTab } = useTabs();
+  const { browserGroups, tabs, openTab, createBrowserGroup } = useTabs();
 
   const historyByDate: { label: string; entries: typeof history }[] = [];
   const seen = new Set<string>();
@@ -65,9 +65,18 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
   };
 
   const handleRestoreGroup = (sg: typeof savedGroups[number]) => {
-    for (const tab of sg.tabs) {
-      if (!tab.url?.trim()) continue;
-      openTab({ type: 'browser', title: tab.title || tab.url, url: tab.url, faviconUrl: tab.faviconUrl });
+    const validTabs = sg.tabs.filter(tab => typeof tab.url === 'string' && tab.url.trim().length > 0);
+    if (validTabs.length === 0) return;
+
+    const groupId = createBrowserGroup(sg.name, sg.color);
+    for (const tab of validTabs) {
+      openTab({
+        type: 'browser',
+        title: tab.title || tab.url,
+        url: tab.url,
+        faviconUrl: tab.faviconUrl,
+        groupId,
+      });
     }
   };
 

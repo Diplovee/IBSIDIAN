@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Copy, RotateCcw, WholeWord } from 'lucide-react';
 import { Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { AgentActivityTimeline, AgentActivityItem } from './AgentActivityIndicator';
 import { FileMentionInput, FileMention } from './FileMentionInput';
@@ -168,6 +169,62 @@ function extractEmbeddedVisuals(text: string, sourceId: string): ProductivityMes
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+interface ChatContextMenuState {
+  x: number;
+  y: number;
+  messageId: string;
+  content: string;
+  selectedText: string;
+  onRegenerate?: () => void;
+  onSelectAll: () => void;
+}
+
+const ChatContextMenu: React.FC<{ menu: ChatContextMenuState; onClose: () => void }> = ({ menu, onClose }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x: menu.x, y: menu.y });
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPos({
+      x: menu.x + rect.width > window.innerWidth ? window.innerWidth - rect.width - 8 : menu.x,
+      y: menu.y + rect.height > window.innerHeight ? window.innerHeight - rect.height - 8 : menu.y,
+    });
+  }, [menu.x, menu.y, menu.selectedText, menu.onRegenerate]);
+
+  const item = (label: string, icon: React.ReactNode, action: () => void) => (
+    <button
+      key={label}
+      onClick={() => {
+        action();
+        onClose();
+      }}
+      style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', border: 'none', background: 'none', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', borderRadius: 6 }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+
+  return (
+    <div ref={ref} style={{ position: 'fixed', top: pos.y, left: pos.x, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 9, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 9999, minWidth: 170, padding: 4 }}>
+      {menu.selectedText ? item('Copy selection', <Copy size={13} />, () => { navigator.clipboard.writeText(menu.selectedText).catch(() => {}); }) : item('Copy message', <Copy size={13} />, () => { navigator.clipboard.writeText(menu.content).catch(() => {}); })}
+      {item('Select all text', <WholeWord size={13} />, menu.onSelectAll)}
+      {menu.onRegenerate ? item('Regenerate response', <RotateCcw size={13} />, menu.onRegenerate) : null}
+    </div>
+  );
+};
+
 export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const { openTab } = useTabs();
   const { vault, nodes } = useVault();
@@ -190,6 +247,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
   const [selectedModel, setSelectedModel] = useState<string>(
     () => normalizeModelId(localStorage.getItem('productivity-model'), provider)
   );
+  const [contextMenu, setContextMenu] = useState<ChatContextMenuState | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -322,6 +380,49 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     setSessions(prev => prev.map(session => session.id === id ? { ...session, pinned: !session.pinned } : session));
   }, []);
 
+  const runAgentRequest = useCallback(async (currentMessages: ProductivityMessage[], currentSessionId: string) => {
+    const effectiveCreds = provider === 'openrouter' ? null : creds;
+    if (provider === 'codex' && !effectiveCreds) return;
+
+    setIsStreaming(true);
+    abortRef.current = new AbortController();
+    setActivities([]);
+    setTimelineCollapsed(true);
+    setMentions([]);
+    mentionsRef.current = [];
+
+    const latestUserMessage = [...currentMessages].reverse().find(message => message.role === 'user');
+    const mentionContext = latestUserMessage?.mentions && latestUserMessage.mentions.length > 0
+      ? `\nUser mentioned the following files: ${latestUserMessage.mentions.map(m => `@${m.path}`).join(', ')}. You can use read_file to access them if needed.`
+      : '';
+
+    const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. You can also generate visual outputs using tools (tables, pie charts, and graphs). Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
+
+    await runProductivityAgent({
+      provider,
+      openrouterApiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
+      creds: effectiveCreds,
+      setCreds,
+      model: selectedModel,
+      systemPrompt,
+      initialMessages: currentMessages,
+      abortSignal: abortRef.current!.signal,
+      tools: VAULT_TOOLS,
+      runTool,
+      setMessages,
+      setActivities,
+      setIsStreaming,
+      onComplete: (finalMessages, finalActivities) => {
+        setSessions(ss => ss.map(s => s.id === currentSessionId ? {
+          ...s,
+          title: buildChatTitle(finalMessages),
+          messages: finalMessages,
+          activities: finalActivities,
+        } : s));
+      },
+    });
+  }, [creds, selectedModel, provider, openrouterApiKey]);
+
   // ── Real AI send ────────────────────────────────────────────────────────────
   const handleSend = useCallback(async (text: string, currentMentions: FileMention[] = []) => {
     const effectiveCreds = provider === 'openrouter' ? null : creds;
@@ -358,45 +459,35 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
     }
 
     setMessages(currentMessages);
+    setSessions(ss => ss.map(s => s.id === currentSessionId ? { ...s, messages: currentMessages, activities: [] } : s));
 
-    setIsStreaming(true);
-    abortRef.current = new AbortController();
-    setActivities([]);
-    setTimelineCollapsed(true);
-    setMentions([]);
-    mentionsRef.current = [];
-    
-    // Build mention context for system prompt
-    const mentionContext = effectiveMentions.length > 0 
-      ? `\nUser mentioned the following files: ${effectiveMentions.map(m => `@${m.path}`).join(', ')}. You can use read_file to access them if needed.`
-      : '';
+    await runAgentRequest(currentMessages, currentSessionId);
+  }, [creds, activeSessionId, messages, provider, runAgentRequest]);
 
-    const systemPrompt = `You are a personal productivity assistant embedded in a note-taking app (IBSIDIAN). You have access to the user's vault files and can read, write, and list them. You can also generate visual outputs using tools (tables, pie charts, and graphs). Be concise and action-oriented. Today is ${new Date().toLocaleDateString()}.${mentionContext}`;
+  const handleRegenerate = useCallback(async (assistantMessageId: string) => {
+    if (isStreaming || !activeSessionId) return;
 
-    await runProductivityAgent({
-      provider,
-      openrouterApiKey: provider === 'openrouter' ? openrouterApiKey : undefined,
-      creds: effectiveCreds,
-      setCreds,
-      model: selectedModel,
-      systemPrompt,
-      initialMessages: currentMessages,
-      abortSignal: abortRef.current!.signal,
-      tools: VAULT_TOOLS,
-      runTool,
-      setMessages,
-      setActivities,
-      setIsStreaming,
-      onComplete: (finalMessages, finalActivities) => {
-        setSessions(ss => ss.map(s => s.id === currentSessionId ? {
-          ...s,
-          title: buildChatTitle(finalMessages),
-          messages: finalMessages,
-          activities: finalActivities,
-        } : s));
-      },
-    });
-  }, [creds, activeSessionId, selectedModel, messages, provider, openrouterApiKey]);
+    abortRef.current?.abort();
+    const assistantIndex = messages.findIndex(message => message.id === assistantMessageId);
+    if (assistantIndex === -1) return;
+
+    let userIndex = assistantIndex - 1;
+    while (userIndex >= 0 && messages[userIndex].role !== 'user') userIndex -= 1;
+    if (userIndex < 0) return;
+
+    const baseMessages = messages.slice(0, userIndex + 1);
+    setMessages(baseMessages);
+    setSessions(ss => ss.map(s => s.id === activeSessionId ? { ...s, messages: baseMessages, activities: [] } : s));
+    setContextMenu(null);
+
+    await runAgentRequest(baseMessages, activeSessionId);
+  }, [activeSessionId, isStreaming, messages, runAgentRequest]);
+
+  useEffect(() => {
+    const clearMenu = () => setContextMenu(null);
+    window.addEventListener('scroll', clearMenu, true);
+    return () => window.removeEventListener('scroll', clearMenu, true);
+  }, []);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const isEmpty = !activeSessionId || messages.length === 0;
@@ -521,7 +612,27 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                     if (msg.role === 'user') {
                       rows.push(
                         <div key={msg.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <div style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px' }}>
+                          <div
+                            onContextMenu={event => {
+                              event.preventDefault();
+                              const selection = window.getSelection()?.toString().trim() ?? '';
+                              setContextMenu({
+                                x: event.clientX,
+                                y: event.clientY,
+                                messageId: msg.id,
+                                content: msg.content,
+                                selectedText: selection,
+                                onSelectAll: () => {
+                                  const range = document.createRange();
+                                  range.selectNodeContents(event.currentTarget);
+                                  const selectionRef = window.getSelection();
+                                  selectionRef?.removeAllRanges();
+                                  selectionRef?.addRange(range);
+                                },
+                              });
+                            }}
+                            style={{ maxWidth: '70%', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5, padding: '10px 18px', userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text' }}
+                          >
                             {msg.mentions && msg.mentions.length > 0 && (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
                                 {msg.mentions.map(m => (
@@ -579,7 +690,29 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
 
                     rows.push(
                       <div key={`turn_${turnItems[0]?.id ?? i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-                        <div style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', padding: '10px 12px' }}>
+                        <div
+                          onContextMenu={event => {
+                            event.preventDefault();
+                            const selection = window.getSelection()?.toString().trim() ?? '';
+                            const node = event.currentTarget;
+                            setContextMenu({
+                              x: event.clientX,
+                              y: event.clientY,
+                              messageId: latestAssistant?.id ?? turnItems[0]?.id ?? `turn_${i}`,
+                              content: latestAssistant?.content ?? '',
+                              selectedText: selection,
+                              onRegenerate: latestAssistant ? () => { void handleRegenerate(latestAssistant.id); } : undefined,
+                              onSelectAll: () => {
+                                const range = document.createRange();
+                                range.selectNodeContents(node);
+                                const selectionRef = window.getSelection();
+                                selectionRef?.removeAllRanges();
+                                selectionRef?.addRange(range);
+                              },
+                            });
+                          }}
+                          style={{ alignSelf: 'flex-start', maxWidth: '80%', width: '100%', borderRadius: 8, background: 'var(--bg-secondary)', padding: '10px 12px', userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text' }}
+                        >
                           {activities.length > 0 && isLatestTurn && (
                             <div style={{ position: isStreaming ? 'sticky' : 'static', top: 8, zIndex: 1, marginBottom: 10 }}>
                               <AgentActivityTimeline
@@ -607,7 +740,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
                             </div>
                           )}
                         </div>
-                        {latestAssistant?.content && <MessageActions content={latestAssistant.content} />}
+                        {latestAssistant?.content && <MessageActions content={latestAssistant.content} onRegenerate={() => void handleRegenerate(latestAssistant.id)} />}
                       </div>
                     );
                   }
@@ -637,6 +770,7 @@ export const ProductivityChat: React.FC<{ tab: Tab }> = () => {
           </>
         )}
       </div>
+      {contextMenu && <ChatContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />}
     </div>
   );
 };

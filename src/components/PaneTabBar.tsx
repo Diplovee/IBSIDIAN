@@ -55,42 +55,80 @@ const GroupConnector: React.FC<{ dashed?: boolean; cracking?: boolean; connectin
   return <div aria-hidden style={{ width: w, flexShrink: 0, alignSelf: 'center', borderTop: `3px ${dashed ? 'dotted' : 'solid'} ${color}`, opacity: 0.95 }} />;
 };
 
-const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string }> = ({ faviconUrl, pageUrl }) => {
+const LoadingSpinner = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+    <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.75s" repeatCount="indefinite" />
+    </path>
+  </svg>
+);
+
+const BrowserFaviconIcon: React.FC<{ faviconUrl?: string; pageUrl?: string; loading?: boolean }> = ({ faviconUrl, pageUrl, loading }) => {
   const [loadFailed, setLoadFailed] = useState(false);
-  const [iconSrc, setIconSrc] = useState<string | undefined>(faviconUrl);
-  const [triedIcoFallback, setTriedIcoFallback] = useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
   const isNewTab = !pageUrl || pageUrl === 'about:blank' || pageUrl === 'chrome://newtab';
+
+  const buildCandidates = () => {
+    if (!pageUrl || isNewTab) return [];
+    const candidates: string[] = [];
+    const add = (value?: string) => {
+      const next = value?.trim();
+      if (next && !candidates.includes(next)) candidates.push(next);
+    };
+
+    add(faviconUrl);
+
+    try {
+      const url = new URL(pageUrl);
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        add(`${url.origin}/favicon.ico`);
+        add(`${url.origin}/favicon.png`);
+        add(`${url.origin}/apple-touch-icon.png`);
+        add(`${url.origin}/apple-touch-icon-precomposed.png`);
+        add(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(url.href)}&sz=32`);
+      }
+    } catch {
+      // Ignore invalid page URLs; the browser tab will fall back to the generic icon.
+    }
+
+    return candidates;
+  };
+
+  const candidates = buildCandidates();
+  const iconSrc = candidates[candidateIndex];
 
   useEffect(() => {
     setLoadFailed(false);
-    setTriedIcoFallback(false);
-    setIconSrc(faviconUrl);
-  }, [faviconUrl]);
+    setCandidateIndex(0);
+  }, [faviconUrl, pageUrl]);
 
   const handleError = () => {
-    if (!triedIcoFallback && pageUrl && !isNewTab) {
-      try {
-        const origin = new URL(pageUrl).origin;
-        const icoFallback = `${origin}/favicon.ico`;
-        if (iconSrc !== icoFallback) {
-          setTriedIcoFallback(true);
-          setIconSrc(icoFallback);
-          return;
-        }
-      } catch {
-        // ignore URL parsing fallback errors
-      }
+    if (candidateIndex < candidates.length - 1) {
+      setCandidateIndex(i => i + 1);
+      return;
     }
     setLoadFailed(true);
   };
 
-  if (isNewTab || !iconSrc || loadFailed) return <Globe size={13} />;
-  return <img src={iconSrc || undefined} alt="" draggable={false} onError={handleError} style={{ width: 13, height: 13, borderRadius: 3, objectFit: 'cover' }} />;
+  if (isNewTab) return <Globe size={13} />;
+  if (loading) {
+    return (
+      <span style={{ width: 14, height: 14, position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        {iconSrc && !loadFailed && <img src={iconSrc} alt="" draggable={false} onError={handleError} style={{ width: 13, height: 13, borderRadius: 3, objectFit: 'cover', opacity: 0.35 }} />}
+        <span style={{ position: 'absolute', inset: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+          <LoadingSpinner />
+        </span>
+      </span>
+    );
+  }
+  if (!iconSrc || loadFailed) return <Globe size={13} />;
+  return <img src={iconSrc} alt="" draggable={false} onError={handleError} style={{ width: 13, height: 13, borderRadius: 3, objectFit: 'cover' }} />;
 };
 
 const iconForTab = (tab: Tab) => {
   switch (tab.type) {
-    case 'browser': return <BrowserFaviconIcon faviconUrl={tab.faviconUrl} pageUrl={tab.url} />;
+    case 'browser': return <BrowserFaviconIcon faviconUrl={tab.faviconUrl} pageUrl={tab.url} loading={tab.loading} />;
     case 'draw': return <ExcalidrawIcon size={13} />;
     case 'terminal': return <SquareTerminal size={13} />;
     case 'claude': return <ClaudeIcon size={13} />;
@@ -157,6 +195,7 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
   duplicateBrowserGroup,
   deleteBrowserGroup,
   closeBrowserGroup,
+  saveGroup,
   promptValue,
   paneCount,
   onClosePane,
@@ -353,7 +392,9 @@ export const PaneTabBar: React.FC<PaneTabBarProps> = ({
         display: 'flex',
         alignItems: 'stretch',
         padding: '0 6px',
-        overflow: 'hidden',
+        overflow: 'visible',
+        position: 'relative',
+        zIndex: 20,
         transition: 'background 0.12s, border-color 0.12s',
       }}
     >

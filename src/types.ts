@@ -63,6 +63,7 @@ export interface Tab {
   customTitle?: string;
   groupId?: string;
   faviconUrl?: string;
+  loading?: boolean;
   command?: string;
   paneId?: string;
   initialLine?: number;

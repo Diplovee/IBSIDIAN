@@ -30,6 +30,7 @@ interface TabsContextType {
   updateTabFilePath: (id: string, filePath: string) => void;
   updateTabUrl: (id: string, url: string) => void;
   updateTabFavicon: (id: string, faviconUrl?: string) => void;
+  updateTabLoading: (id: string, loading: boolean) => void;
   syncRenamedPath: (oldPath: string, newPath: string) => void;
   reorderTabs: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
   moveTabToGroup: (tabId: string, groupId?: string | null) => void;
@@ -454,6 +455,10 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTabs(prev => prev.map(t => t.id === id ? { ...t, faviconUrl } : t));
   }, []);
 
+  const updateTabLoading = useCallback((id: string, loading: boolean) => {
+    setTabs(prev => prev.map(t => t.id === id ? { ...t, loading } : t));
+  }, []);
+
   const syncRenamedPath = useCallback((oldPath: string, newPath: string) => {
     if (!oldPath || !newPath || oldPath === newPath) return;
 
@@ -582,6 +587,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateTabFilePath,
       updateTabUrl,
       updateTabFavicon,
+      updateTabLoading,
       syncRenamedPath,
       moveTabToGroup,
       createBrowserGroup,

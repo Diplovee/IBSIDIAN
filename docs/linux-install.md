@@ -1,4 +1,4 @@
-# Linux install (Arch/Omarchy) + app menu launcher
+# Linux install (Arch/Omarchy/NixOS) + app menu launcher
 
 This project can be run locally from source and added to your Linux app menu.
 
@@ -17,6 +17,8 @@ bun run build
 
 ## 2) Install launcher + desktop entry
 
+On NixOS, the generated launcher now routes through `scripts/run-local-electron.sh`, which auto-exports common Electron runtime libraries before starting the local app.
+
 From the repo root:
 
 ```bash
@@ -34,6 +36,25 @@ The desktop entry uses `public/favicon.svg` as the app icon.
 
 - From app menu: search for **Ibsidian**
 - Or terminal: `ibsidian`
+- Or from the repo on NixOS: `nix run .`
+
+## 4) Optional: use the flake helpers on NixOS
+
+From the repo root:
+
+```bash
+nix develop
+nix run .#rebuild
+nix run .#install-local
+nix run .
+```
+
+Available flake apps:
+
+- `nix run .` — launch the local checkout
+- `nix run .#dev` — start dev mode
+- `nix run .#rebuild` — rebuild `node-pty`
+- `nix run .#install-local` — install the local launcher + desktop file
 
 ---
 

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "planningMode": false,
+  "objective": "Investigate whether tab persistence ('keep tabs forever') and tab groups are implemented and working correctly, then propose a minimal fix plan before coding.",
+  "approvedAt": "2026-04-22T12:21:08.410Z",
+  "lastUpdatedAt": "2026-04-22T12:21:08.411Z"
+}

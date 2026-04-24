@@ -105,7 +105,7 @@
       "source": "assistant"
     }
   ],
-  "currentFocus": "okay update version and changelog, and commit and push",
-  "lastSourceText": "okay update version and changelog, and commit and push\nDone — updated, committed, and pushed ✅ ### Included in commit - `src/components/ProductivityChat.tsx` - Restored Productivity left sidebar render - Added show/hide sidebar toggle button in header - `package.json` - Bumped version to `2026.5.23` - `public/version.txt` - Updated to `2026.5.23` - `CHANGELOG.md` - Added `2026.5.23` entry for the sidebar fix - `public/changelog.txt` - Added matching `2026.5.23` entry ### Git - Commit: `383dc62` - Message: `fix: restore productivity sidebar and bump release to 2026.5.23` - Pushed to: `origin/main` (Only `.pi/*` local memory files remain uncommitted.)",
-  "lastUpdatedAt": "2026-04-21T17:06:36.778Z"
+  "currentFocus": "hi",
+  "lastSourceText": "hi\nHi! What can I help with in IBSIDIAN?",
+  "lastUpdatedAt": "2026-04-22T12:01:55.306Z"
 }

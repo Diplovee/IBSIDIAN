@@ -13,11 +13,7 @@ mkdir -p "${BIN_DIR}" "${APP_DIR}"
 cat > "${WRAPPER_PATH}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-cd "${REPO_ROOT}"
-if [ ! -f "out/main/index.js" ]; then
-  bun run build
-fi
-exec bunx electron .
+exec "${REPO_ROOT}/scripts/run-local-electron.sh"
 EOF
 
 chmod +x "${WRAPPER_PATH}"

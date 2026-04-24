@@ -1898,7 +1898,7 @@ const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
 
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
-  const { updateTabTitle, updateTabUrl, updateTabFavicon, openTab } = useTabs();
+  const { updateTabTitle, updateTabUrl, updateTabFavicon, updateTabLoading, openTab } = useTabs();
   const { addToHistory, updateHistoryTitle } = useLibrary();
   const { theme } = useActivity();
   const bgColor = theme === 'dark' ? '#1e1e1e' : '#ffffff';
@@ -1961,11 +1961,13 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const updateTabTitleRef = useRef(updateTabTitle);
   const updateTabUrlRef = useRef(updateTabUrl);
   const updateTabFaviconRef = useRef(updateTabFavicon);
+  const updateTabLoadingRef = useRef(updateTabLoading);
   useEffect(() => { currentUrlRef.current = currentUrl; }, [currentUrl]);
   useEffect(() => { tabIdRef.current = tab.id; }, [tab.id]);
   useEffect(() => { updateTabTitleRef.current = updateTabTitle; }, [updateTabTitle]);
   useEffect(() => { updateTabUrlRef.current = updateTabUrl; }, [updateTabUrl]);
   useEffect(() => { updateTabFaviconRef.current = updateTabFavicon; }, [updateTabFavicon]);
+  useEffect(() => { updateTabLoadingRef.current = updateTabLoading; }, [updateTabLoading]);
 
   const navigate = (target: string) => {
     const nextUrl = resolveBrowserUrl(target);
@@ -2031,13 +2033,14 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     const onFavicon = (e: any) => {
       const favicons = Array.isArray(e?.favicons) ? e.favicons.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0) : [];
       const favicon = favicons[0];
+      if (!favicon) return;
       cacheBrowserFavicon(currentUrlRef.current, favicon);
       updateTabFaviconRef.current(tabIdRef.current, favicon);
       updateHistoryTitle(currentUrlRef.current, deriveBrowserTitle(currentUrlRef.current), favicon);
     };
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
-    const done = () => { if (stopTimer) clearTimeout(stopTimer); stopTimer = null; setIsLoading(false); updateNavState(wv); };
-    const onStartLoad   = () => { if (stopTimer) clearTimeout(stopTimer); setIsLoading(true);  updateNavState(wv); };
+    const done = () => { if (stopTimer) clearTimeout(stopTimer); stopTimer = null; setIsLoading(false); updateTabLoadingRef.current(tabIdRef.current, false); updateNavState(wv); };
+    const onStartLoad   = () => { if (stopTimer) clearTimeout(stopTimer); setIsLoading(true); updateTabLoadingRef.current(tabIdRef.current, true); updateNavState(wv); };
     const onFinishLoad  = () => done();
     const onFailLoad    = () => done();
     const onStopLoad    = () => { stopTimer = setTimeout(done, 300); };
@@ -2069,6 +2072,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       wv.removeEventListener('did-stop-loading', onStopLoad);
       wv.removeEventListener('dom-ready', onDomReady);
       if (stopTimer) clearTimeout(stopTimer);
+      updateTabLoadingRef.current(tabIdRef.current, false);
       window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
