@@ -24,6 +24,9 @@ const TreeContext = React.createContext<TreeCtx>({ openContextMenu: () => {}, op
 
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']);
 const visibleFileExtensions = new Set(['md', 'excalidraw']);
+const FILE_TREE_ROW_HEIGHT = 32;
+const FILE_TREE_COMPACT_ROW_HEIGHT = 28;
+const FILE_TREE_ITEM_HEIGHT = 26;
 
 const isImageExt = (ext?: string) => !!ext && imageExtensions.has(ext.toLowerCase());
 
@@ -226,7 +229,7 @@ const FileTreeView: React.FC = () => {
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const headerHeight = 44;
-  const rowHeight = settings.appearance?.compactMode ? 28 : 36;
+  const rowHeight = settings.appearance?.compactMode ? FILE_TREE_COMPACT_ROW_HEIGHT : FILE_TREE_ROW_HEIGHT;
   const TreeRenderer = settings.fileTree.style === 'hierarchy' ? TreeNode : OriginalTreeNode;
 
   const displayNodes = React.useMemo(() => {
@@ -393,7 +396,8 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   const isFile = node.data.type === 'file';
   const basePadding = 10;
   const indentStep = 16;
-  const rowHeight = settings.appearance?.compactMode ? 28 : 36;
+  const rowHeight = settings.appearance?.compactMode ? FILE_TREE_COMPACT_ROW_HEIGHT : FILE_TREE_ROW_HEIGHT;
+  const itemHeight = settings.appearance?.compactMode ? '100%' : FILE_TREE_ITEM_HEIGHT;
   const rowMid = rowHeight / 2;
   const fontSizeMap = { small: 13, medium: 14, large: 16 } as const;
   const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
@@ -458,7 +462,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
           />
         )}
       </svg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: '100%', paddingLeft: contentPaddingLeft, paddingRight: 10, borderRadius: 7, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: contentPaddingLeft, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
         {isFile
           ? isExcalidraw
             ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
@@ -486,6 +490,7 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
   const isFile = node.data.type === 'file';
   const fontSizeMap = { small: 13, medium: 14, large: 16 } as const;
   const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
+  const itemHeight = settings.appearance?.compactMode ? '100%' : FILE_TREE_ITEM_HEIGHT;
   const badgeLabel = isExcalidraw ? 'CANVAS'
     : isImage ? node.data.ext?.toUpperCase()
     : (!isMd && isFile && node.data.ext) ? node.data.ext.toUpperCase()
@@ -501,7 +506,7 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
       onClick={(e) => handleTreeNodeClick(node, e)}
       onContextMenu={(e) => openContextMenu(e, node)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: '100%', paddingLeft: 10, paddingRight: 10, borderRadius: 7, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'transparent', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: 10, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
         {isFile
           ? isExcalidraw
             ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
