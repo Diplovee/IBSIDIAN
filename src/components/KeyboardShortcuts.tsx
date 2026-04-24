@@ -2,16 +2,19 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTabs } from '../contexts/TabsContext';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
+import { useAppSettings } from '../contexts/AppSettingsContext';
 import { normalizeNewItemName } from '../utils/fileNaming';
 import { useModal } from './Modal';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { toast } from './Toaster';
 
 const SHORTCUTS = [
   { id: 'toggle-sidebar', label: 'Toggle Sidebar', shortcut: 'Ctrl+S', category: 'View' },
   { id: 'reload-page', label: 'Reload Page', shortcut: 'Ctrl+R', category: 'Browser' },
   { id: 'new-tab', label: 'New Tab', shortcut: 'Ctrl+T', category: 'Tab' },
   { id: 'new-browser', label: 'New Browser', shortcut: 'Ctrl+B', category: 'Tab' },
+  { id: 'lite-mode', label: 'Browser Lite Mode', shortcut: 'Ctrl+L', category: 'Browser' },
   { id: 'keybindings', label: 'Show Keybindings', shortcut: 'Ctrl+?', category: 'Help' },
   { id: 'new-note', label: 'New Note', shortcut: 'Ctrl+Shift+N', category: 'File' },
   { id: 'new-folder', label: 'New Folder', shortcut: 'Ctrl+Shift+F', category: 'File' },
@@ -179,6 +182,7 @@ const NewTabModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 export const KeyboardShortcuts: React.FC = () => {
   const { openTab, tabs, activeTabId } = useTabs();
   const { setSidebarCollapsed, isSidebarCollapsed } = useActivity();
+  const { settings, updateBrowserSettings } = useAppSettings();
   const [showKeybindings, setShowKeybindings] = useState(false);
   const [showNewTabModal, setShowNewTabModal] = useState(false);
 
@@ -224,7 +228,15 @@ export const KeyboardShortcuts: React.FC = () => {
       setShowKeybindings(true);
       return;
     }
-  }, [tabs, activeTabId, isSidebarCollapsed, setSidebarCollapsed]);
+
+    if (ctrlOrMeta && !shift && e.key === 'l') {
+      e.preventDefault();
+      const newLiteMode = !settings.browser.liteMode;
+      updateBrowserSettings({ liteMode: newLiteMode });
+      toast(newLiteMode ? 'Browser lite mode enabled' : 'Browser lite mode disabled');
+      return;
+    }
+  }, [tabs, activeTabId, isSidebarCollapsed, setSidebarCollapsed, settings.browser.liteMode, updateBrowserSettings]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
