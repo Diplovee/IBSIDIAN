@@ -12,6 +12,7 @@ import { LibraryProvider } from './contexts/LibraryContext';
 import { ModalProvider } from './components/Modal';
 import { Toaster } from './components/ui/sonner';
 import { Layout } from './components/Layout';
+import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <LibraryProvider>
               <ModalProvider>
                 <Layout />
+                <KeyboardShortcuts />
                 <Toaster position="bottom-right" closeButton />
               </ModalProvider>
             </LibraryProvider>
