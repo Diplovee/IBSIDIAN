@@ -10,6 +10,7 @@
     "dev": "bash scripts/dev-electron-nix.sh",
     "build": "bun run sync:excalidraw-assets && electron-vite build",
     "install:linux-local": "bash scripts/install-linux-local.sh",
+    "update:local": "bash scripts/update-local.sh",
     "preview": "bun run sync:excalidraw-assets && electron-vite preview",
     "rebuild": "bash scripts/rebuild-node-pty-nix.sh",
     "clean": "rm -rf out dist",

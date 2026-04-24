@@ -28,6 +28,23 @@ NixOS Notes
 * `bun run dev` and the installed launcher both source `scripts/source-nix-runtime.sh` to auto-export common Electron runtime libraries into `NIX_LD_LIBRARY_PATH`
 * A `flake.nix` is included for `nix develop`, `nix run .`, `nix run .#dev`, `nix run .#rebuild`, and `nix run .#install-local`
 * These wrappers reduce host setup friction while system-wide `nix-ld` libraries/tooling are being finalized
+* Recommended NixOS install flow:
+
+  ```bash
+  git clone https://github.com/Diplovee/IBSIDIAN.git ~/Apps/IBSIDIAN
+  cd ~/Apps/IBSIDIAN
+  nix run .#install-local
+  ```
+
+* To update later, pull the repo and rerun the installer:
+
+  ```bash
+  cd ~/Apps/IBSIDIAN
+  git pull
+  nix run .#install-local
+  ```
+
+* The installed launcher follows your local checkout, so app updates are picked up when you update the repo; there is no built-in automatic updater yet
 
 Features
 --------
