@@ -1962,12 +1962,20 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   // Stable refs so event handlers never go stale and the effect runs once
   const currentUrlRef = useRef(currentUrl);
   const tabIdRef = useRef(tab.id);
+  const groupIdRef = useRef<string | undefined>(tab.groupId);
+  const groupNameRef = useRef<string | undefined>(typeof tab.customTitle === 'string' && tab.customTitle.trim().length > 0 ? tab.customTitle : tab.title);
   const updateTabTitleRef = useRef(updateTabTitle);
   const updateTabUrlRef = useRef(updateTabUrl);
   const updateTabFaviconRef = useRef(updateTabFavicon);
   const updateTabLoadingRef = useRef(updateTabLoading);
   useEffect(() => { currentUrlRef.current = currentUrl; }, [currentUrl]);
   useEffect(() => { tabIdRef.current = tab.id; }, [tab.id]);
+  useEffect(() => { groupIdRef.current = tab.groupId; }, [tab.groupId]);
+  useEffect(() => {
+    groupNameRef.current = typeof tab.customTitle === 'string' && tab.customTitle.trim().length > 0
+      ? tab.customTitle
+      : tab.title;
+  }, [tab.customTitle, tab.title]);
   useEffect(() => { updateTabTitleRef.current = updateTabTitle; }, [updateTabTitle]);
   useEffect(() => { updateTabUrlRef.current = updateTabUrl; }, [updateTabUrl]);
   useEffect(() => { updateTabFaviconRef.current = updateTabFavicon; }, [updateTabFavicon]);
@@ -2024,7 +2032,14 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       updateTabUrlRef.current(tabIdRef.current, nextUrl);
       updateTabTitleRef.current(tabIdRef.current, nextTitle);
       updateTabFaviconRef.current(tabIdRef.current, nextFavicon);
-      addToHistory({ url: nextUrl, title: nextTitle, faviconUrl: nextFavicon, visitedAt: Date.now() });
+      addToHistory({
+        url: nextUrl,
+        title: nextTitle,
+        faviconUrl: nextFavicon,
+        visitedAt: Date.now(),
+        groupId: groupIdRef.current,
+        groupName: groupNameRef.current,
+      });
       updateNavState(wv);
     };
     const onTitle = (e: any) => {
@@ -2032,7 +2047,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
         ? e.title.trim()
         : deriveBrowserTitle(currentUrlRef.current);
       updateTabTitleRef.current(tabIdRef.current, nextTitle);
-      updateHistoryTitle(currentUrlRef.current, nextTitle);
+      updateHistoryTitle(currentUrlRef.current, nextTitle, undefined, groupIdRef.current);
     };
     const onFavicon = (e: any) => {
       const favicons = Array.isArray(e?.favicons) ? e.favicons.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0) : [];
@@ -2040,7 +2055,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       if (!favicon) return;
       cacheBrowserFavicon(currentUrlRef.current, favicon);
       updateTabFaviconRef.current(tabIdRef.current, favicon);
-      updateHistoryTitle(currentUrlRef.current, deriveBrowserTitle(currentUrlRef.current), favicon);
+      updateHistoryTitle(currentUrlRef.current, deriveBrowserTitle(currentUrlRef.current), favicon, groupIdRef.current);
     };
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
     const done = () => { if (stopTimer) clearTimeout(stopTimer); stopTimer = null; setIsLoading(false); updateTabLoadingRef.current(tabIdRef.current, false); updateNavState(wv); };

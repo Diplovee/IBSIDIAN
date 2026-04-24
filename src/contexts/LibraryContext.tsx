@@ -22,7 +22,8 @@ interface LibraryContextType {
   saveGroup: (group: SavedGroup) => void;
   deleteSavedGroup: (id: string) => void;
   addToHistory: (entry: Omit<HistoryEntry, 'id'>) => void;
-  updateHistoryTitle: (url: string, title: string, faviconUrl?: string) => void;
+  updateHistoryTitle: (url: string, title: string, faviconUrl?: string, groupId?: string) => void;
+  removeHistoryEntry: (id: string) => void;
   clearHistory: () => void;
 }
 
@@ -54,7 +55,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!url || url === 'about:blank' || url.startsWith('chrome://')) return;
 
     setHistory(prev => {
-      const existing = prev.find(item => item.url === url);
+      const existing = prev.find(item => item.url === url && (item.groupId ?? '') === (entry.groupId ?? ''));
       const id = existing?.id ?? Math.random().toString(36).slice(2, 10);
       const nextEntry: HistoryEntry = {
         id,
@@ -62,19 +63,29 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         title: entry.title?.trim() || url,
         faviconUrl: entry.faviconUrl,
         visitedAt: entry.visitedAt,
+        groupId: entry.groupId,
+        groupName: entry.groupName,
       };
-      const next = [nextEntry, ...prev.filter(item => item.url !== url)].slice(0, MAX_HISTORY);
+      const next = [nextEntry, ...prev.filter(item => !(item.url === url && (item.groupId ?? '') === (entry.groupId ?? '')))].slice(0, MAX_HISTORY);
       saveToStorage(HISTORY_KEY, next);
       return next;
     });
   }, []);
 
-  const updateHistoryTitle = useCallback((url: string, title: string, faviconUrl?: string) => {
+  const updateHistoryTitle = useCallback((url: string, title: string, faviconUrl?: string, groupId?: string) => {
     setHistory(prev => {
-      const idx = prev.findIndex(e => e.url === url);
+      const idx = prev.findIndex(e => e.url === url && (e.groupId ?? '') === (groupId ?? ''));
       if (idx === -1) return prev;
       const next = [...prev];
       next[idx] = { ...next[idx], title, ...(faviconUrl ? { faviconUrl } : {}) };
+      saveToStorage(HISTORY_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const removeHistoryEntry = useCallback((id: string) => {
+    setHistory(prev => {
+      const next = prev.filter(entry => entry.id !== id);
       saveToStorage(HISTORY_KEY, next);
       return next;
     });
@@ -86,7 +97,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   return (
-    <LibraryContext.Provider value={{ savedGroups, history, saveGroup, deleteSavedGroup, addToHistory, updateHistoryTitle, clearHistory }}>
+    <LibraryContext.Provider value={{ savedGroups, history, saveGroup, deleteSavedGroup, addToHistory, updateHistoryTitle, removeHistoryEntry, clearHistory }}>
       {children}
     </LibraryContext.Provider>
   );

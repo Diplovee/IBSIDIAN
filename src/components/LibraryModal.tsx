@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Trash2, RotateCcw, X, Clock, Layers, Globe, Pin, History } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Trash2, RotateCcw, X, Layers, Globe, Pin, Search } from 'lucide-react';
 import { useLibrary } from '../contexts/LibraryContext';
 import { useTabs } from '../contexts/TabsContext';
 
 type ModalTab = 'active' | 'browser' | 'forever';
+type HistoryRange = 'all' | 'today' | 'week' | 'month';
 
 const formatDate = (ts: number): string => {
   const d = new Date(ts);
@@ -19,6 +20,29 @@ const formatDate = (ts: number): string => {
 const formatSavedDate = (ts: number): string => {
   const d = new Date(ts);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const deriveUrlLabel = (url: string): string => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '') || url;
+  } catch {
+    return url;
+  }
+};
+
+const isInRange = (ts: number, range: HistoryRange): boolean => {
+  if (range === 'all') return true;
+  const now = new Date();
+  const date = new Date(ts);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (range === 'today') return date >= todayStart;
+  if (range === 'week') {
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 6);
+    return date >= weekStart;
+  }
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  return date >= monthStart;
 };
 
 const FaviconImg: React.FC<{ src?: string; size?: number }> = ({ src, size = 16 }) => {
@@ -42,12 +66,49 @@ interface LibraryModalProps {
 
 export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<ModalTab>('active');
-  const { savedGroups, history, saveGroup, deleteSavedGroup, clearHistory } = useLibrary();
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState('all');
+  const [historyRange, setHistoryRange] = useState<HistoryRange>('all');
+  const { savedGroups, history, saveGroup, deleteSavedGroup, removeHistoryEntry, clearHistory } = useLibrary();
   const { browserGroups, tabs, openTab, createBrowserGroup } = useTabs();
+
+  const pinnedUrls = useMemo(() => {
+    const urls = new Set<string>();
+    for (const group of savedGroups) {
+      for (const tab of group.tabs) {
+        if (tab.url?.trim()) urls.add(tab.url.trim());
+      }
+    }
+    return urls;
+  }, [savedGroups]);
+
+  const historyGroups = useMemo(() => {
+    const groups = new Map<string, string>();
+    for (const entry of history) {
+      const id = entry.groupId?.trim();
+      if (!id) continue;
+      const name = entry.groupName?.trim() || 'Unnamed group';
+      if (!groups.has(id)) groups.set(id, name);
+    }
+    return Array.from(groups.entries()).map(([id, name]) => ({ id, name }));
+  }, [history]);
+
+  const filteredHistory = useMemo(() => {
+    const query = historyQuery.trim().toLowerCase();
+    return history.filter(entry => {
+      if (selectedGroupId !== 'all' && (entry.groupId ?? '') !== selectedGroupId) return false;
+      if (!isInRange(entry.visitedAt, historyRange)) return false;
+      if (!query) return true;
+      const title = entry.title?.toLowerCase() ?? '';
+      const url = entry.url?.toLowerCase() ?? '';
+      const groupName = entry.groupName?.toLowerCase() ?? '';
+      return title.includes(query) || url.includes(query) || groupName.includes(query);
+    });
+  }, [history, historyQuery, selectedGroupId, historyRange]);
 
   const historyByDate: { label: string; entries: typeof history }[] = [];
   const seen = new Set<string>();
-  for (const entry of history) {
+  for (const entry of filteredHistory) {
     const label = formatDate(entry.visitedAt);
     if (!seen.has(label)) {
       seen.add(label);
@@ -78,6 +139,28 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
         groupId,
       });
     }
+  };
+
+  const handleSaveHistoryEntry = (entry: typeof history[number]) => {
+    if (pinnedUrls.has(entry.url)) return;
+    const safeId = entry.id || Math.random().toString(36).slice(2, 10);
+    saveGroup({
+      id: `history-${safeId}-${Date.now().toString(36)}`,
+      name: entry.title?.trim() || deriveUrlLabel(entry.url),
+      color: '#2563eb',
+      tabs: [{ url: entry.url, title: entry.title || entry.url, faviconUrl: entry.faviconUrl }],
+      savedAt: Date.now(),
+    });
+  };
+
+  const handleSaveFilteredHistory = () => {
+    for (const entry of filteredHistory) {
+      if (!pinnedUrls.has(entry.url)) handleSaveHistoryEntry(entry);
+    }
+  };
+
+  const handleDeleteFilteredHistory = () => {
+    for (const entry of filteredHistory) removeHistoryEntry(entry.id);
   };
 
   return (
@@ -151,7 +234,19 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ onClose }) => {
           {activeTab === 'browser' && (
             <HistoryTab
               historyByDate={historyByDate}
-              onOpenEntry={(entry) => openTab({ type: 'browser', title: entry.title || entry.url, url: entry.url, faviconUrl: entry.faviconUrl })}
+              historyQuery={historyQuery}
+              onHistoryQueryChange={setHistoryQuery}
+              selectedGroupId={selectedGroupId}
+              historyGroups={historyGroups}
+              historyRange={historyRange}
+              onSelectRange={setHistoryRange}
+              onSelectGroup={setSelectedGroupId}
+              pinnedUrls={pinnedUrls}
+              onOpenEntry={(entry) => openTab({ type: 'browser', title: entry.title || entry.url, url: entry.url, faviconUrl: entry.faviconUrl, groupId: entry.groupId })}
+              onSaveEntry={handleSaveHistoryEntry}
+              onSaveFiltered={handleSaveFilteredHistory}
+              onDeleteFiltered={handleDeleteFilteredHistory}
+              onDeleteEntry={removeHistoryEntry}
               onClearHistory={clearHistory}
             />
           )}
@@ -229,29 +324,80 @@ const ActiveTab: React.FC<ActiveTabProps> = ({ browserGroups, tabs, onSave }) =>
 };
 
 interface HistoryTabProps {
-  historyByDate: { label: string; entries: { id: string; url: string; title: string; faviconUrl?: string; visitedAt: number }[] }[];
-  onOpenEntry: (entry: { id: string; url: string; title: string; faviconUrl?: string; visitedAt: number }) => void;
+  historyByDate: { label: string; entries: { id: string; url: string; title: string; faviconUrl?: string; visitedAt: number; groupId?: string; groupName?: string }[] }[];
+  historyQuery: string;
+  onHistoryQueryChange: (value: string) => void;
+  selectedGroupId: string;
+  historyGroups: { id: string; name: string }[];
+  historyRange: HistoryRange;
+  onSelectRange: (range: HistoryRange) => void;
+  onSelectGroup: (groupId: string) => void;
+  pinnedUrls: Set<string>;
+  onOpenEntry: (entry: { id: string; url: string; title: string; faviconUrl?: string; visitedAt: number; groupId?: string; groupName?: string }) => void;
+  onSaveEntry: (entry: { id: string; url: string; title: string; faviconUrl?: string; visitedAt: number; groupId?: string; groupName?: string }) => void;
+  onSaveFiltered: () => void;
+  onDeleteFiltered: () => void;
+  onDeleteEntry: (id: string) => void;
   onClearHistory: () => void;
 }
 
-const HistoryTab: React.FC<HistoryTabProps> = ({ historyByDate, onOpenEntry, onClearHistory }) => {
+const HistoryTab: React.FC<HistoryTabProps> = ({ historyByDate, historyQuery, onHistoryQueryChange, selectedGroupId, historyGroups, historyRange, onSelectRange, onSelectGroup, pinnedUrls, onOpenEntry, onSaveEntry, onSaveFiltered, onDeleteFiltered, onDeleteEntry, onClearHistory }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  if (historyByDate.length === 0) {
-    return (
-      <div style={{ padding: 20 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No history yet</div>
-      </div>
-    );
-  }
+  const hasHistory = historyByDate.length > 0;
 
   return (
     <div style={{ paddingBottom: 16 }}>
+      <div style={{ padding: '12px 20px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+          <HistoryFilterChip active={historyRange === 'all'} label="All time" onClick={() => onSelectRange('all')} />
+          <HistoryFilterChip active={historyRange === 'today'} label="Today" onClick={() => onSelectRange('today')} />
+          <HistoryFilterChip active={historyRange === 'week'} label="7 days" onClick={() => onSelectRange('week')} />
+          <HistoryFilterChip active={historyRange === 'month'} label="This month" onClick={() => onSelectRange('month')} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
+          <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <input
+            value={historyQuery}
+            onChange={(e) => onHistoryQueryChange(e.target.value)}
+            placeholder="Search history"
+            style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, padding: '8px 0' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+          <HistoryFilterChip active={selectedGroupId === 'all'} label="All groups" onClick={() => onSelectGroup('all')} />
+          {historyGroups.map(group => (
+            <HistoryFilterChip key={group.id} active={selectedGroupId === group.id} label={group.name} onClick={() => onSelectGroup(group.id)} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={onSaveFiltered}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer' }}
+          >
+            Keep filtered
+          </button>
+          <button
+            onClick={onDeleteFiltered}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: '#ef4444', fontSize: 12, cursor: 'pointer' }}
+          >
+            Delete filtered
+          </button>
+        </div>
+      </div>
+
+      {!hasHistory && (
+        <div style={{ padding: '4px 20px 12px' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No matching history</div>
+        </div>
+      )}
+
       {historyByDate.map(({ label, entries }) => (
         <div key={label}>
           <SectionHeader label={label} />
           {entries.map(entry => {
             const isHovered = hoveredId === entry.id;
+            const isPinned = pinnedUrls.has(entry.url);
             return (
               <div
                 key={entry.id}
@@ -270,10 +416,43 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ historyByDate, onOpenEntry, onC
                   <div style={{ fontSize: 13, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {entry.title || entry.url}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {entry.url}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {entry.url}
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 9999, padding: '1px 6px', flexShrink: 0 }}>
+                      {deriveUrlLabel(entry.url)}
+                    </span>
+                    {entry.groupName && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 9999, padding: '1px 6px', flexShrink: 0 }}>
+                        {entry.groupName}
+                      </span>
+                    )}
+                    {isPinned && (
+                      <span style={{ fontSize: 10, color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 9999, padding: '1px 6px', flexShrink: 0 }}>
+                        Pinned
+                      </span>
+                    )}
                   </div>
                 </div>
+                {isHovered && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (!isPinned) onSaveEntry(entry); }}
+                      title={isPinned ? 'Already pinned' : 'Keep forever'}
+                      style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: isPinned ? 'var(--accent)' : 'var(--text-primary)', cursor: isPinned ? 'default' : 'pointer', opacity: isPinned ? 0.9 : 1 }}
+                    >
+                      <Pin size={12} fill={isPinned ? 'currentColor' : 'none'} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDeleteEntry(entry.id); }}
+                      title="Remove from history"
+                      style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: '#ef4444', cursor: 'pointer' }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -368,6 +547,25 @@ const ForeverTab: React.FC<ForeverTabProps> = ({ savedGroups, onRestore, onDelet
     </div>
   );
 };
+
+const HistoryFilterChip: React.FC<{ label: string; active: boolean; onClick: () => void }> = ({ label, active, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      border: '1px solid var(--border)',
+      background: active ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+      color: active ? 'var(--accent)' : 'var(--text-secondary)',
+      borderRadius: 9999,
+      padding: '3px 10px',
+      fontSize: 11,
+      whiteSpace: 'nowrap',
+      cursor: 'pointer',
+      fontWeight: 600,
+    }}
+  >
+    {label}
+  </button>
+);
 
 const SectionHeader: React.FC<{ label: string }> = ({ label }) => (
   <div style={{

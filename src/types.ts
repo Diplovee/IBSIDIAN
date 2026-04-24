@@ -94,4 +94,6 @@ export interface HistoryEntry {
   title: string;
   faviconUrl?: string;
   visitedAt: number;
+  groupId?: string;
+  groupName?: string;
 }
