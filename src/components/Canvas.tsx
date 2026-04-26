@@ -33,7 +33,7 @@ import {
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, Check, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight, X, Pin,
+  Trash2, ChevronRight, X, Pin, Eye, EyeOff,
 } from 'lucide-react';
 import {
   CALL_OUT_STYLES,
@@ -1080,7 +1080,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { closeTab, updateTabTitle, updateTabFilePath, splitRight, splitDown } = useTabs();
   const { confirm, prompt, alert } = useModal();
   const { theme } = useActivity();
-  const { settings } = useAppSettings();
+  const { settings, updateEditorSettings } = useAppSettings();
   const showFormattingBar = settings.editor.showFormattingBar;
   const [updateAvailable, setUpdateAvailable] = useState(() => localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
   const [updateCurrent, setUpdateCurrent] = useState(() => localStorage.getItem(UPDATE_CURRENT_KEY) || '');
@@ -1562,6 +1562,14 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           {menuOpen && (
             <div style={{ position: 'absolute', top: '100%', right: 32, marginTop: 4, width: 264, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, boxShadow: 'var(--shadow-md)', zIndex: 50, padding: '4px 0' }}>
               <MenuItem icon={<Pencil size={14} />} label="Rename..." onClick={handleRename} />
+              <MenuItem
+                icon={showFormattingBar ? <EyeOff size={14} /> : <Eye size={14} />}
+                label={showFormattingBar ? 'Hide toolbar' : 'Show toolbar'}
+                onClick={() => {
+                  void updateEditorSettings({ showFormattingBar: !showFormattingBar });
+                  setMenuOpen(false);
+                }}
+              />
               <MenuItem icon={<FolderInput size={14} />} label="Move file to..." disabled />
               <MenuItem icon={<Bookmark size={14} />} label="Bookmark..." disabled />
               <MenuItem icon={<Download size={14} />} label="Export to PDF..." disabled />

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.25] - 2026-04-26
+
+### Added
+- The note formatting toolbar can now be hidden or shown from the note menu and Settings.
+- `Ctrl+N` now opens the new-tab chooser, and the scratchpad option was removed.
+
+### Changed
+- The formatting toolbar now sits above the note title field.
+- Opening a note no longer auto-selects the title text.
+
+### Fixed
+- The editor canvas now uses a text caret cursor so it is clearer when the focus is inside the editor.
+
 ## [2026.5.24] - 2026-04-24
 
 ### Added
