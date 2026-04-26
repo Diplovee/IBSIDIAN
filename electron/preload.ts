@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('api', {
     applyUpdate: () => ipcRenderer.invoke('app:updates:apply'),
     restart: () => ipcRenderer.invoke('app:restart'),
   },
+  ui: {
+    onToggleFullscreenTab: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on('ui:toggle-fullscreen-tab', handler)
+      return () => ipcRenderer.removeListener('ui:toggle-fullscreen-tab', handler)
+    },
+  },
   theme: {
     set: (theme: 'light' | 'dark'): Promise<void> =>
       ipcRenderer.invoke('theme:set', theme),

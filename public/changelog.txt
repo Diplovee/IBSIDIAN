@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.26] - 2026-04-26
+
+### Added
+- `Ctrl+Shift+F` now toggles the active drawing or browser tab into a fullscreen workspace, hiding the rest of the app chrome while it is active.
+- Browser tabs now expose a native-style context menu with link, selection, and edit actions.
+
+### Changed
+- The fullscreen browser/drawing mode now uses a thin left-edge hover rail instead of an exit pill.
+
 ## [2026.5.25] - 2026-04-26
 
 ### Added

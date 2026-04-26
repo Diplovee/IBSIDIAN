@@ -399,6 +399,13 @@ function createWindow() {
   }
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isToggleFullscreenTab = input.type === 'keyDown' && (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'f'
+    if (isToggleFullscreenTab) {
+      event.preventDefault()
+      mainWindow?.webContents.send('ui:toggle-fullscreen-tab')
+      return
+    }
+
     const isToggleDevTools = input.type === 'keyDown' && input.control && input.shift && input.key.toLowerCase() === 'c'
     if (!isToggleDevTools) return
 

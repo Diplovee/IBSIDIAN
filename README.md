@@ -55,7 +55,7 @@ Features
 * Enhanced Markdown  — Markdown Guide basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
 * Settings Modal     — theme, version, about, and changelog access in a command-palette-style modal
 * Drawing Canvas     — visual notes via Excalidraw with locally served editor assets
-* Browser Tab        — built-in web browser with favicon-aware tab icons
+* Browser Tab        — built-in web browser with favicon-aware tab icons, native context menu actions, and text selection support
 * Tab Groups         — group notes, drawings, images, and browser tabs with drag/drop + collapse
 * Library            — browser history, active groups, and saved "forever" groups
 * Terminal           — real PTY shell starting in your vault root
@@ -73,6 +73,7 @@ Keyboard Shortcuts
     B         Open browser tab
     D         Open drawing
     T         Open terminal
+    Ctrl+Shift+F  Toggle fullscreen browser/drawing tab
     \         Toggle sidebar
     S         Search vault
     ,         Open settings

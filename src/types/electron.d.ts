@@ -32,6 +32,9 @@ declare global {
         }>
         restart: () => Promise<boolean>
       }
+      ui: {
+        onToggleFullscreenTab: (cb: () => void) => () => void
+      }
       theme: {
         set: (theme: 'light' | 'dark') => Promise<void>
       }

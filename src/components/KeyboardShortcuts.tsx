@@ -13,12 +13,13 @@ import { normalizeNewItemName } from '../utils/fileNaming';
 const SHORTCUTS = [
   { id: 'toggle-sidebar', label: 'Toggle Sidebar', shortcut: 'Ctrl+S', category: 'View' },
   { id: 'reload-page', label: 'Reload Page', shortcut: 'Ctrl+R', category: 'Browser' },
+  { id: 'fullscreen-tab', label: 'Toggle Fullscreen Tab', shortcut: 'Ctrl+Shift+F', category: 'View' },
   { id: 'new-tab', label: 'New Tab', shortcut: 'Ctrl+N', category: 'Tab' },
   { id: 'new-browser', label: 'New Browser', shortcut: 'Ctrl+B', category: 'Tab' },
   { id: 'lite-mode', label: 'Browser Lite Mode', shortcut: 'Ctrl+L', category: 'Browser' },
   { id: 'keybindings', label: 'Show Keybindings', shortcut: 'Ctrl+?', category: 'Help' },
   { id: 'new-note', label: 'New Note', shortcut: 'Ctrl+Shift+N', category: 'File' },
-  { id: 'new-folder', label: 'New Folder', shortcut: 'Ctrl+Shift+F', category: 'File' },
+  { id: 'new-folder', label: 'New Folder', category: 'File' },
   { id: 'file-switcher', label: 'Go to File', shortcut: 'Ctrl+P', category: 'Navigation' },
   { id: 'command-palette', label: 'Command Palette', shortcut: 'Ctrl+K', category: 'Navigation' },
 ];
@@ -66,7 +67,7 @@ const KeybindingPalette: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {filtered.map((s, i) => (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20, paddingRight: 20, paddingTop: 12, paddingBottom: 12, background: i === selectedIndex ? 'var(--bg-hover)' : 'transparent' }}>
               <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{s.label}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.04em', background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: 4 }}>{s.shortcut}</span>
+              {s.shortcut && <span style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.04em', background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: 4 }}>{s.shortcut}</span>}
             </div>
           ))}
         </div>
@@ -177,7 +178,7 @@ const NewTabModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 export const KeyboardShortcuts: React.FC = () => {
-  const { openTab, tabs, activeTabId } = useTabs();
+  const { openTab, tabs, activeTabId, fullscreenTabId, toggleFullscreenTab, clearFullscreenTab } = useTabs();
   const { setSidebarCollapsed, isSidebarCollapsed } = useActivity();
   const { settings, updateBrowserSettings } = useAppSettings();
   const { nextUntitledName, createFileRemote, createFolderRemote, refreshFileTree } = useVault();
@@ -188,6 +189,17 @@ export const KeyboardShortcuts: React.FC = () => {
   const handleNewDocument = useCallback(async () => {
     await createNewDocument({ choose, prompt, nextUntitledName, createFileRemote, refreshFileTree, openTab });
   }, [choose, prompt, nextUntitledName, createFileRemote, refreshFileTree, openTab]);
+
+  const handleToggleFullscreenTab = useCallback(() => {
+    const activeTab = tabs.find(t => t.id === activeTabId);
+    if (fullscreenTabId) {
+      clearFullscreenTab();
+      return;
+    }
+    if (activeTab?.type === 'browser' || activeTab?.type === 'draw') {
+      toggleFullscreenTab(activeTab.id);
+    }
+  }, [activeTabId, clearFullscreenTab, fullscreenTabId, tabs, toggleFullscreenTab]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const ctrlOrMeta = e.ctrlKey || e.metaKey;
@@ -251,6 +263,13 @@ export const KeyboardShortcuts: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    const offToggleFullscreen = window.api.ui.onToggleFullscreenTab(() => {
+      handleToggleFullscreenTab();
+    });
+    return () => offToggleFullscreen();
+  }, [handleToggleFullscreenTab]);
 
   return (
     <>

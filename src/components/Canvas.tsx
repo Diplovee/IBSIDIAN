@@ -379,6 +379,7 @@ const editorTheme = EditorView.theme({
 export const Canvas: React.FC = () => {
   const {
     activeTabId,
+    fullscreenTabId,
     tabs,
     panes,
     paneSizes,
@@ -409,10 +410,12 @@ export const Canvas: React.FC = () => {
     splitDown,
     closePane,
     setPaneSizes,
+    clearFullscreenTab,
   } = useTabs();
   const { saveGroup } = useLibrary();
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const [stackTabCtxMenu, setStackTabCtxMenu] = useState<{ x: number; y: number; tabId: string; paneId: string } | null>(null);
+  const [fullscreenRailOpen, setFullscreenRailOpen] = useState(false);
   const { prompt: promptModal, confirm: confirmModal } = useModal();
 
   useEffect(() => {
@@ -440,6 +443,98 @@ export const Canvas: React.FC = () => {
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, [stackTabCtxMenu]);
+
+  useEffect(() => {
+    if (!fullscreenTabId) return;
+    const fullscreenTab = tabs.find(t => t.id === fullscreenTabId);
+    if (!fullscreenTab || (fullscreenTab.type !== 'browser' && fullscreenTab.type !== 'draw')) {
+      clearFullscreenTab();
+    }
+  }, [clearFullscreenTab, fullscreenTabId, tabs]);
+
+  useEffect(() => {
+    setFullscreenRailOpen(false);
+  }, [fullscreenTabId]);
+
+  const fullscreenTab = fullscreenTabId ? tabs.find(t => t.id === fullscreenTabId) ?? null : null;
+  const isFullscreenTab = !!fullscreenTab && (fullscreenTab.type === 'browser' || fullscreenTab.type === 'draw');
+
+  if (isFullscreenTab) {
+    const isBrowserFullscreen = fullscreenTab.type === 'browser';
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
+        {fullscreenTab.type === 'browser' ? <BrowserTab tab={fullscreenTab} /> : <DrawTab tab={fullscreenTab} />}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 220,
+            zIndex: 20,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            onMouseEnter={() => setFullscreenRailOpen(true)}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 12,
+              pointerEvents: 'auto',
+              background: 'linear-gradient(to right, color-mix(in srgb, var(--bg-primary) 30%, transparent), transparent)',
+              borderRight: '1px solid transparent',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'stretch',
+              pointerEvents: 'auto',
+              transform: fullscreenRailOpen ? 'translateX(0)' : 'translateX(-208px)',
+              transition: 'transform 0.16s ease',
+            }}
+            onMouseEnter={() => setFullscreenRailOpen(true)}
+            onMouseLeave={() => setFullscreenRailOpen(false)}
+          >
+            <div
+              style={{
+                width: 220,
+                padding: '12px 10px 12px 12px',
+                background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
+                borderRight: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <RailButton label="Exit fullscreen" onClick={clearFullscreenTab} />
+              {isBrowserFullscreen && (
+                <>
+                  <RailButton label="Back" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'back' } }))} />
+                  <RailButton label="Forward" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'forward' } }))} />
+                  <RailButton label="Reload" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'reload' } }))} />
+                </>
+              )}
+            </div>
+            <div
+              style={{
+                width: 12,
+                height: '100%',
+                background: 'transparent',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderPane = (paneId: string) => {
     const pane = panes.find(p => p.id === paneId);
@@ -1045,6 +1140,26 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, onClick, disabled, dan
 };
 
 const MenuSep: React.FC = () => <div style={{ margin: '4px 0', borderTop: '1px solid var(--border)' }} />;
+
+const RailButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      width: '100%',
+      textAlign: 'left',
+      padding: '9px 12px',
+      borderRadius: 8,
+      border: '1px solid var(--border)',
+      background: 'var(--bg-secondary)',
+      color: 'var(--text-primary)',
+      cursor: 'pointer',
+      fontSize: 13,
+      fontWeight: 600,
+    }}
+  >
+    {label}
+  </button>
+);
 
 interface SubMenuProps {
   icon: React.ReactNode;
@@ -1851,6 +1966,14 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [clock, setClock] = useState('00:00');
   const [greeting, setGreeting] = useState('Good evening');
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; url: string } | null>(null);
+  const [pageCtxMenu, setPageCtxMenu] = useState<{
+    x: number;
+    y: number;
+    linkURL?: string;
+    selectionText?: string;
+    isEditable?: boolean;
+    srcURL?: string;
+  } | null>(null);
   const browserCssKeyRef = useRef<string | null>(null);
   const browserSettingsRef = useRef(browserSettings);
 
@@ -1860,7 +1983,10 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   };
 
   useEffect(() => {
-    const handleClick = () => setCtxMenu(null);
+    const handleClick = () => {
+      setCtxMenu(null);
+      setPageCtxMenu(null);
+    };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, []);
@@ -2033,6 +2159,48 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       if (detail?.tabId !== tabIdRef.current) return;
       wv.reload();
     };
+    const onControl = (e: Event) => {
+      const detail = (e as CustomEvent<{ tabId?: string; action?: 'back' | 'forward' | 'reload' | 'copy' | 'paste' | 'cut' | 'select-all' }>).detail;
+      if (detail?.tabId !== tabIdRef.current) return;
+      switch (detail.action) {
+        case 'back':
+          wv.goBack?.();
+          break;
+        case 'forward':
+          wv.goForward?.();
+          break;
+        case 'reload':
+          wv.reload?.();
+          break;
+        case 'copy':
+          wv.copy?.();
+          break;
+        case 'paste':
+          wv.paste?.();
+          break;
+        case 'cut':
+          wv.cut?.();
+          break;
+        case 'select-all':
+          wv.selectAll?.();
+          break;
+      }
+    };
+    const onContextMenu = (e: any) => {
+      const params = e?.params ?? e ?? {};
+      if (typeof e?.preventDefault === 'function') e.preventDefault();
+      setPageCtxMenu({
+        x: typeof params.x === 'number' ? params.x : 0,
+        y: typeof params.y === 'number' ? params.y : 0,
+        linkURL: typeof params.linkURL === 'string' && params.linkURL.trim() ? params.linkURL : undefined,
+        selectionText: typeof params.selectionText === 'string' && params.selectionText.trim() ? params.selectionText : undefined,
+        isEditable: typeof params.isEditable === 'boolean' ? params.isEditable : undefined,
+        srcURL: typeof params.srcURL === 'string' && params.srcURL.trim() ? params.srcURL : undefined,
+      });
+    };
+    const onBlur = () => {
+      setPageCtxMenu(null);
+    };
 
     wv.addEventListener('did-navigate', onNav);
     wv.addEventListener('did-navigate-in-page', onNav);
@@ -2043,7 +2211,10 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     wv.addEventListener('did-fail-load', onFailLoad);
     wv.addEventListener('did-stop-loading', onStopLoad);
     wv.addEventListener('dom-ready', onDomReady);
+    wv.addEventListener('context-menu', onContextMenu as EventListener);
+    wv.addEventListener('blur', onBlur);
     window.addEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
+    window.addEventListener('ibsidian:browser-tab-control', onControl as EventListener);
     return () => {
       wv.removeEventListener('did-navigate', onNav);
       wv.removeEventListener('did-navigate-in-page', onNav);
@@ -2054,6 +2225,8 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       wv.removeEventListener('did-fail-load', onFailLoad);
       wv.removeEventListener('did-stop-loading', onStopLoad);
       wv.removeEventListener('dom-ready', onDomReady);
+      wv.removeEventListener('context-menu', onContextMenu as EventListener);
+      wv.removeEventListener('blur', onBlur);
       if (stopTimer) clearTimeout(stopTimer);
       if (browserCssKeyRef.current) {
         try { wv.removeInsertedCSS?.(browserCssKeyRef.current); } catch {}
@@ -2061,6 +2234,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       }
       updateTabLoadingRef.current(tabIdRef.current, false);
       window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
+      window.removeEventListener('ibsidian:browser-tab-control', onControl as EventListener);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2238,6 +2412,78 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
       </div>
       {/* @ts-ignore - webview is an Electron-specific tag */}
       <webview ref={webviewRef} src={currentUrl} style={{ flex: 1, border: 'none', background: bgColor }} />
+      {pageCtxMenu && (
+        <div
+          onMouseDown={() => setPageCtxMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setPageCtxMenu(null);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 999,
+            background: 'transparent',
+          }}
+        />
+      )}
+      {pageCtxMenu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: pageCtxMenu.x,
+            top: pageCtxMenu.y,
+            zIndex: 1000,
+            minWidth: 220,
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: 'var(--shadow-md)',
+            paddingTop: 4,
+            paddingBottom: 4,
+          }}
+        >
+          <MenuItem icon={<ArrowLeft size={14} />} label="Back" disabled={!canGoBack} onClick={() => { webviewRef.current?.goBack?.(); setPageCtxMenu(null); }} />
+          <MenuItem icon={<ArrowRight size={14} />} label="Forward" disabled={!canGoForward} onClick={() => { webviewRef.current?.goForward?.(); setPageCtxMenu(null); }} />
+          <MenuItem icon={<RefreshCw size={14} />} label="Reload" onClick={() => { webviewRef.current?.reload?.(); setPageCtxMenu(null); }} />
+          <MenuSep />
+          {pageCtxMenu.linkURL && (
+            <>
+              <MenuItem icon={<ExternalLink size={14} />} label="Open link in new tab" onClick={() => {
+                openTab({ type: 'browser', title: pageCtxMenu.linkURL!, url: pageCtxMenu.linkURL!, groupId: '' });
+                setPageCtxMenu(null);
+              }} />
+              <MenuItem icon={<Copy size={14} />} label="Copy link" onClick={() => {
+                navigator.clipboard.writeText(pageCtxMenu.linkURL!).catch(() => {});
+                setPageCtxMenu(null);
+              }} />
+              <MenuSep />
+            </>
+          )}
+          {pageCtxMenu.selectionText && (
+            <>
+              <MenuItem icon={<Copy size={14} />} label="Copy selection" onClick={() => {
+                webviewRef.current?.copy?.();
+                setPageCtxMenu(null);
+              }} />
+              <MenuItem icon={<Search size={14} />} label="Search selection" onClick={() => {
+                openTab({ type: 'browser', title: pageCtxMenu.selectionText!, url: `https://www.google.com/search?q=${encodeURIComponent(pageCtxMenu.selectionText!)}`, groupId: '' });
+                setPageCtxMenu(null);
+              }} />
+            </>
+          )}
+          {pageCtxMenu.isEditable && (
+            <>
+              <MenuItem icon={<Copy size={14} />} label="Copy" onClick={() => { webviewRef.current?.copy?.(); setPageCtxMenu(null); }} />
+              <MenuItem icon={<Check size={14} />} label="Paste" onClick={() => { webviewRef.current?.paste?.(); setPageCtxMenu(null); }} />
+              <MenuItem icon={<Trash2 size={14} />} label="Cut" onClick={() => { webviewRef.current?.cut?.(); setPageCtxMenu(null); }} />
+              <MenuSep />
+            </>
+          )}
+          <MenuItem icon={<Check size={14} />} label="Select all" onClick={() => { webviewRef.current?.selectAll?.(); setPageCtxMenu(null); }} />
+        </div>
+      )}
     </div>
   );
 };

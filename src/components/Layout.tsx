@@ -24,12 +24,13 @@ const UPDATE_LATEST_KEY = 'ibsidian:update-latest';
 export const Layout: React.FC = () => {
   const { isSidebarCollapsed } = useActivity();
   const { vault, isReady, error, clearActiveVault, refreshFileTree } = useVault();
-  const { tabs, activeTabId, restoreTabs, browserGroups, panes, activePaneId, paneSizes, splitDirection } = useTabs();
+  const { tabs, activeTabId, restoreTabs, browserGroups, panes, activePaneId, paneSizes, splitDirection, fullscreenTabId } = useTabs();
   const hydratedTabsKeyRef = useRef<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
   const updateCheckedRef = useRef(false);
   const vaultMissing = !!error && error.includes('not found');
+  const isFullscreenTabOpen = !!fullscreenTabId;
 
   const tabsStorageKey = vault ? `${TABS_KEY_PREFIX}${vault.path}` : null;
 
@@ -200,10 +201,10 @@ export const Layout: React.FC = () => {
         </div>
       ) : (
         <>
-          <TopBar />
+          {!isFullscreenTabOpen && <TopBar />}
           <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <ActivityBar />
-            {!isSidebarCollapsed && (
+            {!isFullscreenTabOpen && <ActivityBar />}
+            {!isFullscreenTabOpen && !isSidebarCollapsed && (
               <>
                 <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600, flexShrink: 0 }}>
                   <SidePanel />

@@ -5,6 +5,7 @@ interface TabsContextType {
   tabs: Tab[];
   browserGroups: BrowserTabGroup[];
   activeTabId: string | null;
+  fullscreenTabId: string | null;
   panes: Pane[];
   paneSizes: number[];
   splitDirection: 'horizontal' | 'vertical' | 'right-stack' | 'left-stack';
@@ -18,6 +19,8 @@ interface TabsContextType {
   closeAllTabs: () => void;
   restoreTabs: (tabs: Tab[], activeTabId?: string | null, browserGroups?: BrowserTabGroup[], panes?: Pane[], activePaneId?: string, paneSizes?: number[], splitDirection?: 'horizontal' | 'vertical' | 'right-stack' | 'left-stack') => void;
   setActiveTabId: (id: string | null) => void;
+  clearFullscreenTab: () => void;
+  toggleFullscreenTab: (tabId: string) => void;
   setActivePane: (paneId: string) => void;
   splitRight: () => void;
   splitDown: () => void;
@@ -64,6 +67,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [browserGroups, setBrowserGroups] = useState<BrowserTabGroup[]>([]);
   const [activeTabId, setActiveTabIdState] = useState<string | null>(null);
+  const [fullscreenTabId, setFullscreenTabId] = useState<string | null>(null);
   const [panes, setPanes] = useState<Pane[]>([{ id: 'main', activeTabId: null }]);
   const [paneSizes, setPaneSizesState] = useState<number[]>([1]);
   const [splitDirection, setSplitDirection] = useState<'horizontal' | 'vertical' | 'right-stack' | 'left-stack'>('horizontal');
@@ -335,6 +339,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return newTabs;
     });
+    setFullscreenTabId(prev => (prev && ids.includes(prev) ? null : prev));
   }, [activePaneId, splitDirection]);
 
   const closeTab = useCallback((id: string) => {
@@ -433,6 +438,15 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSplitDirection(normalizedPanes.length > 1 ? nextSplitDirection : 'horizontal');
     setActivePaneId(resolvedActivePaneId);
     setActiveTabIdState(resolvedActiveTabId);
+    setFullscreenTabId(null);
+  }, []);
+
+  const clearFullscreenTab = useCallback(() => {
+    setFullscreenTabId(null);
+  }, []);
+
+  const toggleFullscreenTab = useCallback((tabId: string) => {
+    setFullscreenTabId(prev => prev === tabId ? null : tabId);
   }, []);
 
   const updateTabTitle = useCallback((id: string, title: string) => {
@@ -561,6 +575,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tabs,
       browserGroups,
       activeTabId,
+      fullscreenTabId,
       panes,
       paneSizes,
       splitDirection,
@@ -575,6 +590,8 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       closeAllTabs,
       restoreTabs,
       setActiveTabId,
+      clearFullscreenTab,
+      toggleFullscreenTab,
       setActivePane,
       splitRight,
       splitDown,
