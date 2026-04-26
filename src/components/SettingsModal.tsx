@@ -10,6 +10,7 @@ const CATEGORIES = [
   { id: 'appearance',   label: 'Appearance' },
   { id: 'editor',       label: 'Editor' },
   { id: 'files',        label: 'Files & Links' },
+  { id: 'browser',      label: 'Browser' },
   { id: 'agents',       label: 'Agents' },
   { id: 'productivity', label: 'Productivity' },
 ] as const;
@@ -288,32 +289,23 @@ const AppearancePanel: React.FC = () => {
   );
 };
 
-const EDITOR_PREFERENCE_KEY = 'editor';
-
 const EditorPanel: React.FC = () => {
-  const [editor, setEditor] = useState<'codemirror' | 'tiptap'>(() => (
-    localStorage.getItem(EDITOR_PREFERENCE_KEY) === 'tiptap' ? 'tiptap' : 'codemirror'
-  ));
-
-  const setPreferredEditor = (next: 'codemirror' | 'tiptap') => {
-    setEditor(next);
-    localStorage.setItem(EDITOR_PREFERENCE_KEY, next);
-    window.dispatchEvent(new CustomEvent('ibsidian:editor-preference-changed'));
-  };
+  const { settings, updateEditorSettings } = useAppSettings();
+  const showFormattingBar = settings.editor.showFormattingBar;
 
   return (
     <div>
-      <SectionLabel first>Primary editor engine</SectionLabel>
+      <SectionLabel first>Formatting bar</SectionLabel>
       <div style={{ display: 'flex', gap: 8 }}>
-        <OptionBtn active={editor === 'codemirror'} onClick={() => setPreferredEditor('codemirror')}>
-          CodeMirror
+        <OptionBtn active={showFormattingBar} onClick={() => updateEditorSettings({ showFormattingBar: true })}>
+          Enabled
         </OptionBtn>
-        <OptionBtn active={editor === 'tiptap'} onClick={() => setPreferredEditor('tiptap')}>
-          TipTap (experimental)
+        <OptionBtn active={!showFormattingBar} onClick={() => updateEditorSettings({ showFormattingBar: false })}>
+          Hidden
         </OptionBtn>
       </div>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '8px 0 0' }}>
-        Switches instantly for open notes. If TipTap causes issues, switch back to CodeMirror here.
+        When enabled, the CodeMirror note editor shows a formatting bar above the document. The context menu stays available either way.
       </p>
     </div>
   );
@@ -350,6 +342,74 @@ const FilesPanel: React.FC = () => {
       <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '8px 0 0' }}>
         New pasted or dropped images are saved inside the vault and embedded with `![[...]]`.
       </p>
+    </div>
+  );
+};
+
+const BrowserPanel: React.FC = () => {
+  const { settings, updateBrowserSettings } = useAppSettings();
+  const browser = settings.browser;
+
+  return (
+    <div>
+      <SectionLabel first>Browser performance mode</SectionLabel>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <OptionBtn active={!browser.liteMode} onClick={() => updateBrowserSettings({ liteMode: false })}>Standard</OptionBtn>
+        <OptionBtn active={browser.liteMode} onClick={() => updateBrowserSettings({ liteMode: true })}>Lite mode</OptionBtn>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 16px' }}>
+        Lite mode injects CSS/JS into browser tabs to reduce visual effects and lower CPU/GPU usage.
+      </p>
+
+      <SectionLabel>Lite mode options</SectionLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[
+          {
+            key: 'disableAnimations' as const,
+            label: 'Disable page animations',
+            description: 'Turns off transitions, keyframes, smooth scrolling, and motion effects.',
+          },
+          {
+            key: 'disableFilters' as const,
+            label: 'Disable blur and heavy filters',
+            description: 'Removes backdrop blur, drop shadows, and expensive CSS filters.',
+          },
+          {
+            key: 'disableVideoAutoplay' as const,
+            label: 'Pause autoplay videos',
+            description: 'Pauses media elements to reduce battery and background decoding load.',
+          },
+          {
+            key: 'blockImages' as const,
+            label: 'Aggressive mode: hide images',
+            description: 'Hides images/canvas/video for maximum performance. May break some pages.',
+          },
+        ].map(item => (
+          <button
+            key={item.key}
+            onClick={() => updateBrowserSettings({ [item.key]: !browser[item.key] })}
+            disabled={!browser.liteMode}
+            style={{
+              textAlign: 'left',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: browser[item.key] ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              cursor: browser.liteMode ? 'pointer' : 'default',
+              opacity: browser.liteMode ? 1 : 0.55,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{item.label}</span>
+              <span style={{ fontSize: 12, color: browser[item.key] ? 'var(--accent)' : 'var(--text-muted)' }}>
+                {browser[item.key] ? 'On' : 'Off'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>{item.description}</div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
@@ -842,6 +902,7 @@ export const SettingsModal: React.FC = () => {
             {activeCategory === 'appearance' && <AppearancePanel />}
             {activeCategory === 'editor' && <EditorPanel />}
             {activeCategory === 'files' && <FilesPanel />}
+            {activeCategory === 'browser' && <BrowserPanel />}
             {activeCategory === 'agents' && <AgentsPanel />}
             {activeCategory === 'productivity' && <ProductivityPanel />}
           </div>

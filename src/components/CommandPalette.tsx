@@ -5,6 +5,7 @@ import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
 import { useModal } from './Modal';
 import { normalizeNewItemName } from '../utils/fileNaming';
+import { createNewDocument } from '../utils/newDocument';
 
 export const CommandPalette: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,17 +16,11 @@ export const CommandPalette: React.FC = () => {
   const { openTab } = useTabs();
   const { toggleActivity, setSidebarCollapsed, isSidebarCollapsed, openSettings } = useActivity();
   const { createFileRemote, createFolderRemote, refreshFileTree, nextUntitledName } = useVault();
-  const { prompt } = useModal();
+  const { prompt, choose } = useModal();
 
   const commands = [
     { label: 'New Note', shortcut: 'N', action: async () => {
-      const requestedName = await prompt({ title: 'New note', placeholder: 'Note name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
-      if (!requestedName) return;
-      const name = normalizeNewItemName(requestedName, 'md');
-      createFileRemote('', name, 'md').then(() => {
-        refreshFileTree(undefined, { showLoading: false });
-        openTab({ type: 'note', title: name, filePath: `${name}.md` });
-      });
+      await createNewDocument({ choose, prompt, nextUntitledName, createFileRemote, refreshFileTree, openTab });
     }},
     { label: 'New Folder', shortcut: 'F', action: async () => {
       const requestedName = await prompt({ title: 'New folder', placeholder: 'Folder name', defaultValue: 'New Folder', confirmLabel: 'Create' });

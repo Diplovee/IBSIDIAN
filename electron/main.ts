@@ -42,9 +42,19 @@ const DEFAULT_SETTINGS: AppSettings = {
   fileTree: {
     style: 'original',
   },
+  editor: {
+    showFormattingBar: true,
+  },
   appearance: {
     fontSize: 'medium',
     compactMode: false,
+  },
+  browser: {
+    liteMode: false,
+    disableAnimations: true,
+    disableFilters: true,
+    disableVideoAutoplay: true,
+    blockImages: false,
   },
   agents: {
     claude: true,
@@ -284,6 +294,11 @@ async function loadSettingsConfig(): Promise<AppSettings> {
       fileTree: {
         style: parsed.fileTree?.style === 'hierarchy' ? 'hierarchy' : DEFAULT_SETTINGS.fileTree.style,
       },
+      editor: {
+        showFormattingBar: typeof parsed.editor?.showFormattingBar === 'boolean'
+          ? parsed.editor.showFormattingBar
+          : DEFAULT_SETTINGS.editor.showFormattingBar,
+      },
       appearance: {
         fontSize: (['small', 'medium', 'large'] as const).includes(parsed.appearance?.fontSize as 'small' | 'medium' | 'large')
           ? (parsed.appearance!.fontSize as 'small' | 'medium' | 'large')
@@ -292,11 +307,18 @@ async function loadSettingsConfig(): Promise<AppSettings> {
           ? parsed.appearance.compactMode
           : DEFAULT_SETTINGS.appearance.compactMode,
       },
+      browser: {
+        liteMode: typeof parsed.browser?.liteMode === 'boolean' ? parsed.browser.liteMode : DEFAULT_SETTINGS.browser.liteMode,
+        disableAnimations: typeof parsed.browser?.disableAnimations === 'boolean' ? parsed.browser.disableAnimations : DEFAULT_SETTINGS.browser.disableAnimations,
+        disableFilters: typeof parsed.browser?.disableFilters === 'boolean' ? parsed.browser.disableFilters : DEFAULT_SETTINGS.browser.disableFilters,
+        disableVideoAutoplay: typeof parsed.browser?.disableVideoAutoplay === 'boolean' ? parsed.browser.disableVideoAutoplay : DEFAULT_SETTINGS.browser.disableVideoAutoplay,
+        blockImages: typeof parsed.browser?.blockImages === 'boolean' ? parsed.browser.blockImages : DEFAULT_SETTINGS.browser.blockImages,
+      },
       agents: {
         claude: typeof parsed.agents?.claude === 'boolean' ? parsed.agents.claude : DEFAULT_SETTINGS.agents.claude,
         codex: typeof parsed.agents?.codex === 'boolean' ? parsed.agents.codex : DEFAULT_SETTINGS.agents.codex,
         pi: typeof parsed.agents?.pi === 'boolean' ? parsed.agents.pi : DEFAULT_SETTINGS.agents.pi,
-        order: (Array.isArray(parsed.agents?.order) && parsed.agents.order.length ? parsed.agents.order : DEFAULT_SETTINGS.agents.order) as ('claude' | 'codex' | 'pi')[],
+        order: (Array.isArray(parsed.agents?.order) && parsed.agents.order.length ? parsed.agents.order : DEFAULT_SETTINGS.agents.order) as AppSettings['agents']['order'],
         productivity: typeof parsed.agents?.productivity === 'boolean' ? parsed.agents.productivity : DEFAULT_SETTINGS.agents.productivity,
         productivityProvider: (parsed.agents?.productivityProvider === 'codex' || parsed.agents?.productivityProvider === 'openrouter') ? parsed.agents.productivityProvider : DEFAULT_SETTINGS.agents.productivityProvider,
         openrouterApiKey: typeof parsed.agents?.openrouterApiKey === 'string' ? parsed.agents.openrouterApiKey : DEFAULT_SETTINGS.agents.openrouterApiKey,
@@ -573,6 +595,11 @@ ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
     fileTree: {
       style: settings.fileTree?.style === 'hierarchy' ? 'hierarchy' : DEFAULT_SETTINGS.fileTree.style,
     },
+    editor: {
+      showFormattingBar: typeof settings.editor?.showFormattingBar === 'boolean'
+        ? settings.editor.showFormattingBar
+        : DEFAULT_SETTINGS.editor.showFormattingBar,
+    },
     appearance: {
       fontSize: (['small', 'medium', 'large'] as const).includes(settings.appearance?.fontSize as 'small' | 'medium' | 'large')
         ? (settings.appearance!.fontSize as 'small' | 'medium' | 'large')
@@ -581,11 +608,18 @@ ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
         ? settings.appearance.compactMode
         : DEFAULT_SETTINGS.appearance.compactMode,
     },
+    browser: {
+      liteMode: typeof settings.browser?.liteMode === 'boolean' ? settings.browser.liteMode : DEFAULT_SETTINGS.browser.liteMode,
+      disableAnimations: typeof settings.browser?.disableAnimations === 'boolean' ? settings.browser.disableAnimations : DEFAULT_SETTINGS.browser.disableAnimations,
+      disableFilters: typeof settings.browser?.disableFilters === 'boolean' ? settings.browser.disableFilters : DEFAULT_SETTINGS.browser.disableFilters,
+      disableVideoAutoplay: typeof settings.browser?.disableVideoAutoplay === 'boolean' ? settings.browser.disableVideoAutoplay : DEFAULT_SETTINGS.browser.disableVideoAutoplay,
+      blockImages: typeof settings.browser?.blockImages === 'boolean' ? settings.browser.blockImages : DEFAULT_SETTINGS.browser.blockImages,
+    },
     agents: {
       claude: typeof settings.agents?.claude === 'boolean' ? settings.agents.claude : DEFAULT_SETTINGS.agents.claude,
       codex: typeof settings.agents?.codex === 'boolean' ? settings.agents.codex : DEFAULT_SETTINGS.agents.codex,
       pi: typeof settings.agents?.pi === 'boolean' ? settings.agents.pi : DEFAULT_SETTINGS.agents.pi,
-      order: (Array.isArray(settings.agents?.order) && settings.agents.order.length ? settings.agents.order : DEFAULT_SETTINGS.agents.order) as ('claude' | 'codex' | 'pi')[],
+      order: (Array.isArray(settings.agents?.order) && settings.agents.order.length ? settings.agents.order : DEFAULT_SETTINGS.agents.order) as AppSettings['agents']['order'],
       productivity: typeof settings.agents?.productivity === 'boolean' ? settings.agents.productivity : DEFAULT_SETTINGS.agents.productivity,
       productivityProvider: (settings.agents?.productivityProvider === 'codex' || settings.agents?.productivityProvider === 'openrouter') ? settings.agents.productivityProvider : DEFAULT_SETTINGS.agents.productivityProvider,
       openrouterApiKey: typeof settings.agents?.openrouterApiKey === 'string' ? settings.agents.openrouterApiKey : DEFAULT_SETTINGS.agents.openrouterApiKey,

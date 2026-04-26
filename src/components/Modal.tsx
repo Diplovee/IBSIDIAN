@@ -19,6 +19,20 @@ interface PromptOptions {
   confirmLabel?: string;
 }
 
+interface ChooseOption {
+  label: string;
+  value: string;
+  description?: string;
+  danger?: boolean;
+}
+
+interface ChooseOptions {
+  title: string;
+  message?: string;
+  options: ChooseOption[];
+  cancelLabel?: string;
+}
+
 interface AlertOptions {
   title: string;
   message?: string;
@@ -27,6 +41,7 @@ interface AlertOptions {
 interface ModalContextType {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
   prompt: (opts: PromptOptions) => Promise<string | null>;
+  choose: (opts: ChooseOptions) => Promise<string | null>;
   alert: (opts: AlertOptions) => Promise<void>;
 }
 
@@ -35,6 +50,7 @@ interface ModalContextType {
 const ModalContext = createContext<ModalContextType>({
   confirm: async () => false,
   prompt: async () => null,
+  choose: async () => null,
   alert: async () => {},
 });
 
@@ -45,6 +61,7 @@ export const useModal = () => useContext(ModalContext);
 type ModalState =
   | { type: 'confirm'; opts: ConfirmOptions; resolve: (v: boolean) => void }
   | { type: 'prompt';  opts: PromptOptions;  resolve: (v: string | null) => void }
+  | { type: 'choose';  opts: ChooseOptions;  resolve: (v: string | null) => void }
   | { type: 'alert';   opts: AlertOptions;   resolve: () => void }
   | null;
 
@@ -59,13 +76,16 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const prompt = useCallback((opts: PromptOptions): Promise<string | null> =>
     new Promise(resolve => setModal({ type: 'prompt', opts, resolve })), []);
 
+  const choose = useCallback((opts: ChooseOptions): Promise<string | null> =>
+    new Promise(resolve => setModal({ type: 'choose', opts, resolve })), []);
+
   const alert = useCallback((opts: AlertOptions): Promise<void> =>
     new Promise(resolve => setModal({ type: 'alert', opts, resolve })), []);
 
   const close = () => setModal(null);
 
   return (
-    <ModalContext.Provider value={{ confirm, prompt, alert }}>
+    <ModalContext.Provider value={{ confirm, prompt, choose, alert }}>
       {children}
       <AnimatePresence>
         {modal && (
@@ -92,6 +112,8 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   ? <ConfirmModal modal={modal} onClose={close} />
                   : modal.type === 'prompt'
                   ? <PromptModal modal={modal} onClose={close} />
+                  : modal.type === 'choose'
+                  ? <ChooseModal modal={modal} onClose={close} />
                   : <AlertModal modal={modal} onClose={close} />}
               </motion.div>
             </div>
@@ -174,6 +196,71 @@ const PromptModal: React.FC<{ modal: Extract<ModalState, { type: 'prompt' }>; on
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <ModalBtn label="Cancel" onClick={() => { resolve(null); onClose(); }} />
         <ModalBtn label={opts.confirmLabel ?? 'OK'} primary onClick={submit} disabled={!value.trim()} />
+      </div>
+    </>
+  );
+};
+
+// ── Choose modal ─────────────────────────────────────────────────────────
+
+const ChooseModal: React.FC<{ modal: Extract<ModalState, { type: 'choose' }>; onClose: () => void }> = ({ modal, onClose }) => {
+  const { opts, resolve } = modal;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { resolve(null); onClose(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [resolve, onClose]);
+
+  return (
+    <>
+      <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: opts.message ? 6 : 12 }}>
+        {opts.title}
+      </p>
+      {opts.message && (
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
+          {opts.message}
+        </p>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+        {opts.options.map(option => (
+          <button
+            key={option.value}
+            onClick={() => { resolve(option.value); onClose(); }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 3,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: `1px solid ${option.danger ? '#fecaca' : 'var(--border)'}`,
+              background: 'var(--bg-secondary)',
+              color: option.danger ? '#ef4444' : 'var(--text-primary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'background 0.1s, border-color 0.1s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'var(--bg-hover)';
+              e.currentTarget.style.borderColor = option.danger ? '#fca5a5' : 'var(--accent)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'var(--bg-secondary)';
+              e.currentTarget.style.borderColor = option.danger ? '#fecaca' : 'var(--border)';
+            }}
+          >
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{option.label}</span>
+            {option.description && (
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{option.description}</span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <ModalBtn label={opts.cancelLabel ?? 'Cancel'} onClick={() => { resolve(null); onClose(); }} />
       </div>
     </>
   );

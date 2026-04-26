@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Globe, SquareTerminal, Plus, PanelRight, PanelBottom, X, Pin } from 'lucide-react';
 import { ClaudeIcon, CodexIcon, PiIcon, ProductivityIcon } from './AgentIcons';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
+import { IbsidianIcon } from './IbsidianIcon';
 import { isGroupableTab } from '../utils/tabGrouping';
 import type { BrowserTabGroup, Tab, SavedGroup } from '../types';
 
@@ -135,6 +136,7 @@ const iconForTab = (tab: Tab) => {
     case 'codex': return <CodexIcon size={13} />;
     case 'pi': return <PiIcon size={13} />;
     case 'productivity': return <ProductivityIcon size={13} />;
+    case 'new-tab': return <IbsidianIcon size={13} />;
     case 'note': return <MarkdownTabIcon size={13} />;
     default: return <MarkdownTabIcon size={13} />;
   }

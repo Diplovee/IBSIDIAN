@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { AppSettings, AgentSettings, AgentKey } from '../types';
+import type { AppSettings, AgentSettings, AgentKey, BrowserSettings } from '../types';
 
 const DEFAULT_SETTINGS: AppSettings = {
   attachments: {
@@ -9,9 +9,19 @@ const DEFAULT_SETTINGS: AppSettings = {
   fileTree: {
     style: 'original',
   },
+  editor: {
+    showFormattingBar: true,
+  },
   appearance: {
     fontSize: 'medium',
     compactMode: false,
+  },
+  browser: {
+    liteMode: false,
+    disableAnimations: true,
+    disableFilters: true,
+    disableVideoAutoplay: true,
+    blockImages: false,
   },
   agents: {
     claude: true,
@@ -29,7 +39,9 @@ interface AppSettingsContextType {
   isLoaded: boolean;
   updateAttachmentSettings: (next: Partial<AppSettings['attachments']>) => Promise<void>;
   updateFileTreeSettings: (next: Partial<AppSettings['fileTree']>) => Promise<void>;
+  updateEditorSettings: (next: Partial<AppSettings['editor']>) => Promise<void>;
   updateAppearanceSettings: (next: Partial<AppSettings['appearance']>) => Promise<void>;
+  updateBrowserSettings: (next: Partial<BrowserSettings>) => Promise<void>;
   updateAgentSettings: (next: Partial<AgentSettings>) => Promise<void>;
 }
 
@@ -43,6 +55,14 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     window.api.settings.load()
       .then(loaded => setSettings({
         ...DEFAULT_SETTINGS, ...loaded,
+        editor: {
+          ...DEFAULT_SETTINGS.editor,
+          ...loaded.editor,
+        },
+        browser: {
+          ...DEFAULT_SETTINGS.browser,
+          ...loaded.browser,
+        },
         agents: {
           ...DEFAULT_SETTINGS.agents,
           ...loaded.agents,
@@ -86,11 +106,37 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setSettings(saved);
   }, [settings]);
 
+  const updateEditorSettings = useCallback(async (next: Partial<AppSettings['editor']>) => {
+    const merged: AppSettings = {
+      ...settings,
+      editor: {
+        ...settings.editor,
+        ...next,
+      },
+    };
+    setSettings(merged);
+    const saved = await window.api.settings.save(merged);
+    setSettings(saved);
+  }, [settings]);
+
   const updateAppearanceSettings = useCallback(async (next: Partial<AppSettings['appearance']>) => {
     const merged: AppSettings = {
       ...settings,
       appearance: {
         ...settings.appearance,
+        ...next,
+      },
+    };
+    setSettings(merged);
+    const saved = await window.api.settings.save(merged);
+    setSettings(saved);
+  }, [settings]);
+
+  const updateBrowserSettings = useCallback(async (next: Partial<BrowserSettings>) => {
+    const merged: AppSettings = {
+      ...settings,
+      browser: {
+        ...settings.browser,
         ...next,
       },
     };
@@ -109,7 +155,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [settings]);
 
   return (
-    <AppSettingsContext.Provider value={{ settings, isLoaded, updateAttachmentSettings, updateFileTreeSettings, updateAppearanceSettings, updateAgentSettings }}>
+    <AppSettingsContext.Provider value={{ settings, isLoaded, updateAttachmentSettings, updateFileTreeSettings, updateEditorSettings, updateAppearanceSettings, updateBrowserSettings, updateAgentSettings }}>
       {children}
     </AppSettingsContext.Provider>
   );

@@ -35,15 +35,27 @@ export interface AgentSettings {
   openrouterApiKey?: string;
 }
 
+export interface BrowserSettings {
+  liteMode: boolean;
+  disableAnimations: boolean;
+  disableFilters: boolean;
+  disableVideoAutoplay: boolean;
+  blockImages: boolean;
+}
+
 export interface AppSettings {
   attachments: AttachmentSettings;
   fileTree: {
     style: FileTreeStyle;
   };
+  editor: {
+    showFormattingBar: boolean;
+  };
   appearance: {
     fontSize: FontSize;
     compactMode: boolean;
   };
+  browser: BrowserSettings;
   agents: AgentSettings;
 }
 

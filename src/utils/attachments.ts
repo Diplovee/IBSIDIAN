@@ -20,11 +20,21 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     fontSize: 'medium',
     compactMode: false,
   },
+  browser: {
+    liteMode: false,
+    disableAnimations: true,
+    disableFilters: true,
+    disableVideoAutoplay: true,
+    blockImages: false,
+  },
   agents: {
     claude: true,
     codex: true,
     pi: true,
-    order: ['claude', 'codex', 'pi'],
+    productivity: true,
+    order: ['claude', 'codex', 'pi', 'productivity'],
+    productivityProvider: 'codex',
+    openrouterApiKey: undefined,
   },
 };
 

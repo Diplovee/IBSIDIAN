@@ -52,20 +52,14 @@ import {
   listVaultFilePaths,
   resolveAttachmentDestination,
 } from '../utils/attachments';
-import type { ExcalidrawSceneFile, Tab } from '../types';
+import type { AppSettings, ExcalidrawSceneFile, Tab } from '../types';
 import { parseExcalidrawFileContent } from '../utils/excalidraw';
 import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
-import { TipTapEditor } from './editor/TipTapEditor';
-import { normalizeNewItemName } from '../utils/fileNaming';
+import { CodeMirrorToolbar } from './editor/CodeMirrorToolbar';
 
-const EDITOR_PREFERENCE_KEY = 'editor';
 const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
 const UPDATE_CURRENT_KEY = 'ibsidian:update-current';
 const UPDATE_LATEST_KEY = 'ibsidian:update-latest';
-const getPreferredEditor = () => {
-  if (typeof window === 'undefined') return 'codemirror';
-  return localStorage.getItem(EDITOR_PREFERENCE_KEY) === 'tiptap' ? 'tiptap' : 'codemirror';
-};
 
 const extractText = (node: React.ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -120,27 +114,6 @@ const normalizeLivePreviewMarkers = (view: EditorView | null) => {
     }
   });
 };
-
-class TipTapErrorBoundary extends React.Component<{ children: React.ReactNode; onError: () => void }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode; onError: () => void }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: unknown) {
-    console.error('TipTap crashed, falling back to CodeMirror:', error);
-    this.props.onError();
-  }
-
-  render() {
-    if (this.state.hasError) return null;
-    return this.props.children;
-  }
-}
 
 const InternalEmbed: React.FC<{ target: string; currentPath?: string | null }> = ({ target, currentPath }) => {
   const { nodes, readFile } = useVault();
@@ -416,6 +389,7 @@ export const Canvas: React.FC = () => {
     openTab,
     closeTab,
     toggleTabPinned,
+    updateTabCustomTitle,
     closeTabsToLeft,
     closeTabsToRight,
     closeOtherTabs,
@@ -444,18 +418,21 @@ export const Canvas: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === '\\') {
+        if (e.key === 't' || e.key === 'T') {
+          e.preventDefault();
+          openTab({ type: 'terminal', title: 'Terminal' }, activePaneId);
+        } else if (e.key === '\\') {
           e.preventDefault();
           splitRight();
-        } else if (e.key === 'w' && !e.shiftKey) {
+        } else if (e.key === 'w' || e.key === 'W') {
           e.preventDefault();
-          if (activePaneId !== 'main') closePane(activePaneId);
+          if (activeTabId) closeTab(activeTabId);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [splitRight, closePane, activePaneId]);
+  }, [openTab, activePaneId, splitRight, closeTab, activeTabId]);
 
   useEffect(() => {
     if (!stackTabCtxMenu) return;
@@ -689,6 +666,21 @@ export const Canvas: React.FC = () => {
               paddingBottom: 4,
             }}
           >
+            <MenuItem icon={<Pencil size={14} />} label="Rename" onClick={() => {
+              setStackTabCtxMenu(null);
+              promptModal({
+                title: 'Rename tab',
+                defaultValue: targetTab.customTitle ?? targetTab.title,
+                placeholder: 'Tab title',
+              }).then(name => {
+                if (name !== undefined && name !== null && name.trim()) {
+                  updateTabCustomTitle(targetTab.id, name.trim());
+                } else if (!name) {
+                  updateTabCustomTitle(targetTab.id, undefined);
+                }
+              });
+            }} />
+            <Sep />
             <MenuItem
               icon={<Pin size={14} color="var(--accent)" />}
               label={targetTab.pinned ? 'Unpin tab' : 'Pin tab'}
@@ -728,59 +720,75 @@ export const Canvas: React.FC = () => {
 // ── New tab screen ───────────────────────────────────────────────────
 
 const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
-  const { closeTab, openTab } = useTabs();
+  const { openTab, closeTab } = useTabs();
+  const { prompt } = useModal();
   const { createFileRemote, refreshFileTree, nextUntitledName } = useVault();
-  const { prompt: promptModal } = useModal();
 
-  const handleNewNote = useCallback(async () => {
-    const requestedName = await promptModal({ title: 'New note', placeholder: 'Note name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
-    if (!requestedName) return;
-    const name = normalizeNewItemName(requestedName, 'md');
-    createFileRemote('', name, 'md').then(() => {
-      refreshFileTree(undefined, { showLoading: false });
-      closeTab(tab.id);
-      openTab({ type: 'note', title: name, filePath: `${name}.md` });
+  const createMarkdownNote = async () => {
+    const requestedName = await prompt({
+      title: 'New note',
+      placeholder: 'Note name',
+      defaultValue: nextUntitledName(),
+      confirmLabel: 'Create',
     });
-  }, [tab.id, closeTab, openTab, createFileRemote, refreshFileTree, nextUntitledName, promptModal]);
+    if (!requestedName) return;
+    const name = requestedName.trim().replace(/\.md$/, '');
+    if (!name) return;
+    await createFileRemote('', name, 'md');
+    await refreshFileTree(undefined, { showLoading: false });
+    openTab({ type: 'note', title: name, filePath: `${name}.md` });
+    closeTab(tab.id);
+  };
 
-  const LinkBtn: React.FC<{ label: string; shortcut?: string; onClick: () => void }> = ({ label, shortcut, onClick }) => {
-    const [h, setH] = useState(false);
-    return (
-      <button
-        onClick={onClick}
-        onMouseEnter={() => setH(true)}
-        onMouseLeave={() => setH(false)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
-          background: h ? 'var(--accent-soft)' : 'transparent',
-          color: 'var(--accent)', fontSize: 14, fontWeight: 500,
-          transition: 'background 0.1s', width: '100%', maxWidth: 320,
-        }}
-      >
-        <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
-        {shortcut && (
-          <kbd style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, fontFamily: 'var(--font-mono, monospace)' }}>
-            {shortcut}
-          </kbd>
-        )}
-      </button>
-    );
+  const openBrowserTab = () => {
+    openTab({ type: 'browser', title: 'New Tab', url: 'about:blank', groupId: '' });
+  };
+
+  const openTerminalTab = () => {
+    openTab({ type: 'terminal', title: 'Terminal' });
+  };
+
+  const openDrawingTab = async () => {
+    const requestedName = await prompt({
+      title: 'New drawing',
+      placeholder: 'Drawing name',
+      defaultValue: nextUntitledName(),
+      confirmLabel: 'Create',
+    });
+    if (!requestedName) return;
+    const name = requestedName.trim().replace(/\.excalidraw$/, '');
+    if (!name) return;
+    await createFileRemote('', name, 'excalidraw');
+    await refreshFileTree(undefined, { showLoading: false });
+    openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
+    closeTab(tab.id);
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginBottom: 32 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <span style={{ color: '#fff', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-sans)' }}>I</span>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 32 }}>
+      <div style={{ width: '100%', maxWidth: 520, border: '1px solid var(--border)', borderRadius: 16, background: 'var(--bg-secondary)', padding: 24 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>New tab</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+          Start a note or open another workspace tab.
         </div>
-        <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>New tab</p>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: '100%', maxWidth: 320 }}>
-        <LinkBtn label="Create new note" shortcut="Ctrl+N" onClick={handleNewNote} />
-        <LinkBtn label="Go to file" shortcut="Ctrl+O" onClick={() => {}} />
-        <div style={{ height: 8 }} />
-        <LinkBtn label="Close tab" onClick={() => closeTab(tab.id)} />
+        <div style={{ display: 'grid', gap: 10 }}>
+          <button onClick={() => { void createMarkdownNote(); }} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>New note</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Create a Markdown note in the vault.</div>
+          </button>
+          <button onClick={openBrowserTab} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>New browser tab</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Open an empty browser tab.</div>
+          </button>
+          <button onClick={openTerminalTab} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>New terminal</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Open a shell session.</div>
+          </button>
+          <button onClick={() => { void openDrawingTab(); }} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>New drawing</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Create an Excalidraw file.</div>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1073,22 +1081,10 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { confirm, prompt, alert } = useModal();
   const { theme } = useActivity();
   const { settings } = useAppSettings();
-  const [preferredEditor, setPreferredEditor] = useState<'codemirror' | 'tiptap'>(() => getPreferredEditor());
-  const [tiptapCrashed, setTiptapCrashed] = useState(false);
-  const [tipTapEditor, setTipTapEditor] = useState<any | null>(null);
+  const showFormattingBar = settings.editor.showFormattingBar;
   const [updateAvailable, setUpdateAvailable] = useState(() => localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
   const [updateCurrent, setUpdateCurrent] = useState(() => localStorage.getItem(UPDATE_CURRENT_KEY) || '');
   const [updateLatest, setUpdateLatest] = useState(() => localStorage.getItem(UPDATE_LATEST_KEY) || '');
-
-  useEffect(() => {
-    const syncPreference = () => setPreferredEditor(getPreferredEditor());
-    window.addEventListener('storage', syncPreference);
-    window.addEventListener('ibsidian:editor-preference-changed', syncPreference as EventListener);
-    return () => {
-      window.removeEventListener('storage', syncPreference);
-      window.removeEventListener('ibsidian:editor-preference-changed', syncPreference as EventListener);
-    };
-  }, []);
 
   useEffect(() => {
     const syncUpdateStatus = () => {
@@ -1103,22 +1099,6 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
       window.removeEventListener('ibsidian:update-status-changed', syncUpdateStatus as EventListener);
     };
   }, []);
-
-  useEffect(() => {
-    if (preferredEditor !== 'tiptap') {
-      setTiptapCrashed(false);
-      setTipTapEditor(null);
-    }
-  }, [preferredEditor]);
-
-  const handleTipTapCrash = useCallback(() => {
-    setTiptapCrashed(true);
-    setTipTapEditor(null);
-    alert({
-      title: 'TipTap failed',
-      message: 'TipTap crashed in this tab. Showing CodeMirror as a safe fallback. Switch editor in Settings after fixing the error to retry TipTap.',
-    });
-  }, [alert]);
 
   const handleError = useCallback((err: unknown, action: string) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1148,6 +1128,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
+  const [editorView, setEditorView] = useState<EditorView | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -1159,27 +1140,24 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   }, [node?.name]);
 
   useEffect(() => {
+    editorViewRef.current = null;
+    setEditorView(null);
+  }, [tab.filePath]);
+
+  useEffect(() => {
     anchorCacheRef.current.clear();
   }, [nodes]);
 
-  // Load content from backend when tab opens; auto-select title only if file is genuinely empty
+  // Load content from backend when tab opens
   useEffect(() => {
     const nodeContent = (node as any)?.content;
     if (typeof nodeContent === 'string') {
       setContent(nodeContent);
-      if (nodeContent === '' && titleInputRef.current) {
-        titleInputRef.current.focus();
-        titleInputRef.current.select();
-      }
     } else if (vault && tab.filePath) {
       readFile(tab.filePath)
         .then(text => {
           const loaded = text ?? '';
           setContent(loaded);
-          if (loaded === '' && titleInputRef.current) {
-            titleInputRef.current.focus();
-            titleInputRef.current.select();
-          }
         })
         .catch(err => handleError(err, 'read file'));
     }
@@ -1491,66 +1469,8 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   // Click on scroll area outside editor → focus editor
   const handleScrollAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === scrollAreaRef.current || (e.target as HTMLElement).closest('[data-editor-content-inner="true"]') === null) {
-      if (preferredEditor === 'tiptap' && tipTapEditor) {
-        tipTapEditor.commands.focus();
-      } else if (editorViewRef.current) {
-        editorViewRef.current.focus();
-      }
+      editorViewRef.current?.focus();
     }
-  };
-
-  const tipTapBlockType = !tipTapEditor ? 'paragraph'
-    : tipTapEditor.isActive('heading', { level: 1 }) ? 'h1'
-    : tipTapEditor.isActive('heading', { level: 2 }) ? 'h2'
-    : tipTapEditor.isActive('heading', { level: 3 }) ? 'h3'
-    : tipTapEditor.isActive('bulletList') ? 'bullet'
-    : tipTapEditor.isActive('orderedList') ? 'ordered'
-    : tipTapEditor.isActive('taskList') ? 'task'
-    : tipTapEditor.isActive('blockquote') ? 'quote'
-    : tipTapEditor.isActive('codeBlock') ? 'code'
-    : 'paragraph';
-
-  const applyTipTapBlockType = (next: string) => {
-    if (!tipTapEditor) return;
-    const chain = tipTapEditor.chain().focus();
-    if (next === 'paragraph') chain.setParagraph().run();
-    if (next === 'h1') chain.toggleHeading({ level: 1 }).run();
-    if (next === 'h2') chain.toggleHeading({ level: 2 }).run();
-    if (next === 'h3') chain.toggleHeading({ level: 3 }).run();
-    if (next === 'bullet') chain.toggleBulletList().run();
-    if (next === 'ordered') chain.toggleOrderedList().run();
-    if (next === 'task') chain.toggleTaskList().run();
-    if (next === 'quote') chain.toggleBlockquote().run();
-    if (next === 'code') chain.toggleCodeBlock().run();
-  };
-
-  const insertTipTapItem = (next: string) => {
-    if (!tipTapEditor) return;
-    const chain = tipTapEditor.chain().focus();
-    if (next === 'hr') chain.setHorizontalRule().run();
-    if (next === 'table') chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-    if (next === 'sub') chain.toggleSubscript().run();
-    if (next === 'sup') chain.toggleSuperscript().run();
-    if (next === 'highlight') chain.toggleHighlight().run();
-  };
-
-  const setTipTapLink = () => {
-    if (!tipTapEditor) return;
-    const existing = tipTapEditor.getAttributes('link')?.href as string | undefined;
-    const value = window.prompt('Enter URL', existing || 'https://');
-    if (value === null) return;
-    const url = value.trim();
-    if (!url) {
-      tipTapEditor.chain().focus().unsetLink().run();
-      return;
-    }
-    tipTapEditor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-  };
-
-  const setEditorMode = (next: 'codemirror' | 'tiptap') => {
-    localStorage.setItem(EDITOR_PREFERENCE_KEY, next);
-    if (next === 'tiptap') setTiptapCrashed(false);
-    window.dispatchEvent(new CustomEvent('ibsidian:editor-preference-changed'));
   };
 
   const handleUpdateBadgeClick = async () => {
@@ -1586,7 +1506,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', overflow: 'hidden' }}>
       <style>{`@keyframes _updateBlink{0%,100%{opacity:1}50%{opacity:0.25}}`}</style>
-      {/* Obsidian-style editor toolbar */}
+      {/* Editor header */}
       <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: 8 }}>
         {/* Back / Forward */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1598,109 +1518,14 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
           </button>
         </div>
 
-        {preferredEditor === 'tiptap' && !tiptapCrashed ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <select
-              value={tipTapBlockType}
-              onChange={(e) => applyTipTapBlockType(e.target.value)}
-              style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, padding: '0 8px' }}
-            >
-              <option value="paragraph">Paragraph</option>
-              <option value="h1">H1</option>
-              <option value="h2">H2</option>
-              <option value="h3">H3</option>
-              <option value="bullet">Bullet</option>
-              <option value="ordered">Numbered</option>
-              <option value="task">Task</option>
-              <option value="quote">Quote</option>
-              <option value="code">Code block</option>
-            </select>
-
-            {[
-              { key: 'bold', label: 'B', run: () => tipTapEditor?.chain().focus().toggleBold().run() },
-              { key: 'italic', label: 'I', run: () => tipTapEditor?.chain().focus().toggleItalic().run() },
-              { key: 'strike', label: 'S', run: () => tipTapEditor?.chain().focus().toggleStrike().run() },
-              { key: 'code', label: '</>', run: () => tipTapEditor?.chain().focus().toggleCode().run() },
-              { key: 'highlight', label: 'HL', run: () => tipTapEditor?.chain().focus().toggleHighlight().run() },
-            ].map(btn => (
-              <button
-                key={btn.key}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={btn.run}
-                style={{
-                  width: 28,
-                  height: 26,
-                  borderRadius: 6,
-                  border: `1px solid ${tipTapEditor?.isActive(btn.key) ? 'var(--accent)' : 'var(--border)'}`,
-                  background: tipTapEditor?.isActive(btn.key) ? 'var(--accent-soft)' : 'var(--bg-secondary)',
-                  color: tipTapEditor?.isActive(btn.key) ? 'var(--accent)' : 'var(--text-secondary)',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {btn.label}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={setTipTapLink}
-              style={{ height: 26, borderRadius: 6, border: `1px solid ${tipTapEditor?.isActive('link') ? 'var(--accent)' : 'var(--border)'}`, background: tipTapEditor?.isActive('link') ? 'var(--accent-soft)' : 'var(--bg-secondary)', color: tipTapEditor?.isActive('link') ? 'var(--accent)' : 'var(--text-secondary)', fontSize: 12, padding: '0 8px', cursor: 'pointer' }}
-            >
-              Link
-            </button>
-
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => tipTapEditor?.chain().focus().undo().run()} style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, padding: '0 8px', cursor: 'pointer' }}>Undo</button>
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => tipTapEditor?.chain().focus().redo().run()} style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12, padding: '0 8px', cursor: 'pointer' }}>Redo</button>
-
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!value) return;
-                insertTipTapItem(value);
-                e.target.value = '';
-              }}
-              style={{ height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, padding: '0 8px' }}
-            >
-              <option value="">Insert…</option>
-              <option value="hr">Horizontal rule</option>
-              <option value="table">Table</option>
-              <option value="sub">Subscript</option>
-              <option value="sup">Superscript</option>
-              <option value="highlight">Highlight</option>
-            </select>
-          </div>
-        ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{titleValue}</span>
-          </div>
-        )}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', minWidth: 0 }}>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {titleValue}
+          </span>
+        </div>
 
         {/* Right controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }} ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => setEditorMode(preferredEditor === 'tiptap' ? 'codemirror' : 'tiptap')}
-            style={{
-              height: 24,
-              minWidth: 38,
-              borderRadius: 6,
-              border: '1px solid var(--border)',
-              background: preferredEditor === 'tiptap' ? 'var(--accent-soft)' : 'var(--bg-secondary)',
-              color: preferredEditor === 'tiptap' ? 'var(--accent)' : 'var(--text-secondary)',
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '0 8px',
-              cursor: 'pointer',
-            }}
-            title={preferredEditor === 'tiptap' ? 'Switch to CodeMirror' : 'Switch to TipTap'}
-          >
-            {preferredEditor === 'tiptap' ? 'TT' : 'CM'}
-          </button>
           {updateAvailable && (
             <button
               type="button"
@@ -1769,7 +1594,12 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
       {/* Auto live preview editor */}
       <div ref={scrollAreaRef} style={{ flex: 1, overflow: 'hidden' }} onClick={handleScrollAreaClick}>
         <div style={{ height: '100%', overflow: 'auto', padding: '32px 48px 80px' }}>
-          <div data-editor-content-inner="true" style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div data-editor-content-inner="true" style={{ maxWidth: 720, margin: '0 auto', cursor: 'text' }}>
+            {showFormattingBar && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, marginBottom: 12, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
+                <CodeMirrorToolbar view={editorView} />
+              </div>
+            )}
             <input
               ref={titleInputRef}
               value={titleValue}
@@ -1783,41 +1613,31 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
                 fontSize: 32, fontWeight: 700, lineHeight: 1.25,
                 color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
                 caretColor: 'var(--text-primary)',
+                cursor: 'text',
               }}
               placeholder="Untitled"
-            />
-            <div onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}>
-              {preferredEditor === 'tiptap' && !tiptapCrashed ? (
-                <TipTapErrorBoundary onError={handleTipTapCrash}>
-                  <TipTapEditor
-                    content={content}
-                    onChange={handleChange}
-                    onEditorReady={setTipTapEditor}
-                    filePath={tab.filePath}
-                    onImagePaste={handleImageInsert}
-                  />
-                </TipTapErrorBoundary>
-              ) : (
-                <CodeMirror
-                  value={content}
-                  theme={editorTheme}
-                  extensions={liveMarkdownExtensions}
-                  onChange={handleChange}
-                  onCreateEditor={(view) => {
-                    editorViewRef.current = view;
-                    requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
-                  }}
-                  basicSetup={{
-                    lineNumbers: false,
-                    foldGutter: false,
-                    highlightActiveLine: false,
-                    highlightActiveLineGutter: false,
-                    dropCursor: false,
-                    rectangularSelection: false,
-                  }}
-                  style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
-                />
-              )}
+              />
+            <div onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }} style={{ cursor: 'text' }}>
+              <CodeMirror
+                value={content}
+                theme={editorTheme}
+                extensions={liveMarkdownExtensions}
+                onChange={handleChange}
+                onCreateEditor={(view) => {
+                  editorViewRef.current = view;
+                  setEditorView(view);
+                  requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
+                }}
+                basicSetup={{
+                  lineNumbers: false,
+                  foldGutter: false,
+                  highlightActiveLine: false,
+                  highlightActiveLineGutter: false,
+                  dropCursor: false,
+                  rectangularSelection: false,
+                }}
+                style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
+              />
             </div>
             {ctxMenu && editorViewRef.current && (
               <EditorContextMenu
@@ -1900,11 +1720,117 @@ const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
   browserFaviconCache.set(origin, faviconUrl);
 };
 
+const buildBrowserLiteCss = (browser: AppSettings['browser']) => {
+  if (!browser.liteMode) return '';
+  const rules: string[] = [
+    'html { scroll-behavior: auto !important; }',
+  ];
+
+  if (browser.disableAnimations) {
+    rules.push(`
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+        caret-color: auto !important;
+      }
+    `);
+  }
+
+  if (browser.disableFilters) {
+    rules.push(`
+      *, *::before, *::after {
+        filter: none !important;
+        backdrop-filter: none !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+    `);
+  }
+
+  if (browser.blockImages) {
+    rules.push(`
+      img, picture, video, canvas, svg {
+        visibility: hidden !important;
+      }
+      [style*="background-image"], [class*="bg-"] {
+        background-image: none !important;
+      }
+    `);
+  }
+
+  return rules.join('\n');
+};
+
+const buildBrowserLiteScript = (browser: AppSettings['browser']) => `(() => {
+  const options = ${JSON.stringify(browser)};
+  const stateKey = '__ibsidianBrowserLiteState';
+  const previous = window[stateKey];
+  if (previous?.cleanup) {
+    try { previous.cleanup(); } catch {}
+  }
+
+  if (!options.liteMode) {
+    window[stateKey] = null;
+    return true;
+  }
+
+  const disposers = [];
+
+  if (options.disableVideoAutoplay) {
+    const pauseMedia = (root) => {
+      const target = root && root.querySelectorAll ? root : document;
+      target.querySelectorAll('video, audio').forEach((media) => {
+        try {
+          media.autoplay = false;
+          media.removeAttribute('autoplay');
+          media.pause();
+          media.preload = 'none';
+        } catch {}
+      });
+    };
+
+    pauseMedia(document);
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          pauseMedia(node);
+          if (node.matches?.('video, audio')) {
+            try {
+              node.autoplay = false;
+              node.removeAttribute('autoplay');
+              node.pause();
+              node.preload = 'none';
+            } catch {}
+          }
+        });
+      });
+    });
+
+    observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    disposers.push(() => observer.disconnect());
+  }
+
+  window[stateKey] = {
+    cleanup: () => {
+      disposers.forEach((dispose) => {
+        try { dispose(); } catch {}
+      });
+    },
+  };
+
+  return true;
+})();`;
+
 const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
   const { updateTabTitle, updateTabUrl, updateTabFavicon, updateTabLoading, openTab } = useTabs();
   const { addToHistory, updateHistoryTitle } = useLibrary();
+  const { settings } = useAppSettings();
   const { theme } = useActivity();
+  const browserSettings = settings.browser;
   const bgColor = theme === 'dark' ? '#1e1e1e' : '#ffffff';
   const textColor = theme === 'dark' ? '#ffffff' : '#1e1e1e';
   const dimColor = theme === 'dark' ? '#a3a3a3' : '#737373';
@@ -1917,6 +1843,8 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [clock, setClock] = useState('00:00');
   const [greeting, setGreeting] = useState('Good evening');
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; url: string } | null>(null);
+  const browserCssKeyRef = useRef<string | null>(null);
+  const browserSettingsRef = useRef(browserSettings);
 
   const handleContextMenu = (e: React.MouseEvent, url: string) => {
     e.preventDefault();
@@ -1928,6 +1856,10 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, []);
+
+  useEffect(() => {
+    browserSettingsRef.current = browserSettings;
+  }, [browserSettings]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -2002,6 +1934,26 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     } catch { /* webview not ready */ }
   };
 
+  const applyBrowserLitePolicies = async (wv: any) => {
+    const next = browserSettingsRef.current;
+    const css = buildBrowserLiteCss(next);
+
+    if (browserCssKeyRef.current) {
+      try { await wv.removeInsertedCSS?.(browserCssKeyRef.current); } catch {}
+      browserCssKeyRef.current = null;
+    }
+
+    if (css) {
+      try {
+        browserCssKeyRef.current = await wv.insertCSS(css);
+      } catch {}
+    }
+
+    try {
+      await wv.executeJavaScript(buildBrowserLiteScript(next));
+    } catch {}
+  };
+
   useEffect(() => {
     const nextUrl = tab.url || '';
     setInputUrl(isNewTab ? '' : nextUrl);
@@ -2063,7 +2015,11 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
     const onFinishLoad  = () => done();
     const onFailLoad    = () => done();
     const onStopLoad    = () => { stopTimer = setTimeout(done, 300); };
-    const onDomReady    = () => { updateNavState(wv); try { wv.setBackgroundColor?.(bgColor); } catch {} };
+    const onDomReady    = () => {
+      updateNavState(wv);
+      try { wv.setBackgroundColor?.(bgColor); } catch {}
+      void applyBrowserLitePolicies(wv);
+    };
     const onReload = (e: Event) => {
       const detail = (e as CustomEvent<{ tabId?: string }>).detail;
       if (detail?.tabId !== tabIdRef.current) return;
@@ -2091,6 +2047,10 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
       wv.removeEventListener('did-stop-loading', onStopLoad);
       wv.removeEventListener('dom-ready', onDomReady);
       if (stopTimer) clearTimeout(stopTimer);
+      if (browserCssKeyRef.current) {
+        try { wv.removeInsertedCSS?.(browserCssKeyRef.current); } catch {}
+        browserCssKeyRef.current = null;
+      }
       updateTabLoadingRef.current(tabIdRef.current, false);
       window.removeEventListener('ibsidian:browser-tab-reload', onReload as EventListener);
     };
@@ -2100,6 +2060,12 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   useEffect(() => {
     try { webviewRef.current?.setBackgroundColor?.(bgColor); } catch {}
   }, [bgColor]);
+
+  useEffect(() => {
+    const wv = webviewRef.current;
+    if (!wv) return;
+    void applyBrowserLitePolicies(wv);
+  }, [browserSettings]);
 
 const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNode) => (
     <button
@@ -2472,9 +2438,11 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const { theme } = useActivity();
-  const { activeTabId } = useTabs();
+  const { activeTabId, updateTabCustomTitle } = useTabs();
   const [cols, setCols] = useState(80);
   const [rows, setRows] = useState(24);
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const xtermTheme = {
     light: { background: '#ffffff', foreground: '#2e3338', cursor: '#7c3aed' },
@@ -2561,11 +2529,51 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
     }
   }, [activeTabId, tab.id]);
 
+  const startEditing = useCallback(() => {
+    setEditing(true);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select();
+      }
+    }, 0);
+  }, []);
+
+  const doneEditing = useCallback((value: string) => {
+    setEditing(false);
+    const name = value.trim();
+    if (name && name !== (tab.customTitle ?? tab.title)) {
+      updateTabCustomTitle(tab.id, name);
+    } else if (!name) {
+      updateTabCustomTitle(tab.id, undefined);
+    }
+  }, [tab.id, tab.customTitle, tab.title, updateTabCustomTitle]);
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
-      <div style={{ height: 32, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+      <div
+        style={{ height: 32, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8, fontSize: 11, color: 'var(--text-muted)', cursor: 'default' }}
+        onDoubleClick={() => { if (!editing) startEditing(); }}
+        title="Double-click to rename"
+      >
         {tab.type === 'claude' ? <ClaudeIcon size={12} /> : tab.type === 'codex' ? <CodexIcon size={12} /> : tab.type === 'pi' ? <PiIcon size={12} /> : <SquareTerminal size={12} />}
-        <span>{tab.type === 'claude' ? 'claude' : tab.type === 'codex' ? 'codex' : tab.type === 'pi' ? 'pi' : 'bash'} — {cols}×{rows}</span>
+        {editing ? (
+          <input
+            ref={inputRef}
+            defaultValue={tab.customTitle ?? tab.title}
+            onBlur={(e) => doneEditing(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') doneEditing(e.currentTarget.value); if (e.key === 'Escape') setEditing(false); }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              height: 20, fontSize: 11, fontFamily: 'inherit',
+              background: 'var(--bg-primary)', border: '1px solid var(--accent)',
+              borderRadius: 3, padding: '0 4px', color: 'var(--text-primary)',
+              outline: 'none', width: 'auto', minWidth: 60, flex: 1, maxWidth: 120,
+            }}
+          />
+        ) : (
+          <span style={{ cursor: 'text' }}>{tab.customTitle ?? (tab.type === 'claude' ? 'claude' : tab.type === 'codex' ? 'codex' : tab.type === 'pi' ? 'pi' : 'bash')} — {cols}×{rows}</span>
+        )}
       </div>
       <div ref={terminalRef} style={{ flex: 1, padding: 8 }} />
     </div>

@@ -3,16 +3,17 @@ import { useTabs } from '../contexts/TabsContext';
 import { useActivity } from '../contexts/ActivityContext';
 import { useVault } from '../contexts/VaultContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
-import { normalizeNewItemName } from '../utils/fileNaming';
 import { useModal } from './Modal';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { toast } from './Toaster';
+import { createNewDocument } from '../utils/newDocument';
+import { normalizeNewItemName } from '../utils/fileNaming';
 
 const SHORTCUTS = [
   { id: 'toggle-sidebar', label: 'Toggle Sidebar', shortcut: 'Ctrl+S', category: 'View' },
   { id: 'reload-page', label: 'Reload Page', shortcut: 'Ctrl+R', category: 'Browser' },
-  { id: 'new-tab', label: 'New Tab', shortcut: 'Ctrl+T', category: 'Tab' },
+  { id: 'new-tab', label: 'New Tab', shortcut: 'Ctrl+N', category: 'Tab' },
   { id: 'new-browser', label: 'New Browser', shortcut: 'Ctrl+B', category: 'Tab' },
   { id: 'lite-mode', label: 'Browser Lite Mode', shortcut: 'Ctrl+L', category: 'Browser' },
   { id: 'keybindings', label: 'Show Keybindings', shortcut: 'Ctrl+?', category: 'Help' },
@@ -81,15 +82,11 @@ const NewTabModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const { openTab } = useTabs();
-  const { nextUntitledName, createFileRemote, createFolderRemote } = useVault();
-  const { prompt } = useModal();
+  const { nextUntitledName, createFileRemote, createFolderRemote, refreshFileTree } = useVault();
+  const { prompt, choose } = useModal();
 
   const handleNewNote = async () => {
-    const requestedName = await prompt({ title: 'New note', placeholder: 'Note name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
-    if (!requestedName) return;
-    const name = normalizeNewItemName(requestedName, 'md');
-    await createFileRemote('', name, 'md');
-    openTab({ type: 'note', title: name, filePath: `${name}.md` });
+    await createNewDocument({ choose, prompt, nextUntitledName, createFileRemote, refreshFileTree, openTab });
     onClose();
   };
 
@@ -121,7 +118,7 @@ const NewTabModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   const options: { label: string; desc: string; action: () => void | Promise<void> }[] = [
-    { label: 'New Note', desc: 'Create a markdown note', action: handleNewNote },
+    { label: 'New Note', desc: 'Create a Markdown note', action: handleNewNote },
     { label: 'New Folder', desc: 'Create a folder', action: handleNewFolder },
     { label: 'New Browser Tab', desc: 'Open a browser', action: handleNewBrowser },
     { label: 'New Terminal', desc: 'Open a terminal', action: handleNewTerminal },
@@ -183,8 +180,14 @@ export const KeyboardShortcuts: React.FC = () => {
   const { openTab, tabs, activeTabId } = useTabs();
   const { setSidebarCollapsed, isSidebarCollapsed } = useActivity();
   const { settings, updateBrowserSettings } = useAppSettings();
+  const { nextUntitledName, createFileRemote, createFolderRemote, refreshFileTree } = useVault();
+  const { prompt, choose } = useModal();
   const [showKeybindings, setShowKeybindings] = useState(false);
   const [showNewTabModal, setShowNewTabModal] = useState(false);
+
+  const handleNewDocument = useCallback(async () => {
+    await createNewDocument({ choose, prompt, nextUntitledName, createFileRemote, refreshFileTree, openTab });
+  }, [choose, prompt, nextUntitledName, createFileRemote, refreshFileTree, openTab]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const ctrlOrMeta = e.ctrlKey || e.metaKey;
@@ -205,9 +208,15 @@ export const KeyboardShortcuts: React.FC = () => {
       return;
     }
 
-    if (ctrlOrMeta && !shift && e.key === 't') {
+    if (ctrlOrMeta && !shift && (e.key === 'n' || e.key === 't')) {
       e.preventDefault();
       setShowNewTabModal(true);
+      return;
+    }
+
+    if (ctrlOrMeta && shift && (e.key === 'N' || e.key === 'n')) {
+      e.preventDefault();
+      void handleNewDocument();
       return;
     }
 
@@ -236,7 +245,7 @@ export const KeyboardShortcuts: React.FC = () => {
       toast(newLiteMode ? 'Browser lite mode enabled' : 'Browser lite mode disabled');
       return;
     }
-  }, [tabs, activeTabId, isSidebarCollapsed, setSidebarCollapsed, settings.browser.liteMode, updateBrowserSettings]);
+  }, [tabs, activeTabId, isSidebarCollapsed, setSidebarCollapsed, settings.browser.liteMode, updateBrowserSettings, handleNewDocument, openTab]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
