@@ -458,83 +458,8 @@ export const Canvas: React.FC = () => {
 
   const fullscreenTab = fullscreenTabId ? tabs.find(t => t.id === fullscreenTabId) ?? null : null;
   const isFullscreenTab = !!fullscreenTab && (fullscreenTab.type === 'browser' || fullscreenTab.type === 'draw');
-
-  if (isFullscreenTab) {
-    const isBrowserFullscreen = fullscreenTab.type === 'browser';
-    return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
-        {fullscreenTab.type === 'browser' ? <BrowserTab tab={fullscreenTab} /> : <DrawTab tab={fullscreenTab} />}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 220,
-            zIndex: 20,
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            onMouseEnter={() => setFullscreenRailOpen(true)}
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 12,
-              pointerEvents: 'auto',
-              background: 'linear-gradient(to right, color-mix(in srgb, var(--bg-primary) 30%, transparent), transparent)',
-              borderRight: '1px solid transparent',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'stretch',
-              pointerEvents: 'auto',
-              transform: fullscreenRailOpen ? 'translateX(0)' : 'translateX(-208px)',
-              transition: 'transform 0.16s ease',
-            }}
-            onMouseEnter={() => setFullscreenRailOpen(true)}
-            onMouseLeave={() => setFullscreenRailOpen(false)}
-          >
-            <div
-              style={{
-                width: 220,
-                padding: '12px 10px 12px 12px',
-                background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
-                borderRight: '1px solid var(--border)',
-                boxShadow: 'var(--shadow-md)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                backdropFilter: 'blur(12px)',
-              }}
-            >
-              <RailButton label="Exit fullscreen" onClick={clearFullscreenTab} />
-              {isBrowserFullscreen && (
-                <>
-                  <RailButton label="Back" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'back' } }))} />
-                  <RailButton label="Forward" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'forward' } }))} />
-                  <RailButton label="Reload" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'reload' } }))} />
-                </>
-              )}
-            </div>
-            <div
-              style={{
-                width: 12,
-                height: '100%',
-                background: 'transparent',
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const fullscreenPaneId = fullscreenTab?.paneId ?? 'main';
+  const isFullscreenBrowser = fullscreenTab?.type === 'browser';
 
   const renderPane = (paneId: string) => {
     const pane = panes.find(p => p.id === paneId);
@@ -636,47 +561,66 @@ export const Canvas: React.FC = () => {
   const renderPaneWithTabBar = (paneId: string) => {
     const pane = panes.find(p => p.id === paneId);
     const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
+    const paneIsFullscreen = isFullscreenTab && paneId === fullscreenPaneId;
+    const showTabBar = !isFullscreenTab || !paneIsFullscreen;
 
     return (
-      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <PaneTabBar
-          paneId={paneId}
-          paneTabs={paneTabs}
-          allTabs={tabs}
-          activeTabId={pane?.activeTabId ?? null}
-          getBrowserGroup={getBrowserGroup}
-          setActiveTab={(tabId) => { setActivePane(paneId); setActiveTabId(tabId); }}
-          closeTab={closeTab}
-          openNewTab={() => openTab({ type: 'new-tab', title: 'New tab' }, paneId)}
-          onTabContextMenu={(e, tabId, paneIdForMenu) => {
-            e.preventDefault();
-            setStackTabCtxMenu({ x: e.clientX, y: e.clientY, tabId, paneId: paneIdForMenu });
-          }}
-          reorderTabs={reorderTabs}
-          moveTabToPane={moveTabToPane}
-          moveTabToPaneAt={moveTabToPaneAt}
-          moveTabToGroup={moveTabToGroup}
-          toggleTabPinned={toggleTabPinned}
-          toggleBrowserGroupCollapsed={toggleBrowserGroupCollapsed}
-          updateBrowserGroup={updateBrowserGroup}
-          duplicateBrowserGroup={duplicateBrowserGroup}
-          deleteBrowserGroup={deleteBrowserGroup}
-          closeBrowserGroup={closeBrowserGroup}
-          saveGroup={saveGroup}
-          promptValue={promptModal}
-          paneCount={panes.length}
-          onClosePane={async () => {
-            const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
-            const msg = paneTabs.length > 0
-              ? `Close this pane and its ${paneTabs.length} tab${paneTabs.length === 1 ? '' : 's'}?`
-              : 'Close this pane?';
-            const ok = await confirmModal({ title: 'Close pane', message: msg, confirmLabel: 'Close', danger: true });
-            if (!ok) return;
-            closePane(paneId);
-          }}
-          onSplitRight={() => { setActivePane(paneId); splitRight(); }}
-          onSplitDown={() => { setActivePane(paneId); splitDown(); }}
-        />
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          position: paneIsFullscreen ? 'fixed' : 'relative',
+          inset: paneIsFullscreen ? 0 : undefined,
+          zIndex: paneIsFullscreen ? 8 : 'auto',
+          background: 'var(--bg-primary)',
+          overflow: 'hidden',
+          visibility: isFullscreenTab && !paneIsFullscreen ? 'hidden' : 'visible',
+          pointerEvents: isFullscreenTab && !paneIsFullscreen ? 'none' : 'auto',
+        }}
+      >
+        {showTabBar && (
+          <PaneTabBar
+            paneId={paneId}
+            paneTabs={paneTabs}
+            allTabs={tabs}
+            activeTabId={pane?.activeTabId ?? null}
+            getBrowserGroup={getBrowserGroup}
+            setActiveTab={(tabId) => { setActivePane(paneId); setActiveTabId(tabId); }}
+            closeTab={closeTab}
+            openNewTab={() => openTab({ type: 'new-tab', title: 'New tab' }, paneId)}
+            onTabContextMenu={(e, tabId, paneIdForMenu) => {
+              e.preventDefault();
+              setStackTabCtxMenu({ x: e.clientX, y: e.clientY, tabId, paneId: paneIdForMenu });
+            }}
+            reorderTabs={reorderTabs}
+            moveTabToPane={moveTabToPane}
+            moveTabToPaneAt={moveTabToPaneAt}
+            moveTabToGroup={moveTabToGroup}
+            toggleTabPinned={toggleTabPinned}
+            toggleBrowserGroupCollapsed={toggleBrowserGroupCollapsed}
+            updateBrowserGroup={updateBrowserGroup}
+            duplicateBrowserGroup={duplicateBrowserGroup}
+            deleteBrowserGroup={deleteBrowserGroup}
+            closeBrowserGroup={closeBrowserGroup}
+            saveGroup={saveGroup}
+            promptValue={promptModal}
+            paneCount={panes.length}
+            onClosePane={async () => {
+              const paneTabs = tabs.filter(t => (t.paneId ?? 'main') === paneId);
+              const msg = paneTabs.length > 0
+                ? `Close this pane and its ${paneTabs.length} tab${paneTabs.length === 1 ? '' : 's'}?`
+                : 'Close this pane?';
+              const ok = await confirmModal({ title: 'Close pane', message: msg, confirmLabel: 'Close', danger: true });
+              if (!ok) return;
+              closePane(paneId);
+            }}
+            onSplitRight={() => { setActivePane(paneId); splitRight(); }}
+            onSplitDown={() => { setActivePane(paneId); splitDown(); }}
+          />
+        )}
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>{renderPane(paneId)}</div>
       </div>
     );
@@ -686,7 +630,13 @@ export const Canvas: React.FC = () => {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
       <div
         ref={splitContainerRef}
-        style={{ flex: 1, display: 'flex', flexDirection: splitDirection === 'vertical' ? 'column' : 'row', overflow: 'hidden' }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: splitDirection === 'vertical' ? 'column' : 'row',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
       >
         {panes.map((pane, idx) => (
           <React.Fragment key={pane.id}>
@@ -709,6 +659,71 @@ export const Canvas: React.FC = () => {
           </React.Fragment>
         ))}
       </div>
+
+      {isFullscreenTab && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 220,
+            zIndex: 20,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            onMouseEnter={() => setFullscreenRailOpen(true)}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 12,
+              pointerEvents: 'auto',
+              background: 'linear-gradient(to right, color-mix(in srgb, var(--bg-primary) 30%, transparent), transparent)',
+              borderRight: '1px solid transparent',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'stretch',
+              pointerEvents: 'auto',
+              transform: fullscreenRailOpen ? 'translateX(0)' : 'translateX(-208px)',
+              transition: 'transform 0.16s ease',
+            }}
+            onMouseEnter={() => setFullscreenRailOpen(true)}
+            onMouseLeave={() => setFullscreenRailOpen(false)}
+          >
+            <div
+              style={{
+                width: 220,
+                padding: '12px 10px 12px 12px',
+                background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
+                borderRight: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <RailButton label="Exit fullscreen" onClick={clearFullscreenTab} />
+              {isFullscreenBrowser && fullscreenTab && (
+                <>
+                  <RailButton label="Back" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'back' } }))} />
+                  <RailButton label="Forward" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'forward' } }))} />
+                  <RailButton label="Reload" onClick={() => window.dispatchEvent(new CustomEvent('ibsidian:browser-tab-control', { detail: { tabId: fullscreenTab.id, action: 'reload' } }))} />
+                </>
+              )}
+            </div>
+            <div style={{ width: 12, height: '100%', background: 'transparent' }} />
+          </div>
+        </div>
+      )}
 
       {stackTabCtxMenu && (() => {
         const targetTab = tabs.find(t => t.id === stackTabCtxMenu.tabId);
