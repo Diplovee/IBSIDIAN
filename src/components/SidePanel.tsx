@@ -3,7 +3,7 @@ import { Tree, TreeApi, NodeApi } from 'react-arborist';
 import {
   Folder, FileText, FolderPlus,
   Search as SearchIcon, FilePen, ArrowUpNarrowWide, LayoutList,
-  ChevronsUpDown, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
+  ChevronsUpDown, ChevronsDownUp, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
   Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, Image as ImageFileIcon,
 } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
@@ -19,8 +19,9 @@ import { normalizeNewItemName } from '../utils/fileNaming';
 interface TreeCtx {
   openContextMenu: (e: React.MouseEvent, node: NodeApi<VaultNode>) => void;
   openTab: (opts: any) => void;
+  toggleFolder: (node: NodeApi<VaultNode>) => void;
 }
-const TreeContext = React.createContext<TreeCtx>({ openContextMenu: () => {}, openTab: () => {} });
+const TreeContext = React.createContext<TreeCtx>({ openContextMenu: () => {}, openTab: () => {}, toggleFolder: () => {} });
 
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']);
 const visibleFileExtensions = new Set(['md', 'excalidraw']);
@@ -44,7 +45,17 @@ const getTabForNode = (node: VaultNode) => {
 export const SidePanel: React.FC = () => {
   const { activeActivity } = useActivity();
   return (
-    <div style={{ height: '100%', width: '100%', background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ 
+      height: '100%', 
+      width: '100%', 
+      background: 'rgba(255, 255, 255, 0.75)', 
+      backdropFilter: 'blur(24px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+      borderRight: '1px solid rgba(0, 0, 0, 0.06)', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      overflow: 'hidden' 
+    }}>
       {activeActivity === 'files'    && <FileTreeView />}
       {activeActivity === 'search'   && <SearchView />}
     </div>
@@ -78,14 +89,20 @@ const getTopLevelPaths = (nodes: VaultNode[]) => {
     .map(node => node.id);
 };
 
-const handleTreeNodeClick = (node: NodeApi<VaultNode>, e: React.MouseEvent) => {
+const handleTreeNodeClick = (node: NodeApi<VaultNode>, e: React.MouseEvent, toggleFolder: (node: NodeApi<VaultNode>) => void) => {
   if ((e.metaKey || e.ctrlKey)) {
     node.isSelected ? node.deselect() : node.selectMulti();
   } else if (e.shiftKey) {
     node.selectContiguous();
   } else {
+    const isAlreadySelected = node.isSelected;
     node.select();
     node.activate();
+    // If it was already selected, activate() might not trigger onActivate in some versions
+    // or we want to ensure folders toggle on repeat clicks.
+    if (isAlreadySelected && node.data.type === 'folder') {
+      toggleFolder(node);
+    }
   }
 };
 
@@ -96,6 +113,36 @@ const getSelectionRadius = (node: NodeApi<VaultNode>) => {
   if (node.isSelectedEnd) return '0 0 6px 6px';
   return 0;
 };
+
+const FolderDisclosure: React.FC<{ open: boolean; onToggle: () => void }> = ({ open, onToggle }) => (
+  <button
+    type="button"
+    aria-label={open ? 'Collapse folder' : 'Expand folder'}
+    title={open ? 'Collapse folder' : 'Expand folder'}
+    onClick={(e) => {
+      e.stopPropagation();
+      onToggle();
+    }}
+    style={{
+      width: 20,
+      height: 20,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 0,
+      border: 'none',
+      background: 'transparent',
+      color: '#94a3b8',
+      flexShrink: 0,
+      cursor: 'pointer',
+      transform: open ? 'rotate(90deg)' : 'none',
+      transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease',
+      borderRadius: 4,
+    }}
+  >
+    <Arrow size={14} strokeWidth={3} />
+  </button>
+);
 
 // ── Context menu ──────────────────────────────────────────────────────────
 interface CtxMenu { x: number; y: number; node: VaultNode; selectedNodes: VaultNode[] }
@@ -210,7 +257,7 @@ const filterTreeNodes = (nodes: VaultNode[]): VaultNode[] =>
   nodes.flatMap((node) => {
     if (node.type === 'folder') {
       const children = filterTreeNodes(node.children);
-      return children.length ? [{ ...node, children }] : [];
+      return [{ ...node, children }];
     }
 
     const ext = node.ext?.toLowerCase();
@@ -219,7 +266,7 @@ const filterTreeNodes = (nodes: VaultNode[]): VaultNode[] =>
 
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
-  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem, expandFolder } = useVault();
+  const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem, expandFolder, setFolderOpen, setAllFoldersOpen } = useVault();
   const { openTab } = useTabs();
   const { confirm, prompt } = useModal();
   const { settings } = useAppSettings();
@@ -228,9 +275,10 @@ const FileTreeView: React.FC = () => {
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [allExpanded, setAllExpanded] = useState(true);
   const headerHeight = 44;
   const rowHeight = settings.appearance?.compactMode ? FILE_TREE_COMPACT_ROW_HEIGHT : FILE_TREE_ROW_HEIGHT;
-  const TreeRenderer = settings.fileTree.style === 'hierarchy' ? TreeNode : OriginalTreeNode;
+  const TreeRenderer = TreeNode;
 
   const displayNodes = React.useMemo(() => {
     const filteredNodes = filterTreeNodes(nodes);
@@ -253,15 +301,34 @@ const FileTreeView: React.FC = () => {
     moveNode(dragIds, parentId, index);
   };
 
+  const toggleFolder = useCallback((node: NodeApi<VaultNode>) => {
+    const nextIsOpen = !node.isOpen;
+    node.toggle();
+    if (nextIsOpen && !node.data.childrenLoaded) {
+      expandFolder(node.data.id).catch(() => {});
+    }
+    setFolderOpen(node.data.id, nextIsOpen);
+    
+    // If we just manually closed something, we are no longer "all expanded"
+    if (!nextIsOpen) setAllExpanded(false);
+  }, [expandFolder, setFolderOpen]);
+
   const handleActivate = useCallback((node: NodeApi<VaultNode>) => {
     if (node.data.type === 'folder') {
-      if (!node.data.childrenLoaded) expandFolder(node.data.id).catch(() => {});
-      node.toggle();
+      toggleFolder(node);
     } else {
       const target = getTabForNode(node.data);
       if (target) openTab(target);
     }
-  }, [openTab, expandFolder]);
+  }, [openTab, toggleFolder]);
+
+  const handleToggle = useCallback((id: string) => {
+    const node = treeRef.current?.get(id);
+    if (node) {
+      setFolderOpen(id, node.isOpen);
+      if (!node.isOpen) setAllExpanded(false);
+    }
+  }, [setFolderOpen]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, node: NodeApi<VaultNode>) => {
     e.preventDefault();
@@ -320,7 +387,7 @@ const FileTreeView: React.FC = () => {
   }, [createFolderRemote, prompt, refreshFileTree]);
 
   return (
-    <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab }}>
+    <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab, toggleFolder }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -329,7 +396,18 @@ const FileTreeView: React.FC = () => {
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title={sortOrder === 'none' ? 'Sort A→Z' : sortOrder === 'asc' ? 'Sort Z→A' : 'Remove sort'} active={sortOrder !== 'none'} onClick={handleSort} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
-          <SidebarBtn icon={<ChevronsUpDown size={15} />} title="Collapse all" onClick={() => treeRef.current?.closeAll()} />
+          <SidebarBtn 
+            icon={allExpanded ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />} 
+            title={allExpanded ? "Collapse all" : "Expand all"} 
+            onClick={() => {
+              const targetState = !allExpanded;
+              if (targetState) treeRef.current?.openAll();
+              else treeRef.current?.closeAll();
+              
+              setAllFoldersOpen(targetState);
+              setAllExpanded(targetState);
+            }} 
+          />
         </div>
 
         {/* Tree / states */}
@@ -358,6 +436,9 @@ const FileTreeView: React.FC = () => {
               onMove={handleMove}
               onActivate={handleActivate}
               onDelete={handleTreeDelete}
+              onToggle={handleToggle}
+              renderCursor={TreeCursor}
+              paddingBottom={20}
             >
               {TreeRenderer}
             </Tree>
@@ -369,6 +450,34 @@ const FileTreeView: React.FC = () => {
     </TreeContext.Provider>
   );
 };
+
+// ── Custom drag cursor ───────────────────────────────────────────────────
+const TreeCursor = ({ top, left, indent }: { top: number; left: number; indent: number }) => (
+  <div
+    style={{
+      position: 'absolute',
+      top: top - 1,
+      left: left,
+      right: 0,
+      height: 2,
+      background: 'var(--accent)',
+      pointerEvents: 'none',
+      zIndex: 10,
+    }}
+  >
+    <div
+      style={{
+        position: 'absolute',
+        left: indent,
+        width: 6,
+        height: 6,
+        background: 'var(--accent)',
+        borderRadius: '50%',
+        transform: 'translate(-50%, -40%)',
+      }}
+    />
+  </div>
+);
 
 // ── Markdown icon (custom SVG) ───────────────────────────────────────────────
 const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 13, color = 'var(--text-muted)' }) => (
@@ -388,93 +497,112 @@ const MarkdownIcon: React.FC<{ size?: number; color?: string }> = ({ size = 13, 
 // ── Tree node row ─────────────────────────────────────────────────────────
 const TreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
-  const { openContextMenu } = React.useContext(TreeContext);
+  const { openContextMenu, toggleFolder } = React.useContext(TreeContext);
   const { settings } = useAppSettings();
   const isMd = node.data.type === 'file' && node.data.ext === 'md';
   const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
   const isImage = node.data.type === 'file' && isImageExt(node.data.ext);
   const isFile = node.data.type === 'file';
-  const basePadding = 10;
-  const indentStep = 16;
+  const basePadding = 12;
+  const indentStep = 24;
   const rowHeight = settings.appearance?.compactMode ? FILE_TREE_COMPACT_ROW_HEIGHT : FILE_TREE_ROW_HEIGHT;
   const itemHeight = settings.appearance?.compactMode ? '100%' : FILE_TREE_ITEM_HEIGHT;
-  const rowMid = rowHeight / 2;
-  const fontSizeMap = { small: 13, medium: 14, large: 16 } as const;
+  const fontSizeMap = { small: 13, medium: 13.5, large: 16 } as const;
   const nodeFontSize = fontSizeMap[settings.appearance?.fontSize ?? 'medium'];
-  const contentPaddingLeft = basePadding + (node.level * indentStep) + 18;
-  const currentLineX = basePadding + (node.level * indentStep) + 8;
-  const parentLineX = basePadding + ((node.level - 1) * indentStep) + 8;
+  
+  const contentPaddingLeft = basePadding + (node.level * indentStep);
 
-  const ancestorLines: number[] = [];
-  let ancestor = node.parent;
-  while (ancestor && !ancestor.isRoot) {
-    if (ancestor.nextSibling) {
-      ancestorLines.push(basePadding + (ancestor.level * indentStep) + 8);
-    }
-    ancestor = ancestor.parent;
-  }
-
-  const badgeLabel = isExcalidraw ? 'CANVAS'
+  const badgeLabel = isExcalidraw ? 'Canvas'
     : isImage ? node.data.ext?.toUpperCase()
     : (!isMd && isFile && node.data.ext) ? node.data.ext.toUpperCase()
     : null;
-  const iconColor = node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)';
+  
+  const iconColor = node.isSelected ? 'var(--accent)' : hovered ? '#1e293b' : '#64748b';
+
+  // Auto-expand folder on drag hover
+  useEffect(() => {
+    if (node.willReceiveDrop && !isFile && !node.isOpen) {
+      const timer = setTimeout(() => {
+        toggleFolder(node);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [node.willReceiveDrop, isFile, node.isOpen, toggleFolder]);
 
   return (
     <div
       ref={dragHandle}
-      style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'default', userSelect: 'none', position: 'relative', boxSizing: 'border-box' }}
+      style={{ 
+        ...style, 
+        display: 'flex', 
+        alignItems: 'center', 
+        padding: '0 8px', 
+        cursor: 'pointer', 
+        userSelect: 'none', 
+        position: 'relative', 
+        boxSizing: 'border-box', 
+        opacity: node.isDragging ? 0.4 : 1,
+        transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        transform: hovered ? 'translateX(2px)' : 'none'
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={(e) => handleTreeNodeClick(node, e)}
+      onClick={(e) => handleTreeNodeClick(node, e, toggleFolder)}
       onContextMenu={(e) => openContextMenu(e, node)}
-    >
-      <svg
-        aria-hidden
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
       >
-        {ancestorLines.map((x, index) => (
-          <line
-            key={`${node.id}-anc-${index}`}
-            x1={x} y1={0}
-            x2={x} y2={rowHeight}
-            stroke="var(--border)"
-            strokeWidth={1}
-            strokeOpacity={0.6}
-          />
-        ))}
-        {node.level > 0 && (
-          <line
-            x1={parentLineX} y1={0}
-            x2={parentLineX} y2={node.nextSibling ? rowHeight : rowMid}
-            stroke="var(--border)"
-            strokeWidth={1}
-            strokeOpacity={0.6}
-          />
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 0, 
+        width: '100%', 
+        height: itemHeight, 
+        paddingLeft: contentPaddingLeft, 
+        paddingRight: 12, 
+        borderRadius: 10, 
+        background: node.isSelected ? 'rgba(255, 255, 255, 0.8)' : (hovered || node.willReceiveDrop) ? 'rgba(255, 255, 255, 0.5)' : 'transparent', 
+        color: node.isSelected ? '#1e293b' : isFile ? '#64748b' : '#1e293b', 
+        fontWeight: 500, 
+        fontSize: nodeFontSize, 
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        border: '1px solid',
+        borderColor: (node.isSelected || hovered) ? 'rgba(255, 255, 255, 0.8)' : 'transparent',
+        boxShadow: (node.isSelected || hovered) ? '0 4px 12px rgba(0, 0, 0, 0.03)' : 'none',
+        outline: node.willReceiveDrop && !isFile ? '1.5px solid var(--accent)' : 'none',
+        outlineOffset: -1.5
+      }}>
+        <div style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 4 }}>
+          {!isFile && <FolderDisclosure open={node.isOpen} onToggle={() => toggleFolder(node)} />}
+        </div>
+        <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 10, flexShrink: 0 }}>
+          {isFile
+            ? isExcalidraw
+              ? <ExcalidrawIcon size={16} color={iconColor} style={{ flexShrink: 0 }} />
+              : isImage
+                ? <ImageFileIcon size={16} style={{ flexShrink: 0, color: iconColor }} />
+                : isMd
+                  ? <MarkdownIcon size={16} color={iconColor} />
+                  : <FileText size={16} style={{ flexShrink: 0, color: iconColor }} />
+            : <Folder size={18} style={{ flexShrink: 0, color: '#64748b', opacity: 0.8 }} />
+          }
+        </div>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: (isFile && !node.isSelected) ? '#64748b' : '#1e293b' }}>
+          {node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}
+        </span>
+        {badgeLabel && (
+          <span style={{ 
+            flexShrink: 0, 
+            fontSize: 9, 
+            fontWeight: 700, 
+            letterSpacing: '0.05em', 
+            color: '#64748b', 
+            background: 'rgba(0, 0, 0, 0.04)',
+            padding: '2px 6px',
+            borderRadius: 5,
+            textTransform: 'uppercase'
+          }}>
+            {badgeLabel}
+          </span>
         )}
-        {!isFile && node.isOpen && node.children?.length > 0 && (
-          <line
-            x1={currentLineX} y1={rowMid}
-            x2={currentLineX} y2={rowHeight}
-            stroke="var(--border)"
-            strokeWidth={1}
-            strokeOpacity={0.6}
-          />
-        )}
-      </svg>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: contentPaddingLeft, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
-        {isFile
-          ? isExcalidraw
-            ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
-            : isImage
-              ? <ImageFileIcon size={14} style={{ flexShrink: 0, color: iconColor }} />
-              : isMd
-                ? <MarkdownIcon size={14} color={iconColor} />
-                : <FileText size={14} style={{ flexShrink: 0, color: iconColor }} />
-          : <Folder size={14} style={{ flexShrink: 0, color: iconColor }} />
-        }
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
-        {badgeLabel && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: 'var(--text-muted)', opacity: 0.8 }}>{badgeLabel}</span>}
       </div>
     </div>
   );
@@ -482,7 +610,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
 
 const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
-  const { openContextMenu } = React.useContext(TreeContext);
+  const { openContextMenu, toggleFolder } = React.useContext(TreeContext);
   const { settings } = useAppSettings();
   const isMd = node.data.type === 'file' && node.data.ext === 'md';
   const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
@@ -496,6 +624,7 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
     : (!isMd && isFile && node.data.ext) ? node.data.ext.toUpperCase()
     : null;
   const iconColor = node.isSelected ? 'var(--accent)' : hovered ? 'var(--text-primary)' : 'var(--text-muted)';
+  const contentPaddingLeft = isFile ? 10 : 20;
 
   return (
     <div
@@ -506,7 +635,8 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
       onClick={(e) => handleTreeNodeClick(node, e)}
       onContextMenu={(e) => openContextMenu(e, node)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: 10, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: contentPaddingLeft, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
+        {!isFile && <FolderDisclosure open={node.isOpen} onToggle={() => toggleFolder(node)} />}
         {isFile
           ? isExcalidraw
             ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
