@@ -48,6 +48,7 @@ export const SidePanel: React.FC = () => {
     <div style={{ 
       height: '100%', 
       width: '100%', 
+      position: 'relative',
       background: 'rgba(255, 255, 255, 0.75)', 
       backdropFilter: 'blur(24px) saturate(180%)',
       WebkitBackdropFilter: 'blur(24px) saturate(180%)',
@@ -226,7 +227,7 @@ const ContextMenu: React.FC<{ menu: CtxMenu; onClose: () => void }> = ({ menu, o
   const act = (fn: () => void) => { fn(); onClose(); };
 
   return (
-    <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, minWidth: 200, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', paddingTop: 4, paddingBottom: 4, visibility: visible ? 'visible' : 'hidden' }}>
+    <div ref={ref} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 20000, minWidth: 200, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', paddingTop: 4, paddingBottom: 4, visibility: visible ? 'visible' : 'hidden' }}>
       {!isMulti && isFile && <CtxMenuItem icon={<FilePlus2 size={14} />} label="Open in new tab" onClick={() => act(() => {
         const target = getTabForNode(menu.node);
         if (target) openTab(target);
@@ -390,7 +391,7 @@ const FileTreeView: React.FC = () => {
     <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab, toggleFolder }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
-        <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative', zIndex: 2, background: 'rgba(255, 255, 255, 0.92)' }}>
           <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => createNamedFile('md')} />
           <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => createNamedFile('excalidraw')} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
@@ -411,7 +412,7 @@ const FileTreeView: React.FC = () => {
         </div>
 
         {/* Tree / states */}
-        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 4 }}>
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 4, position: 'relative', zIndex: 1 }}>
           {error ? (
             <div style={{ padding: '20px 16px', textAlign: 'center' }}>
               <p style={{ fontSize: 12, color: '#ef4444', marginBottom: 12, lineHeight: 1.5 }}>{error}</p>
@@ -438,7 +439,7 @@ const FileTreeView: React.FC = () => {
               onDelete={handleTreeDelete}
               onToggle={handleToggle}
               renderCursor={TreeCursor}
-              paddingBottom={20}
+              paddingBottom={rowHeight}
             >
               {TreeRenderer}
             </Tree>
@@ -504,7 +505,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   const isImage = node.data.type === 'file' && isImageExt(node.data.ext);
   const isFile = node.data.type === 'file';
   const basePadding = 12;
-  const indentStep = 24;
+  const indentStep = 16;
   const rowHeight = settings.appearance?.compactMode ? FILE_TREE_COMPACT_ROW_HEIGHT : FILE_TREE_ROW_HEIGHT;
   const itemHeight = settings.appearance?.compactMode ? '100%' : FILE_TREE_ITEM_HEIGHT;
   const fontSizeMap = { small: 13, medium: 13.5, large: 16 } as const;
@@ -524,7 +525,7 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
     if (node.willReceiveDrop && !isFile && !node.isOpen) {
       const timer = setTimeout(() => {
         toggleFolder(node);
-      }, 600);
+      }, 180);
       return () => clearTimeout(timer);
     }
   }, [node.willReceiveDrop, isFile, node.isOpen, toggleFolder]);
@@ -570,9 +571,11 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
         outline: node.willReceiveDrop && !isFile ? '1.5px solid var(--accent)' : 'none',
         outlineOffset: -1.5
       }}>
-        <div style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 4 }}>
-          {!isFile && <FolderDisclosure open={node.isOpen} onToggle={() => toggleFolder(node)} />}
-        </div>
+        {!isFile && (
+          <div style={{ position: 'absolute', left: contentPaddingLeft - 14, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FolderDisclosure open={node.isOpen} onToggle={() => toggleFolder(node)} />
+          </div>
+        )}
         <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 10, flexShrink: 0 }}>
           {isFile
             ? isExcalidraw
@@ -635,8 +638,12 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
       onClick={(e) => handleTreeNodeClick(node, e)}
       onContextMenu={(e) => openContextMenu(e, node)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: contentPaddingLeft, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s' }}>
-        {!isFile && <FolderDisclosure open={node.isOpen} onToggle={() => toggleFolder(node)} />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: contentPaddingLeft, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s', position: 'relative' }}>
+        {!isFile && (
+          <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FolderDisclosure open={node.isOpen} onToggle={() => toggleFolder(node)} />
+          </div>
+        )}
         {isFile
           ? isExcalidraw
             ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
