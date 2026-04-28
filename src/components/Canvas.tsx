@@ -33,7 +33,7 @@ import {
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, Check, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight, X, Pin, Eye, EyeOff,
+  Trash2, ChevronRight, X, Pin, Eye, EyeOff, Plus,
 } from 'lucide-react';
 import {
   CALL_OUT_STYLES,
@@ -52,7 +52,7 @@ import {
   listVaultFilePaths,
   resolveAttachmentDestination,
 } from '../utils/attachments';
-import type { AppSettings, ExcalidrawSceneFile, Tab } from '../types';
+import type { AppSettings, BrowserShortcut, ExcalidrawSceneFile, Tab } from '../types';
 import { parseExcalidrawFileContent } from '../utils/excalidraw';
 import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
 import { CodeMirrorToolbar } from './editor/CodeMirrorToolbar';
@@ -1858,6 +1858,84 @@ const cacheBrowserFavicon = (url: string, faviconUrl?: string) => {
   browserFaviconCache.set(origin, faviconUrl);
 };
 
+const normalizeBrowserShortcut = (shortcut: Partial<BrowserShortcut>) => {
+  const label = typeof shortcut.label === 'string' ? shortcut.label.trim() : '';
+  const url = typeof shortcut.url === 'string' ? resolveBrowserUrl(shortcut.url) : '';
+  if (!label || !url) return null;
+  return { label, url };
+};
+
+const ShortcutFavicon: React.FC<{ url: string; label: string; theme: string; textColor: string }> = ({ url, label, theme, textColor }) => {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+
+  const candidates = (() => {
+    const values: string[] = [];
+    const add = (value?: string) => {
+      const next = value?.trim();
+      if (next && !values.includes(next)) values.push(next);
+    };
+
+    add(getBrowserFaviconForUrl(url));
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        add(`${parsed.origin}/favicon.png`);
+        add(`${parsed.origin}/apple-touch-icon.png`);
+        add(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(parsed.href)}&sz=64`);
+      }
+    } catch {
+      // Ignore invalid URLs and fall back to text.
+    }
+
+    return values;
+  })();
+
+  useEffect(() => {
+    setLoadFailed(false);
+    setCandidateIndex(0);
+  }, [url]);
+
+  const handleError = () => {
+    if (candidateIndex < candidates.length - 1) {
+      setCandidateIndex(i => i + 1);
+      return;
+    }
+    setLoadFailed(true);
+  };
+
+  const src = candidates[candidateIndex];
+
+  if (!src || loadFailed) {
+    return (
+      <span style={{
+        fontSize: '1.2rem',
+        color: textColor,
+        fontWeight: 500,
+        lineHeight: 1,
+      }}>
+        {label.charAt(0).toUpperCase()}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      onError={handleError}
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: theme === 'dark' ? 7 : 6,
+        objectFit: 'cover',
+      }}
+    />
+  );
+};
+
 const buildBrowserLiteCss = (browser: AppSettings['browser']) => {
   if (!browser.liteMode) return '';
   const rules: string[] = [
@@ -1966,7 +2044,7 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const webviewRef = useRef<any>(null);
   const { updateTabTitle, updateTabUrl, updateTabFavicon, updateTabLoading, openTab } = useTabs();
   const { addToHistory, updateHistoryTitle } = useLibrary();
-  const { settings } = useAppSettings();
+  const { settings, updateBrowserSettings } = useAppSettings();
   const { theme } = useActivity();
   const browserSettings = settings.browser;
   const bgColor = theme === 'dark' ? '#1e1e1e' : '#ffffff';
@@ -1980,7 +2058,11 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [clock, setClock] = useState('00:00');
   const [greeting, setGreeting] = useState('Good evening');
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; url: string } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; shortcut: BrowserShortcut } | null>(null);
+  const [isAddingShortcut, setIsAddingShortcut] = useState(false);
+  const [editingShortcutUrl, setEditingShortcutUrl] = useState<string | null>(null);
+  const [shortcutLabel, setShortcutLabel] = useState('');
+  const [shortcutUrl, setShortcutUrl] = useState('');
   const [pageCtxMenu, setPageCtxMenu] = useState<{
     x: number;
     y: number;
@@ -1992,9 +2074,16 @@ const BrowserTab: React.FC<{ tab: any }> = ({ tab }) => {
   const browserCssKeyRef = useRef<string | null>(null);
   const browserSettingsRef = useRef(browserSettings);
 
-  const handleContextMenu = (e: React.MouseEvent, url: string) => {
+  const resetShortcutForm = () => {
+    setIsAddingShortcut(false);
+    setEditingShortcutUrl(null);
+    setShortcutLabel('');
+    setShortcutUrl('');
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, shortcut: BrowserShortcut) => {
     e.preventDefault();
-    setCtxMenu({ x: e.clientX, y: e.clientY, url });
+    setCtxMenu({ x: e.clientX, y: e.clientY, shortcut });
   };
 
   useEffect(() => {
@@ -2281,12 +2370,17 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
   );
 
   if (isNewTab) {
-    const shortcuts = [
-      { label: 'GitHub', url: 'https://github.com', icon: 'G' },
-      { label: 'YouTube', url: 'https://youtube.com', icon: 'Y' },
-      { label: 'Reddit', url: 'https://reddit.com', icon: 'R' },
-      { label: 'Notion', url: 'https://notion.so', icon: 'N' },
-    ];
+    const shortcuts = browserSettings.shortcuts;
+    const saveShortcut = async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const nextShortcut = normalizeBrowserShortcut({ label: shortcutLabel, url: shortcutUrl });
+      if (!nextShortcut) return;
+      const nextShortcuts = editingShortcutUrl
+        ? shortcuts.map(existing => existing.url === editingShortcutUrl ? nextShortcut : existing)
+        : [...shortcuts.filter(existing => existing.url !== nextShortcut.url), nextShortcut];
+      await updateBrowserSettings({ shortcuts: nextShortcuts });
+      resetShortcutForm();
+    };
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
         <div style={{ height: 36, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8 }}>
@@ -2341,12 +2435,12 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
               </button>
             </div>
           </form>
-          <div style={{ marginTop: 48, display: 'flex', gap: 24 }}>
+          <div style={{ marginTop: 48, display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 720, padding: '0 20px' }}>
             {shortcuts.map(s => (
               <button
                 key={s.url}
                 onClick={() => navigate(s.url)}
-                onContextMenu={(e) => handleContextMenu(e, s.url)}
+                onContextMenu={(e) => handleContextMenu(e, s)}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   textDecoration: 'none', color: dimColor,
@@ -2362,10 +2456,129 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
                   border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
                   borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   marginBottom: 8, fontSize: '1.2rem', color: textColor,
-                }}>{s.icon}</div>
+                }}>
+                  <ShortcutFavicon url={s.url} label={s.label} theme={theme} textColor={textColor} />
+                </div>
                 <span style={{ fontSize: '0.75rem' }}>{s.label}</span>
               </button>
             ))}
+            {isAddingShortcut ? (
+              <form
+                onSubmit={saveShortcut}
+                style={{
+                  width: 220,
+                  padding: 12,
+                  borderRadius: 16,
+                  background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                  border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                <input
+                  type="text"
+                  value={shortcutLabel}
+                  onChange={(e) => setShortcutLabel(e.target.value)}
+                  placeholder="Shortcut name"
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}`,
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 13,
+                    color: textColor,
+                    outline: 'none',
+                  }}
+                  autoFocus
+                />
+                <input
+                  type="text"
+                  value={shortcutUrl}
+                  onChange={(e) => setShortcutUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}`,
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 13,
+                    color: textColor,
+                    outline: 'none',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      height: 34,
+                      borderRadius: 10,
+                      border: 'none',
+                      background: '#4285f4',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {editingShortcutUrl ? 'Update' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetShortcutForm}
+                    style={{
+                      flex: 1,
+                      height: 34,
+                      borderRadius: 10,
+                      border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}`,
+                      background: 'transparent',
+                      color: dimColor,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAddingShortcut(true)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  textDecoration: 'none',
+                  color: dimColor,
+                  transition: 'transform 0.2s, color 0.2s',
+                  cursor: 'pointer',
+                  background: 'transparent',
+                  border: 'none',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.color = textColor; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.color = dimColor; }}
+              >
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                  border: `1px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+                  color: textColor,
+                }}>
+                  <Plus size={20} />
+                </div>
+                <span style={{ fontSize: '0.75rem' }}>Add shortcut</span>
+              </button>
+            )}
           </div>
           {ctxMenu && (
             <div style={{
@@ -2375,7 +2588,7 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
               padding: '4px 0', minWidth: 160,
             }}>
               <button
-                onClick={() => { navigate(ctxMenu.url); setCtxMenu(null); }}
+                onClick={() => { navigate(ctxMenu.shortcut.url); setCtxMenu(null); }}
                 style={{
                   display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
                   background: 'transparent', border: 'none', fontSize: 13,
@@ -2385,7 +2598,7 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
                 Open in this tab
               </button>
               <button
-                onClick={() => { openTab({ type: 'browser', title: 'New Tab', url: ctxMenu.url, groupId: '' }); setCtxMenu(null); }}
+                onClick={() => { openTab({ type: 'browser', title: 'New Tab', url: ctxMenu.shortcut.url, groupId: '' }); setCtxMenu(null); }}
                 style={{
                   display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
                   background: 'transparent', border: 'none', fontSize: 13,
@@ -2393,6 +2606,36 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
                 }}
               >
                 Open in new tab
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddingShortcut(true);
+                  setEditingShortcutUrl(ctxMenu.shortcut.url);
+                  setShortcutLabel(ctxMenu.shortcut.label);
+                  setShortcutUrl(ctxMenu.shortcut.url);
+                  setCtxMenu(null);
+                }}
+                style={{
+                  display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
+                  background: 'transparent', border: 'none', fontSize: 13,
+                  color: 'var(--text-primary)', cursor: 'pointer',
+                }}
+              >
+                Edit shortcut
+              </button>
+              <button
+                onClick={async () => {
+                  await updateBrowserSettings({ shortcuts: shortcuts.filter(existing => existing.url !== ctxMenu.shortcut.url) });
+                  resetShortcutForm();
+                  setCtxMenu(null);
+                }}
+                style={{
+                  display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
+                  background: 'transparent', border: 'none', fontSize: 13,
+                  color: '#dc2626', cursor: 'pointer',
+                }}
+              >
+                Remove shortcut
               </button>
             </div>
           )}

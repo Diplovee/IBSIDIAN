@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { AppSettings, AgentSettings, AgentKey, BrowserSettings } from '../types';
+import { DEFAULT_BROWSER_SHORTCUTS } from '../types';
 
 const DEFAULT_SETTINGS: AppSettings = {
   attachments: {
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     disableFilters: true,
     disableVideoAutoplay: true,
     blockImages: false,
+    shortcuts: DEFAULT_BROWSER_SHORTCUTS,
   },
   agents: {
     claude: true,
@@ -62,6 +64,9 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         browser: {
           ...DEFAULT_SETTINGS.browser,
           ...loaded.browser,
+          shortcuts: Array.isArray(loaded.browser?.shortcuts)
+            ? loaded.browser.shortcuts
+            : DEFAULT_SETTINGS.browser.shortcuts,
         },
         agents: {
           ...DEFAULT_SETTINGS.agents,

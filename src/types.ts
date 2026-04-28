@@ -25,6 +25,18 @@ export type AgentKey = 'claude' | 'codex' | 'pi' | 'productivity';
 
 export type ProductivityProvider = 'codex' | 'openrouter';
 
+export interface BrowserShortcut {
+  label: string;
+  url: string;
+}
+
+export const DEFAULT_BROWSER_SHORTCUTS: BrowserShortcut[] = [
+  { label: 'GitHub', url: 'https://github.com' },
+  { label: 'YouTube', url: 'https://youtube.com' },
+  { label: 'Reddit', url: 'https://reddit.com' },
+  { label: 'Notion', url: 'https://notion.so' },
+];
+
 export interface AgentSettings {
   claude: boolean;
   codex: boolean;
@@ -41,6 +53,7 @@ export interface BrowserSettings {
   disableFilters: boolean;
   disableVideoAutoplay: boolean;
   blockImages: boolean;
+  shortcuts: BrowserShortcut[];
 }
 
 export interface AppSettings {

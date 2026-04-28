@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, nativeTheme } from 'electron'
 import type { AppSettings } from '../src/types'
+import { DEFAULT_BROWSER_SHORTCUTS } from '../src/types'
 
 // Suppress GPU/vaapi warnings on Linux
 app.commandLine.appendSwitch('disable-gpu-sandbox')
@@ -55,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     disableFilters: true,
     disableVideoAutoplay: true,
     blockImages: false,
+    shortcuts: DEFAULT_BROWSER_SHORTCUTS,
   },
   agents: {
     claude: true,
@@ -313,6 +315,11 @@ async function loadSettingsConfig(): Promise<AppSettings> {
         disableFilters: typeof parsed.browser?.disableFilters === 'boolean' ? parsed.browser.disableFilters : DEFAULT_SETTINGS.browser.disableFilters,
         disableVideoAutoplay: typeof parsed.browser?.disableVideoAutoplay === 'boolean' ? parsed.browser.disableVideoAutoplay : DEFAULT_SETTINGS.browser.disableVideoAutoplay,
         blockImages: typeof parsed.browser?.blockImages === 'boolean' ? parsed.browser.blockImages : DEFAULT_SETTINGS.browser.blockImages,
+        shortcuts: Array.isArray(parsed.browser?.shortcuts)
+          ? parsed.browser.shortcuts.filter((shortcut): shortcut is AppSettings['browser']['shortcuts'][number] => {
+              return typeof shortcut?.label === 'string' && shortcut.label.trim().length > 0 && typeof shortcut?.url === 'string' && shortcut.url.trim().length > 0
+            })
+          : DEFAULT_SETTINGS.browser.shortcuts,
       },
       agents: {
         claude: typeof parsed.agents?.claude === 'boolean' ? parsed.agents.claude : DEFAULT_SETTINGS.agents.claude,
@@ -621,6 +628,11 @@ ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
       disableFilters: typeof settings.browser?.disableFilters === 'boolean' ? settings.browser.disableFilters : DEFAULT_SETTINGS.browser.disableFilters,
       disableVideoAutoplay: typeof settings.browser?.disableVideoAutoplay === 'boolean' ? settings.browser.disableVideoAutoplay : DEFAULT_SETTINGS.browser.disableVideoAutoplay,
       blockImages: typeof settings.browser?.blockImages === 'boolean' ? settings.browser.blockImages : DEFAULT_SETTINGS.browser.blockImages,
+      shortcuts: Array.isArray(settings.browser?.shortcuts)
+        ? settings.browser.shortcuts.filter((shortcut): shortcut is AppSettings['browser']['shortcuts'][number] => {
+            return typeof shortcut?.label === 'string' && shortcut.label.trim().length > 0 && typeof shortcut?.url === 'string' && shortcut.url.trim().length > 0
+          })
+        : DEFAULT_SETTINGS.browser.shortcuts,
     },
     agents: {
       claude: typeof settings.agents?.claude === 'boolean' ? settings.agents.claude : DEFAULT_SETTINGS.agents.claude,
