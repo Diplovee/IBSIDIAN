@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.28] - 2026-04-29
+
+### Added
+- Terminal now supports text selection, enabling copying output to the clipboard.
+- Terminal tabs now have a right-click context menu with **Copy**, **Paste**, **Select All**, and **Clear Terminal** actions.
+- Terminal theme updated with visible selection highlighting in both light and dark modes.
+
+## [2026.5.27] - 2026-04-28
+
+### Changed
+- Editor migrated from CodeMirror 6 to Monaco Editor (VS Code's editor)
+- Better IDE-like features, IntelliSense, and syntax highlighting for code files
+- Markdown notes now use Monaco with split-pane preview option
+
+### Removed
+- CodeMirror 6, codemirror-markdown-hybrid, and related dependencies
+
+### Documentation
+- Updated README and AGENTS.md to reflect Monaco Editor migration
+- Removed all Obsidian references — Ibsidian is now positioned as a development workspace app
+
+### Fixed
+- Removed GPU-intensive blur effect from explorer (SidePanel)
+
 ## [2026.5.26] - 2026-04-26
 
 ### Added
@@ -271,7 +295,7 @@ All notable changes to this project will be documented in this file.
 ## [2026.5.3] - 2026-04-09
 
 ### Added
-- Vault-aware Obsidian markdown helpers shared across preview and editor logic
+- Vault-aware markdown helpers shared across preview and editor logic
 - Wikilink autocomplete in the editor for notes, headings, block refs, and callout types
 - Embedded note and drawing cards in markdown preview for `![[...]]`
 
@@ -280,7 +304,7 @@ All notable changes to this project will be documented in this file.
 - Top-right settings and overflow buttons removed from the title bar
 - Note editor now defaults to automatic live preview instead of manual source/split/reading/live mode toggles
 - Live preview unordered list markers render as bullet points while preserving raw markdown text
-- Markdown preview handles Obsidian-style internal links, embeds, callouts, and task checkboxes more cleanly
+- Markdown preview handles wikilink-style internal links, embeds, callouts, and task checkboxes more cleanly
 
 ### Fixed
 - Live preview in the light theme no longer uses the dark selected-line background from the hybrid editor package
@@ -297,8 +321,8 @@ All notable changes to this project will be documented in this file.
 - Vault creation shows a loading state (1.2s minimum) before opening the app
 
 ### Changed
-- Vault setup screen redesigned — Obsidian-style centered icon, name, and version; no glow or animation
-- Command palette redesigned — Obsidian-style layout, no backdrop blur or animations
+- Vault setup screen redesigned — centered icon, name, and version; no glow or animation
+- Command palette redesigned — clean layout, no backdrop blur or animations
 - Inline note title renames the file on disk when edited; extension hidden in editor and rename dialogs
 - .md and .excalidraw extensions hidden throughout the UI (file tree, rename dialogs, editor title)
 - Context menus trimmed to only functional items and clamped to viewport — no more cutoff

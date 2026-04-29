@@ -5,8 +5,8 @@
 Ibsidian
 ========
 
-A native desktop knowledge vault — Obsidian-inspired, built on Electron + React.
-Organise your notes, drawings, and research in a real file-system vault with a
+A desktop workspace app for development, built on Electron + React.
+Organise your project files, notes, drawings, and research in a real file-system folder with a
 built-in terminal and browser — all in one window.
 
 Quick Start
@@ -52,13 +52,13 @@ Features
 * Vault System       — real file-system folder; open or create via native dialog
 * File Tree          — browse, create, rename, and delete notes and folders
 * Markdown Editor    — CodeMirror 6 with automatic live preview while typing
-* Enhanced Markdown  — Markdown Guide basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
+* Enhanced Markdown  — basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
 * Settings Modal     — theme, version, about, and changelog access in a command-palette-style modal
 * Drawing Canvas     — visual notes via Excalidraw with locally served editor assets
 * Browser Tab        — built-in web browser with favicon-aware tab icons, native context menu actions, and text selection support
 * Tab Groups         — group notes, drawings, images, and browser tabs with drag/drop + collapse
 * Library            — browser history, active groups, and saved "forever" groups
-* Terminal           — real PTY shell starting in your vault root
+* Terminal           — real PTY shell starting in your vault root with text selection and context menu (Copy, Paste, Clear)
 * Command Palette    — Ctrl+K for quick access to all commands
 * Light / Dark Theme — toggle in the Settings modal
 * Resizable Sidebar  — drag the panel divider
@@ -85,8 +85,8 @@ Tech Stack
     Frontend        React 19 + TypeScript
     Build           electron-vite 5
     Styling         inline styles + CSS variables
-    Editor          CodeMirror 6
-    Markdown        CodeMirror 6 + react-markdown + Obsidian-style helpers
+    Editor          Monaco Editor (VS Code)
+    Markdown        react-markdown + wikilink/embed helpers
     File Tree       react-arborist
     Terminal        xterm.js + node-pty (IPC bridge)
     Icons           lucide-react

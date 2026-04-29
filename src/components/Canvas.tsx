@@ -1,11 +1,4 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { autocompletion, type Completion, type CompletionContext } from '@codemirror/autocomplete';
-import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
-import { RangeSetBuilder } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
-import { Decoration, type DecorationSet, ViewPlugin, WidgetType } from '@codemirror/view';
-import { hybridMarkdown } from 'codemirror-markdown-hybrid';
 import ReactMarkdown from 'react-markdown';
 import { Excalidraw, serializeAsJSON } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
@@ -55,7 +48,8 @@ import {
 import type { AppSettings, BrowserShortcut, ExcalidrawSceneFile, Tab } from '../types';
 import { parseExcalidrawFileContent } from '../utils/excalidraw';
 import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
-import { CodeMirrorToolbar } from './editor/CodeMirrorToolbar';
+import { MonacoEditor } from './editor/MonacoEditor';
+import { MonacoToolbar } from './editor/MonacoToolbar';
 
 const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
 const UPDATE_CURRENT_KEY = 'ibsidian:update-current';
@@ -102,17 +96,6 @@ const buildEmbedExcerpt = (content: string, anchorValue?: string | null, anchorK
   }
   const slice = lines.slice(startIndex, startIndex + 8).join('\n');
   return toPlainPreviewText(slice).slice(0, 220);
-};
-
-const normalizeLivePreviewMarkers = (view: EditorView | null) => {
-  if (!view) return;
-  const markers = view.dom.querySelectorAll('.md-list-marker');
-  markers.forEach(marker => {
-    const text = marker.textContent?.trim();
-    if (text === '-' || text === '*' || text === '+') {
-      marker.textContent = '•';
-    }
-  });
 };
 
 const InternalEmbed: React.FC<{ target: string; currentPath?: string | null }> = ({ target, currentPath }) => {
@@ -331,51 +314,6 @@ const MarkdownPreview: React.FC<{ content: string; currentPath?: string | null }
   );
 };
 
-// Clean Obsidian-style editor theme
-const editorTheme = EditorView.theme({
-  // Root — no border, no outline, transparent bg, full width
-  '&': { backgroundColor: 'transparent', border: 'none', outline: 'none', width: '100%' },
-  '&.cm-focused': { outline: 'none !important', border: 'none' },
-  // Editor element itself
-  '.cm-editor': { border: 'none', outline: 'none' },
-  // Content area
-  '.cm-content': {
-    caretColor: 'var(--text-primary)',
-    padding: '0',
-    fontFamily: 'var(--font-sans)',
-    fontSize: '16px',
-    lineHeight: '1.75',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-  },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--text-primary)', borderLeftWidth: '2px' },
-  '.cm-activeLine': { backgroundColor: 'transparent' },
-  '.cm-selectionBackground': { backgroundColor: 'rgba(124,58,237,0.12) !important' },
-  '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(124,58,237,0.15) !important' },
-  '.cm-gutters': { display: 'none' },
-  '.cm-selectedLine, .cm-table-line, .cm-math-block-line, .cm-mermaid-block-line': {
-    backgroundColor: 'transparent !important',
-    color: 'var(--text-primary) !important',
-    caretColor: 'var(--text-primary) !important',
-    borderRadius: '0 !important',
-    fontFamily: 'var(--font-sans) !important',
-    fontSize: '16px !important',
-  },
-  '.cm-code-block-line.cm-selectedLine': {
-    backgroundColor: 'var(--bg-secondary) !important',
-    color: 'var(--text-primary) !important',
-    borderLeft: '3px solid var(--border)',
-  },
-  '.cm-markdown-preview .md-list-marker': { color: 'var(--text-muted)', marginRight: '6px' },
-  '.cm-markdown-preview .md-list-item': { display: 'inline', color: 'var(--text-primary)' },
-  '.cm-link': { color: 'var(--accent)' },
-  '.cm-url': { color: 'var(--accent)', textDecoration: 'underline' },
-  // Scroller fills available space
-  '.cm-scroller': { fontFamily: 'var(--font-sans)', overflow: 'visible' },
-  // Line wrapper
-  '.cm-line': { padding: '0' },
-});
-
 export const Canvas: React.FC = () => {
   const {
     activeTabId,
@@ -493,7 +431,7 @@ export const Canvas: React.FC = () => {
 
         {activeTab && activeTab.type !== 'terminal' && activeTab.type !== 'claude' && activeTab.type !== 'codex' && activeTab.type !== 'pi' && activeTab.type !== 'browser' && activeTab.type !== 'productivity' ? (
           <>
-            {activeTab.type === 'note' && <EditorTab key={activeTab.id} tab={activeTab} />}
+            {(activeTab.type === 'note' || activeTab.type === 'code') && <EditorTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'draw' && <DrawTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'image' && <ImageTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'new-tab' && <NewTabScreen key={activeTab.id} tab={activeTab} />}
@@ -904,26 +842,6 @@ const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
   );
 };
 
-const replaceCompletionText = (view: EditorView, from: number, to: number, insert: string, closing: string) => {
-  const trailing = view.state.sliceDoc(to, to + closing.length);
-  view.dispatch({
-    changes: {
-      from,
-      to,
-      insert: trailing === closing ? insert : `${insert}${closing}`,
-    },
-  });
-};
-
-const insertTextAtSelection = (view: EditorView, text: string) => {
-  const { state } = view;
-  const main = state.selection.main;
-  view.dispatch({
-    changes: { from: main.from, to: main.to, insert: text },
-    selection: { anchor: main.from + text.length },
-  });
-};
-
 const blobToDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -932,179 +850,22 @@ const blobToDataUrl = (blob: Blob) =>
     reader.readAsDataURL(blob);
   });
 
-const resolveRenderableImagePath = (value: string, nodes: ReturnType<typeof useVault>['nodes'], currentPath?: string | null) => {
-  if (value.startsWith(INTERNAL_EMBED_PREFIX)) {
-    const target = decodeURIComponent(value.slice(INTERNAL_EMBED_PREFIX.length));
-    const resolved = resolveVaultEmbed(target, nodes, currentPath);
-    return resolved?.type === 'image' ? resolved.path : value;
-  }
-  const resolved = resolveVaultEmbed(value, nodes, currentPath);
-  return resolved?.type === 'image' ? resolved.path : value;
+const CALLOUT_STYLES = {
+  note: { label: 'Note', color: '#9ca3af' },
+  info: { label: 'Info', color: '#3b82f6' },
+  todo: { label: 'Todo', color: '#0ea5e9' },
+  tip: { label: 'Tip', color: '#22c55e' },
+  success: { label: 'Success', color: '#10b981' },
+  question: { label: 'Question', color: '#f59e0b' },
+  warning: { label: 'Warning', color: '#fbbf24' },
+  failure: { label: 'Failure', color: '#f43f5e' },
+  danger: { label: 'Danger', color: '#ef4444' },
+  bug: { label: 'Bug', color: '#a855f7' },
+  example: { label: 'Example', color: '#6366f1' },
+  quote: { label: 'Quote', color: '#94a3b8' },
 };
 
-const VaultImage: React.FC<{ src: string; alt?: string; currentPath?: string | null }> = ({ src, alt, currentPath }) => {
-  const { nodes } = useVault();
-  const [resolvedSrc, setResolvedSrc] = useState(src);
-
-  useEffect(() => {
-    let cancelled = false;
-    const assetPath = resolveRenderableImagePath(src, nodes, currentPath);
-    if (!isImagePath(assetPath) || typeof window.api.files.dataUrl !== 'function') {
-      setResolvedSrc(assetPath);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    window.api.files.dataUrl(assetPath)
-      .then(url => {
-        if (!cancelled) setResolvedSrc(url);
-      })
-      .catch(() => {
-        if (!cancelled) setResolvedSrc(assetPath);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentPath, nodes, src]);
-
-  return <img src={resolvedSrc} alt={alt} style={{ maxWidth: '100%', borderRadius: 8, margin: 'var(--space-4) 0' }} />;
-};
-
-class InlineImagePreviewWidget extends WidgetType {
-  constructor(private readonly label: string, private readonly rawSrc: string, private readonly altText: string, private readonly resolvedVaultPath: string | null) {
-    super();
-  }
-
-  eq(other: WidgetType) {
-    return other instanceof InlineImagePreviewWidget && other.label === this.label && other.rawSrc === this.rawSrc && other.altText === this.altText && other.resolvedVaultPath === this.resolvedVaultPath;
-  }
-
-  toDOM() {
-    const wrapper = document.createElement('div');
-    wrapper.style.display = 'inline-flex';
-    wrapper.style.flexDirection = 'column';
-    wrapper.style.gap = '8px';
-    wrapper.style.maxWidth = '100%';
-    wrapper.style.margin = '8px 0';
-
-    const pill = document.createElement('span');
-    pill.textContent = `[${this.label}]`;
-    pill.style.display = 'inline-flex';
-    pill.style.alignItems = 'center';
-    pill.style.width = 'fit-content';
-    pill.style.padding = '2px 8px';
-    pill.style.borderRadius = '9999px';
-    pill.style.background = 'var(--accent-soft)';
-    pill.style.color = 'var(--accent)';
-    pill.style.fontSize = '12px';
-    pill.style.fontWeight = '600';
-    pill.style.lineHeight = '1.6';
-    pill.style.userSelect = 'none';
-
-    const image = document.createElement('img');
-    image.alt = this.altText || this.label;
-    image.style.maxWidth = 'min(100%, 420px)';
-    image.style.maxHeight = '320px';
-    image.style.height = 'auto';
-    image.style.borderRadius = '10px';
-    image.style.border = '1px solid var(--border)';
-    image.style.background = 'var(--bg-secondary)';
-    image.style.objectFit = 'contain';
-
-    const applySource = (value: string) => {
-      image.src = value;
-    };
-
-    if (this.rawSrc.startsWith('data:') || this.rawSrc.startsWith('http://') || this.rawSrc.startsWith('https://')) {
-      applySource(this.rawSrc);
-    } else if (this.resolvedVaultPath && typeof window.api.files.dataUrl === 'function') {
-      window.api.files.dataUrl(this.resolvedVaultPath).then(applySource).catch(() => {
-        image.alt = this.altText || `${this.label} unavailable`;
-      });
-    } else {
-      applySource(this.rawSrc);
-    }
-
-    wrapper.appendChild(pill);
-    wrapper.appendChild(image);
-    return wrapper;
-  }
-}
-
-const buildInlineImagePlaceholders = (view: EditorView, nodes: ReturnType<typeof useVault>['nodes'], currentPath?: string | null): DecorationSet => {
-  const builder = new RangeSetBuilder<Decoration>();
-  const doc = view.state.doc.toString();
-  const selection = view.state.selection.main;
-  const matches: Array<{ from: number; to: number; rawSrc: string; altText: string; label: string }> = [];
-  const markdownImageRegex = /!\[([^\]]*)\]\(([^)\n]+)\)/g;
-  const wikilinkImageRegex = /!\[\[([^\]\n]+)\]\]/g;
-  let match: RegExpExecArray | null;
-  let imageIndex = 0;
-
-  while ((match = markdownImageRegex.exec(doc)) !== null) {
-    imageIndex += 1;
-    const rawSrc = match[2].trim();
-    matches.push({
-      from: match.index,
-      to: match.index + match[0].length,
-      rawSrc,
-      altText: match[1],
-      label: `Image${imageIndex}`,
-    });
-  }
-
-  while ((match = wikilinkImageRegex.exec(doc)) !== null) {
-    imageIndex += 1;
-    const inner = match[1].trim();
-    const [targetPart, aliasPart] = inner.split('|');
-    const rawSrc = targetPart.trim();
-    matches.push({
-      from: match.index,
-      to: match.index + match[0].length,
-      rawSrc,
-      altText: aliasPart?.trim() || rawSrc.split('/').pop() || rawSrc,
-      label: `Image${imageIndex}`,
-    });
-  }
-
-  matches.sort((a, b) => a.from - b.from || a.to - b.to);
-
-  for (const item of matches) {
-    const overlapsSelection = selection.from < item.to && selection.to > item.from;
-    if (overlapsSelection) continue;
-    builder.add(item.from, item.to, Decoration.replace({
-      widget: new InlineImagePreviewWidget(
-        item.label,
-        item.rawSrc,
-        item.altText,
-        isImagePath(resolveRenderableImagePath(item.rawSrc, nodes, currentPath)) ? resolveRenderableImagePath(item.rawSrc, nodes, currentPath) : null,
-      ),
-      inclusive: false,
-    }));
-  }
-
-  return builder.finish();
-};
-
-const inlineImagePlaceholderPlugin = (nodes: ReturnType<typeof useVault>['nodes'], currentPath?: string | null) => ViewPlugin.fromClass(class {
-  decorations: DecorationSet;
-
-  constructor(view: EditorView) {
-    this.decorations = buildInlineImagePlaceholders(view, nodes, currentPath);
-  }
-
-  update(update: { view: EditorView; docChanged: boolean; selectionSet: boolean }) {
-    if (update.docChanged || update.selectionSet) {
-      this.decorations = buildInlineImagePlaceholders(update.view, nodes, currentPath);
-    }
-  }
-}, {
-  decorations: value => value.decorations,
-});
-
-const calloutCompletions: Completion[] = Object.entries(CALL_OUT_STYLES).map(([key, value]) => ({
+const calloutCompletions: Completion[] = Object.entries(CALLOUT_STYLES).map(([key, value]) => ({
   label: key,
   detail: value.label,
   type: 'keyword',
@@ -1212,6 +973,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const { theme } = useActivity();
   const { settings, updateEditorSettings } = useAppSettings();
   const showFormattingBar = settings.editor.showFormattingBar;
+  const isCodeTab = tab.type === 'code';
   const [updateAvailable, setUpdateAvailable] = useState(() => localStorage.getItem(UPDATE_AVAILABLE_KEY) === 'true');
   const [updateCurrent, setUpdateCurrent] = useState(() => localStorage.getItem(UPDATE_CURRENT_KEY) || '');
   const [updateLatest, setUpdateLatest] = useState(() => localStorage.getItem(UPDATE_LATEST_KEY) || '');
@@ -1257,8 +1019,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [titleValue, setTitleValue] = useState(stripExt(node?.name || tab.title));
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const editorViewRef = useRef<EditorView | null>(null);
-  const [editorView, setEditorView] = useState<EditorView | null>(null);
+  const editorRef = useRef<any>(null); // Monaco editor instance
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -1270,8 +1031,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   }, [node?.name]);
 
   useEffect(() => {
-    editorViewRef.current = null;
-    setEditorView(null);
+    editorRef.current = null;
   }, [tab.filePath]);
 
   useEffect(() => {
@@ -1293,51 +1053,26 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     }
   }, [tab.filePath, vault]);
 
-  // Scroll to initialLine and highlight the search match
-  const scrollAndHighlight = useCallback((lineNum: number, query?: string, caseSensitive?: boolean) => {
-    requestAnimationFrame(() => {
-      const view = editorViewRef.current;
-      if (!view) return;
-      try {
-        const clampedLine = Math.min(lineNum, view.state.doc.lines);
-        const line = view.state.doc.line(clampedLine);
-        if (query) {
-          const lineText = line.text;
-          const idx = caseSensitive ? lineText.indexOf(query) : lineText.toLowerCase().indexOf(query.toLowerCase());
-          if (idx !== -1) {
-            const anchor = line.from + idx;
-            const head = anchor + query.length;
-            view.dispatch({
-              selection: { anchor, head },
-              effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
-            });
-            view.focus();
-            return;
-          }
-        }
-        view.dispatch({
-          selection: { anchor: line.from },
-          effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
-        });
-        view.focus();
-      } catch {}
-    });
-  }, []);
-
   // Scroll to initialLine when content first loads
   const scrolledForContentRef = useRef(false);
   useEffect(() => { scrolledForContentRef.current = false; }, [tab.filePath]);
   useEffect(() => {
-    if (!tab.initialLine || !content) return;
+    if (!tab.initialLine || !content || !editorRef.current) return;
     if (scrolledForContentRef.current) return;
     scrolledForContentRef.current = true;
-    scrollAndHighlight(tab.initialLine, tab.searchQuery, tab.searchCaseSensitive);
+    const editor = editorRef.current;
+    const lineNum = Math.min(tab.initialLine, editor.getModel()?.getLineCount() || 1);
+    editor.setPosition({ lineNumber: lineNum, column: 1 });
+    editor.revealLineInCenter(lineNum);
   }, [content]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-scroll when user clicks a search result for an already-open tab
   useEffect(() => {
-    if (!tab.scrollNonce || !tab.initialLine) return;
-    scrollAndHighlight(tab.initialLine, tab.searchQuery, tab.searchCaseSensitive);
+    if (!tab.scrollNonce || !tab.initialLine || !editorRef.current) return;
+    const editor = editorRef.current;
+    const lineNum = Math.min(tab.initialLine, editor.getModel()?.getLineCount() || 1);
+    editor.setPosition({ lineNumber: lineNum, column: 1 });
+    editor.revealLineInCenter(lineNum);
   }, [tab.scrollNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1349,11 +1084,6 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     if (menuOpen) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => normalizeLivePreviewMarkers(editorViewRef.current));
-    return () => cancelAnimationFrame(frame);
-  }, [content]);
 
   const handleChange = (value: string) => {
     setContent(value);
@@ -1390,12 +1120,13 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     if (e.key === 'Enter') {
       e.currentTarget.blur();
       // Move focus to editor
-      if (editorViewRef.current) editorViewRef.current.focus();
+      if (editorRef.current) editorRef.current.focus();
     }
   };
 
-  const wordCount = content.trim() === '' ? 0 : content.trim().split(/\s+/).length;
   const charCount = content.length;
+  const lineCount = content ? content.split('\n').length : 1;
+  const wordCount = content.trim() === '' ? 0 : content.trim().split(/\s+/).length;
   const rawTitle = node?.name || tab.title;
   const title = stripExt(rawTitle);
 
@@ -1502,107 +1233,6 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
     return anchors;
   }, [content, getNodeById, readFile, tab.filePath]);
 
-  const obsidianCompletionSource = useCallback(async (context: CompletionContext) => {
-    const calloutMatch = context.matchBefore(/>\s*\[![a-z-]*$/i);
-    if (calloutMatch) {
-      const query = calloutMatch.text.slice(calloutMatch.text.lastIndexOf('[!') + 2).toLowerCase();
-      return {
-        from: context.pos - query.length,
-        options: calloutCompletions
-          .filter(option => option.label.startsWith(query))
-          .map(option => ({
-            ...option,
-            apply: (view: EditorView, completion: Completion, from: number, to: number) => {
-              replaceCompletionText(view, from, to, String(completion.label), '] ');
-            },
-          })),
-        validFor: /^[a-z-]*$/i,
-      };
-    }
-
-    const linkMatch = context.matchBefore(/!?\[\[[^[\]\n]*$/);
-    if (!linkMatch) return null;
-
-    const isEmbed = linkMatch.text.startsWith('![[') || linkMatch.text.startsWith('![[', 0);
-    const query = linkMatch.text.slice(isEmbed ? 3 : 2);
-    const from = linkMatch.from + (isEmbed ? 3 : 2);
-    const targets = getVaultTargets(nodes);
-    const hashIndex = query.indexOf('#');
-
-    if (hashIndex >= 0) {
-      const targetQuery = query.slice(0, hashIndex);
-      const anchorQuery = query.slice(hashIndex + 1).replace(/^\^/, '').toLowerCase();
-      const resolved = targetQuery
-        ? resolveVaultLink(targetQuery, nodes, tab.filePath)
-        : resolveVaultLink('', nodes, tab.filePath);
-      if (!resolved || resolved.type !== 'note') return null;
-      const anchors = await loadAnchorsForPath(resolved.path);
-      const filtered = anchors.filter(anchor => anchor.value.toLowerCase().includes(anchorQuery));
-      return {
-        from,
-        options: filtered.map(anchor => ({
-          label: `${targetQuery}${anchor.kind === 'block' ? '#^' : '#'}${anchor.value}`,
-          detail: anchor.kind === 'block' ? 'block' : 'heading',
-          type: anchor.kind === 'block' ? 'constant' : 'property',
-          apply: (view: EditorView, _completion: Completion, replaceFrom: number, replaceTo: number) => {
-            const base = targetQuery ? `${targetQuery}${anchor.kind === 'block' ? '#^' : '#'}${anchor.value}` : `${anchor.kind === 'block' ? '#^' : '#'}${anchor.value}`;
-            replaceCompletionText(view, replaceFrom, replaceTo, base, ']]');
-          },
-        })),
-        validFor: /^[^|\]]*$/i,
-      };
-    }
-
-    if (!query && !context.explicit) return null;
-    const lowered = query.toLowerCase();
-    const filtered = targets.filter(target =>
-      target.title.toLowerCase().includes(lowered) ||
-      target.path.toLowerCase().includes(lowered) ||
-      target.name.toLowerCase().includes(lowered),
-    );
-    return {
-      from,
-      options: filtered.map(target => ({
-        label: target.title,
-        detail: target.path,
-        type: target.type === 'draw' ? 'class' : target.type === 'image' ? 'image' : 'file',
-        apply: (view: EditorView, _completion: Completion, replaceFrom: number, replaceTo: number) => {
-          replaceCompletionText(view, replaceFrom, replaceTo, target.type === 'image' ? target.path : target.title, ']]');
-        },
-      })),
-      validFor: /^[^#|\]]*$/i,
-    };
-  }, [content, loadAnchorsForPath, nodes, tab.filePath]);
-
-  const liveMarkdownExtensions = [
-    hybridMarkdown({ theme }),
-    autocompletion({ override: [obsidianCompletionSource] }),
-    keymap.of([{ key: 'Enter', run: insertNewlineContinueMarkup }]),
-    inlineImagePlaceholderPlugin(nodes, tab.filePath),
-    EditorView.domEventHandlers({
-      paste: (event, view) => {
-        const hasImage = Array.from(event.clipboardData?.items ?? []).some(item => item.type.startsWith('image/'));
-        if (!hasImage) return false;
-        void handleImagePaste(event, view);
-        return true;
-      },
-      drop: (event, view) => {
-        const hasImage = Array.from(event.dataTransfer?.files ?? []).some(item => item.type.startsWith('image/'));
-        if (!hasImage) return false;
-        void handleImageDrop(event, view);
-        return true;
-      },
-    }),
-    EditorView.lineWrapping,
-  ];
-
-  // Click on scroll area outside editor → focus editor
-  const handleScrollAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === scrollAreaRef.current || (e.target as HTMLElement).closest('[data-editor-content-inner="true"]') === null) {
-      editorViewRef.current?.focus();
-    }
-  };
-
   const handleUpdateBadgeClick = async () => {
     const shouldUpdate = await confirm({
       title: 'Update available',
@@ -1695,6 +1325,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               <MenuItem
                 icon={showFormattingBar ? <EyeOff size={14} /> : <Eye size={14} />}
                 label={showFormattingBar ? 'Hide toolbar' : 'Show toolbar'}
+                disabled={isCodeTab}
                 onClick={() => {
                   void updateEditorSettings({ showFormattingBar: !showFormattingBar });
                   setMenuOpen(false);
@@ -1729,13 +1360,13 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         </div>
       </div>
 
-      {/* Auto live preview editor */}
-      <div ref={scrollAreaRef} style={{ flex: 1, overflow: 'hidden' }} onClick={handleScrollAreaClick}>
+      {/* Editor */}
+      <div ref={scrollAreaRef} style={{ flex: 1, overflow: 'hidden' }}>
         <div style={{ height: '100%', overflow: 'auto', padding: '32px 48px 80px' }}>
-          <div data-editor-content-inner="true" style={{ maxWidth: 720, margin: '0 auto', cursor: 'text' }}>
+          <div style={{ maxWidth: 720, margin: '0 auto', cursor: 'text' }}>
             {showFormattingBar && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, marginBottom: 12, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-                <CodeMirrorToolbar view={editorView} />
+                <MonacoToolbar editor={editorRef.current} />
               </div>
             )}
             <input
@@ -1748,39 +1379,41 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
               style={{
                 display: 'block', width: '100%', border: 'none', outline: 'none',
                 background: 'transparent', padding: 0, marginBottom: 24,
-                fontSize: 32, fontWeight: 700, lineHeight: 1.25,
-                color: 'var(--text-primary)', fontFamily: 'var(--font-sans)',
+                fontSize: isCodeTab ? 22 : 32, fontWeight: 700, lineHeight: 1.25,
+                color: 'var(--text-primary)', fontFamily: isCodeTab ? 'var(--font-mono)' : 'var(--font-sans)',
                 caretColor: 'var(--text-primary)',
                 cursor: 'text',
               }}
               placeholder="Untitled"
-              />
-            <div onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }} style={{ cursor: 'text' }}>
-              <CodeMirror
+            />
+            <div onContextMenu={(e) => {
+              if (isCodeTab) return;
+              e.preventDefault();
+              setCtxMenu({ x: e.clientX, y: e.clientY });
+            }} style={{ cursor: 'text', height: 'calc(100% - 100px)' }}>
+              <MonacoEditor
                 value={content}
-                theme={editorTheme}
-                extensions={liveMarkdownExtensions}
                 onChange={handleChange}
-                onCreateEditor={(view) => {
-                  editorViewRef.current = view;
-                  setEditorView(view);
-                  requestAnimationFrame(() => normalizeLivePreviewMarkers(view));
+                language={isCodeTab ? (tab.filePath?.split('.').pop() || 'text') : 'markdown'}
+                filePath={tab.filePath}
+                onEditorMount={(editor) => {
+                  editorRef.current = editor;
+                  if (!isCodeTab && tab.initialLine) {
+                    setTimeout(() => {
+                      if (editor) {
+                        const lineNum = Math.min(tab.initialLine, editor.getModel()?.getLineCount() || 1);
+                        editor.setPosition({ lineNumber: lineNum, column: 1 });
+                        editor.revealLineInCenter(lineNum);
+                      }
+                    }, 100);
+                  }
                 }}
-                basicSetup={{
-                  lineNumbers: false,
-                  foldGutter: false,
-                  highlightActiveLine: false,
-                  highlightActiveLineGutter: false,
-                  dropCursor: false,
-                  rectangularSelection: false,
-                }}
-                style={{ width: '100%', fontSize: '16px', fontFamily: 'var(--font-sans)' }}
               />
             </div>
-            {ctxMenu && editorViewRef.current && (
+            {!isCodeTab && ctxMenu && (
               <EditorContextMenu
                 x={ctxMenu.x} y={ctxMenu.y}
-                view={editorViewRef.current}
+                editor={editorRef.current}
                 onClose={() => setCtxMenu(null)}
                 currentPath={tab.filePath}
               />
@@ -1791,7 +1424,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
 
       {/* Status bar */}
       <div style={{ height: 24, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px', gap: 16, flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{wordCount} words</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isCodeTab ? `${lineCount} lines` : `${wordCount} words`}</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{charCount} characters</span>
       </div>
     </div>
@@ -2556,8 +2189,6 @@ const navBtn = (disabled: boolean, onClick: () => void, children: React.ReactNod
                   color: dimColor,
                   transition: 'transform 0.2s, color 0.2s',
                   cursor: 'pointer',
-                  background: 'transparent',
-                  border: 'none',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.color = textColor; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.color = dimColor; }}
@@ -2955,11 +2586,28 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
   const [rows, setRows] = useState(24);
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
 
   const xtermTheme = {
-    light: { background: '#ffffff', foreground: '#2e3338', cursor: '#7c3aed' },
-    dark:  { background: '#1e1e1e', foreground: '#dcddde', cursor: '#7c3aed' },
+    light: {
+      background: '#ffffff',
+      foreground: '#2e3338',
+      cursor: '#7c3aed',
+      selectionBackground: 'rgba(124, 58, 237, 0.3)',
+    },
+    dark: {
+      background: '#1e1e1e',
+      foreground: '#dcddde',
+      cursor: '#7c3aed',
+      selectionBackground: 'rgba(124, 58, 237, 0.3)',
+    },
   };
+
+  useEffect(() => {
+    const handleClose = () => setCtxMenu(null);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, []);
 
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
@@ -2982,7 +2630,7 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
     setRows(term.rows);
 
     // Create PTY session via IPC
-    window.api.terminal.create(term.cols, term.rows).then(sessionId => {
+    window.api.terminal.create(term.cols, term.rows, tab.cwd).then(sessionId => {
       sessionIdRef.current = sessionId;
       if (tab.command) {
         window.api.terminal.input(sessionId, tab.command);
@@ -3062,7 +2710,7 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
   }, [tab.id, tab.customTitle, tab.title, updateTabCustomTitle]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}>
       <div
         style={{ height: 32, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8, fontSize: 11, color: 'var(--text-muted)', cursor: 'default' }}
         onDoubleClick={() => { if (!editing) startEditing(); }}
@@ -3087,7 +2735,77 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
           <span style={{ cursor: 'text' }}>{tab.customTitle ?? (tab.type === 'claude' ? 'claude' : tab.type === 'codex' ? 'codex' : tab.type === 'pi' ? 'pi' : 'bash')} — {cols}×{rows}</span>
         )}
       </div>
-      <div ref={terminalRef} style={{ flex: 1, padding: 8 }} />
+      <div
+        ref={terminalRef}
+        style={{ flex: 1, padding: 8 }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtxMenu({ x: e.clientX, y: e.clientY });
+        }}
+      />
+
+      {ctxMenu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            zIndex: 1000,
+            minWidth: 160,
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: 'var(--shadow-md)',
+            paddingTop: 4,
+            paddingBottom: 4,
+          }}
+        >
+          <MenuItem
+            icon={<Copy size={14} />}
+            label="Copy"
+            disabled={!xtermRef.current?.hasSelection()}
+            onClick={() => {
+              const sel = xtermRef.current?.getSelection();
+              if (sel) navigator.clipboard.writeText(sel);
+              setCtxMenu(null);
+            }}
+          />
+          <MenuItem
+            icon={<Check size={14} />}
+            label="Paste"
+            onClick={async () => {
+              try {
+                const text = await navigator.clipboard.readText();
+                if (text && sessionIdRef.current) {
+                  window.api.terminal.input(sessionIdRef.current, text);
+                }
+              } catch (err) {
+                console.error('Failed to read clipboard', err);
+              }
+              setCtxMenu(null);
+            }}
+          />
+          <MenuSep />
+          <MenuItem
+            icon={<Check size={14} />}
+            label="Select all"
+            onClick={() => {
+              xtermRef.current?.selectAll();
+              setCtxMenu(null);
+            }}
+          />
+          <MenuSep />
+          <MenuItem
+            icon={<Trash2 size={14} />}
+            label="Clear terminal"
+            onClick={() => {
+              xtermRef.current?.clear();
+              setCtxMenu(null);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

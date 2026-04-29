@@ -138,7 +138,7 @@ a { cursor: pointer; }
 input, textarea { cursor: text; }
 
 /* Enable selection only where needed */
-textarea, input, [contenteditable], .ProseMirror, .cm-content {
+textarea, input, [contenteditable], .ProseMirror, .cm-content, .xterm {
   user-select: text;
   -webkit-user-select: text;
 }
