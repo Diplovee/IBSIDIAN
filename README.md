@@ -58,7 +58,7 @@ Features
 * Browser Tab        — built-in web browser with favicon-aware tab icons, native context menu actions, and text selection support
 * Tab Groups         — group notes, drawings, images, and browser tabs with drag/drop + collapse
 * Library            — browser history, active groups, and saved "forever" groups
-* Terminal           — real PTY shell starting in your vault root with text selection and context menu (Copy, Paste, Clear)
+* Terminal           — real PTY shell starting in your vault root with text selection, context menu (Copy, Paste, Clear), and Ctrl+Click to open links in a browser tab
 * Command Palette    — Ctrl+K for quick access to all commands
 * Light / Dark Theme — toggle in the Settings modal
 * Resizable Sidebar  — drag the panel divider

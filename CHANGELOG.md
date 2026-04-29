@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Terminal now supports text selection, enabling copying output to the clipboard.
 - Terminal tabs now have a right-click context menu with **Copy**, **Paste**, **Select All**, and **Clear Terminal** actions.
 - Terminal theme updated with visible selection highlighting in both light and dark modes.
+- Terminal now supports **Ctrl + Click** (or **Cmd + Click**) on URLs to open them in a new built-in browser tab.
 
 ## [2026.5.27] - 2026-04-28
 

@@ -2581,7 +2581,7 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const { theme } = useActivity();
-  const { activeTabId, updateTabCustomTitle } = useTabs();
+  const { activeTabId, updateTabCustomTitle, openTab } = useTabs();
   const [cols, setCols] = useState(80);
   const [rows, setRows] = useState(24);
   const [editing, setEditing] = useState(false);
@@ -2625,6 +2625,34 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
     term.open(terminalRef.current);
     fitAddon.fit();
     xtermRef.current = term;
+
+    // Link handling: open in browser tab
+    term.registerLinkProvider({
+      provideLinks: (lineNumber, callback) => {
+        const line = term.buffer.active.getLine(lineNumber - 1);
+        if (!line) return callback(undefined);
+        const text = line.translateToString(true);
+        const urlRegex = /https?:\/\/[^\s"<>{}|\^~`[\]\\]+/g;
+        const links: any[] = [];
+        let match;
+        while ((match = urlRegex.exec(text)) !== null) {
+          const url = match[0];
+          links.push({
+            range: {
+              start: { x: match.index + 1, y: lineNumber },
+              end: { x: match.index + url.length, y: lineNumber }
+            },
+            text: url,
+            activate: (event: MouseEvent, text: string) => {
+              if (event.ctrlKey || event.metaKey) {
+                openTab({ type: 'browser', title: text, url: text, groupId: '' });
+              }
+            }
+          });
+        }
+        callback(links);
+      }
+    });
 
     setCols(term.cols);
     setRows(term.rows);
