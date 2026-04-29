@@ -2647,6 +2647,18 @@ const TerminalTab: React.FC<{ tab: any }> = ({ tab }) => {
               if (event.ctrlKey || event.metaKey) {
                 openTab({ type: 'browser', title: text, url: text, groupId: '' });
               }
+            },
+            hover: (event: MouseEvent) => {
+              if (terminalRef.current && (event.ctrlKey || event.metaKey)) {
+                terminalRef.current.style.cursor = 'pointer';
+              } else if (terminalRef.current) {
+                terminalRef.current.style.cursor = '';
+              }
+            },
+            leave: () => {
+              if (terminalRef.current) {
+                terminalRef.current.style.cursor = '';
+              }
             }
           });
         }
