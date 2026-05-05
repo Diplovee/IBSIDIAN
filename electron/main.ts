@@ -11,6 +11,8 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('no-zygote')
   app.commandLine.appendSwitch('disable-dev-shm-usage')
   app.commandLine.appendSwitch('disable-gpu-sandbox')
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-software-rasterizer')
 }
 import { join, relative } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm, stat, rename } from 'fs/promises'
