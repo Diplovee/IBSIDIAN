@@ -426,7 +426,14 @@ function createWindow() {
     }
   })
 
-  mainWindow.once('ready-to-show', () => mainWindow!.show())
+  const showWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    mainWindow.show()
+  }
+
+  mainWindow.once('ready-to-show', showWindow)
+  mainWindow.webContents.once('did-finish-load', showWindow)
+  setTimeout(showWindow, 1500)
 }
 
 app.whenReady().then(() => {
