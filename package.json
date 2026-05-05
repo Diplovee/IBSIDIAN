@@ -1,18 +1,18 @@
 {
   "name": "ibsidian",
   "private": true,
-  "version": "2026.5.25",
+  "version": "2026.5.26",
   "license": "Apache-2.0",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
     "sync:excalidraw-assets": "node scripts/sync-excalidraw-assets.mjs",
-    "dev": "bash scripts/dev-electron-nix.sh",
+    "dev": "bun run sync:excalidraw-assets && electron-vite dev",
     "build": "bun run sync:excalidraw-assets && electron-vite build",
     "install:linux-local": "bash scripts/install-linux-local.sh",
     "update:local": "bash scripts/update-local.sh",
     "preview": "bun run sync:excalidraw-assets && electron-vite preview",
-    "rebuild": "bash scripts/rebuild-node-pty-nix.sh",
+    "rebuild": "bash scripts/rebuild-node-pty.sh",
     "clean": "rm -rf out dist",
     "lint": "tsc --noEmit"
   },
