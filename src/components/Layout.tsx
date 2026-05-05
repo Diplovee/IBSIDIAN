@@ -211,9 +211,17 @@ export const Layout: React.FC = () => {
                 </div>
                 <div
                   onMouseDown={startResize}
-                  style={{ width: 4, cursor: 'col-resize', flexShrink: 0, background: 'transparent', transition: 'background 0.15s' }}
+                  style={{ 
+                    width: 4, 
+                    cursor: 'col-resize', 
+                    flexShrink: 0, 
+                    background: 'var(--border)',
+                    borderLeft: '3px solid transparent',
+                    backgroundClip: 'padding-box',
+                    transition: 'background 0.15s' 
+                  }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'var(--border)')}
                 />
               </>
             )}

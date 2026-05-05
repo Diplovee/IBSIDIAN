@@ -6,7 +6,7 @@
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #ffffff;
+  --color-bg-secondary: #fbfbfb;
   --color-bg-hover: rgba(0,0,0,0.05);
   --color-bg-active: rgba(0,0,0,0.08);
 
@@ -31,7 +31,7 @@
 
 :root {
   --bg-primary: #ffffff;
-  --bg-secondary: #ffffff;
+  --bg-secondary: #fbfbfb;
   --bg-hover: rgba(0,0,0,0.05);
   --bg-active: rgba(0,0,0,0.08);
 

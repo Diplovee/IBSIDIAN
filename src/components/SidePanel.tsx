@@ -49,8 +49,8 @@ export const SidePanel: React.FC = () => {
       height: '100%', 
       width: '100%', 
       position: 'relative',
-      background: 'var(--bg-primary)',
-      borderRight: '1px solid var(--border-color)', 
+      background: 'var(--bg-secondary)',
+      borderRight: 'none', 
       display: 'flex', 
       flexDirection: 'column', 
       overflow: 'hidden' 
@@ -389,7 +389,7 @@ const FileTreeView: React.FC = () => {
     <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab, toggleFolder }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
-        <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative', zIndex: 2, background: 'rgba(255, 255, 255, 0.92)' }}>
+        <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative', zIndex: 2, background: 'var(--bg-secondary)' }}>
           <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => createNamedFile('md')} />
           <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => createNamedFile('excalidraw')} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
