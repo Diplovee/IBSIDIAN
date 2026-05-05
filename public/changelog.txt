@@ -2,7 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026.5.26] - 2026-05-05
+## [2026.5.30] - 2026-05-06
+
+### Changed
+- Replaced the misnamed CodeMirror-based editor wrapper with the real Monaco Editor used by VS Code.
+- Editor tabs now use Monaco theming and language modes for a more VS Code-like editing experience.
+
+### Fixed
+- Editor selection highlighting is now handled by Monaco instead of the previous inconsistent CodeMirror selection styling.
+- Editor startup and rendering are more reliable after removing the broken hybrid editor/context-menu path.
+
+## [2026.5.29] - 2026-05-06
+
+### Added
+- **Programming Environment**: IBSIDIAN is now a full-fledged programming environment for coding and project management.
+- **Project Switcher**: The vault name in the Top Bar is now a dropdown menu for quick switching between projects.
+- **Recent Projects**: Remembers up to 10 recently opened folders/vaults with persistent history across restarts.
+- **Open Folder**: New "Open folder..." action to treat any directory on your system as a workspace.
+- **Enhanced File Explorer**: Added settings to "Show all files" and "Show hidden files" in the sidebar.
+- **Expanded Language Support**: Code editor now supports syntax highlighting for 100+ languages including TypeScript, Python, Go, Rust, and more.
+- **Theme-Aware Editor**: Code editor now automatically switches between Light and Dark (One Dark) themes to match app settings.
+
+### Fixed
+- Potential crash in file explorer when filtering folders with unloaded children.
+- Restored accidentally removed IPC handlers for settings and authentication.
+
+## [2026.5.28] - 2026-04-29
+
+### Added
+- Terminal now supports text selection, enabling copying output to the clipboard.
+- Terminal tabs now have a right-click context menu with **Copy**, **Paste**, **Select All**, and **Clear Terminal** actions.
+- Terminal theme updated with visible selection highlighting in both light and dark modes.
+- Terminal now supports **Ctrl + Click** (or **Cmd + Click**) on URLs to open them in a new built-in browser tab.
+
+## [2026.5.27] - 2026-04-28
+
+### Changed
+- Editor migrated from CodeMirror 6 to Monaco Editor (VS Code's editor)
+- Better IDE-like features, IntelliSense, and syntax highlighting for code files
+- Markdown notes now use Monaco with split-pane preview option
+
+### Removed
+- CodeMirror 6, codemirror-markdown-hybrid, and related dependencies
+
+### Documentation
+- Updated README and AGENTS.md to reflect Monaco Editor migration
+- Removed all Obsidian references — Ibsidian is now positioned as a development workspace app
+
+### Fixed
+- Removed GPU-intensive blur effect from explorer (SidePanel)
+
+## [2026.5.26] - 2026-04-26
 
 ### Added
 - `Ctrl+Shift+F` now toggles the active drawing or browser tab into a fullscreen workspace, hiding the rest of the app chrome while it is active.
@@ -10,421 +60,3 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - The fullscreen browser/drawing mode now uses a thin left-edge hover rail instead of an exit pill.
-- Removed all NixOS-specific scripts and files; project now runs natively on Arch Linux.
-
-## [2026.5.25] - 2026-04-26
-
-### Added
-- The note formatting toolbar can now be hidden or shown from the note menu and Settings.
-- `Ctrl+N` now opens the new-tab chooser, and the scratchpad option was removed.
-
-### Changed
-- The formatting toolbar now sits above the note title field.
-- Opening a note no longer auto-selects the title text.
-
-### Fixed
-- The editor canvas now uses a text caret cursor so it is clearer when the focus is inside the editor.
-
-## [2026.5.24] - 2026-04-24
-
-### Added
-- New note, drawing, and folder actions now ask for a name before creating the item, avoiding the create-then-rename flow.
-- Browser tab favicons now show a loading spinner while pages load.
-
-### Fixed
-- The tab-bar add menu now renders above the canvas instead of being clipped behind it.
-- Browser tab favicon loading is more reliable with multiple fallback candidates for sites that do not report a favicon directly.
-
-## [2026.5.23] - 2026-04-21
-
-### Fixed
-- Productivity agent left sidebar is visible again in the chat view (sessions/projects panel restored)
-- Added a header toggle button to show/hide the Productivity sidebar
-
-## [2026.5.22] - 2026-04-13
-
-### Added
-- Right-click context menu on the Activity Bar Codex agent button to launch Codex with a specific model
-
-### Changed
-- Productivity model picker options now use:
-  - `gpt-5.2`
-  - `gpt-5.3-codex`
-  - `gpt-5.4`
-  - `gpt-5.4-mini`
-- Default Productivity model is now `gpt-5.2`
-- Selecting a Codex model from the Codex Activity Bar context menu also updates the saved `productivity-model` value before launching
-
-## [2026.5.21] - 2026-04-13
-
-### Fixed
-- Browser tab titles now refresh immediately on navigation instead of getting stuck with stale values (for example, lingering as "google")
-- Browser tab favicon fallback now uses each site’s own `/favicon.ico` instead of the Google favicon service
-
-### Changed
-- Browser address bar placeholder text now reads "Search web or type URL"
-
-## [2026.5.20] - 2026-04-13
-
-### Added
-- Productivity chat visualization tools: `create_table`, `create_pie_chart`, and `create_graph`
-- Interactive tool result cards in chat for tables, pie charts, and graphs
-
-### Changed
-- Refactored `ProductivityChat.tsx` by extracting render/tool logic into:
-  - `src/components/productivity/renderers.tsx`
-  - `src/components/productivity/tools.ts`
-
-### Fixed
-- File mentions now pass vault-relative paths from `VaultNode.id` so referenced files resolve correctly
-- Follow-up prompts like "the file" can reuse the latest mentioned file context in-session
-
-## [2026.5.19] - 2026-04-13
-
-### Fixed
-- Productivity chat no longer carries a previous conversation message into a newly started chat session
-- Sending a message without file mentions now consistently includes a valid `input` payload for the Codex Responses API
-- Assistant response bubbles are restored and styled as bordered user bubbles + borderless assistant bubbles with low-radius corners
-
-## [2026.5.18] - 2026-04-13
-
-### Added
-- **Productivity agent** — real AI-powered chat replacing the previous mock UI
-  - ChatGPT (Codex) OAuth login via a dedicated `BrowserWindow` — full Chrome context, no webview restrictions
-  - Login modal shows Productivity + Codex icons connected by an arrow to communicate the authorization relationship
-  - Streaming responses from `gpt-4o` via OpenAI Chat Completions API
-  - Vault file tools: agent can `read_file`, `write_file`, and `list_files` directly in your vault
-  - Full agentic loop — tool calls are executed and results fed back to the model automatically
-  - Sessions persisted to `.pi/productivity-sessions.json` inside the vault; reload across app restarts
-  - Projects sidebar populated from real vault top-level folders (no more hardcoded names)
-  - Clickable URLs in assistant responses open as browser tabs inside IBSIDIAN
-  - Token auto-refresh before expiry
-  - Sign-out button in the Productivity sidebar header
-
-- **Settings → Productivity tab** — new settings category for the Productivity agent
-  - ChatGPT (Codex) provider row: connect / disconnect with green connected indicator and account ID
-  - Groq provider row: "Coming soon" placeholder (ultra-fast Llama & Mixtral inference)
-  - Logout / re-connect actions available without opening the chat
-
-### Fixed
-- `img src=""` warning in `PaneTabBar` — empty favicon URL now passed as `undefined` instead of empty string
-
-## [2026.5.17] - 2026-04-12
-
-### Added
-- Tab pinning for pane tabs: pin/unpin action in tab context menu and inline pin indicator on pinned tabs
-
-### Changed
-- Pinned tab icon now uses the theme accent (purple) and is directly clickable to unpin
-- Unpinning a tab now keeps it in place (no automatic reordering)
-- Settings modal now uses a stable fixed-size layout with scrollable nav/content regions for consistent sizing
-
-### Fixed
-- Pinned tabs are protected from close actions (single close and bulk close operations)
-
-## [2026.5.16] - 2026-04-12
-
-### Changed
-- Tab group pill context menu redesigned: inline rename input (bordered with the group's color), color swatches for one-click color picking, and action items styled to match other context menus
-
-## [2026.5.15] - 2026-04-12
-
-### Added
-- `+` button in the tab bar now opens a dropdown with **New tab**, **Split right**, and **Split down** options, making split creation discoverable without a context menu
-- Close-pane `×` button appears at the far right of every pane's tab bar when two or more panes are open; shows a confirmation dialog when the pane has open tabs
-
-### Fixed
-- Grouped tabs no longer get clipped by normal tabs when space is tight — added `flexShrink: 0` to the group tab container
-- New tab `+` button is now pinned outside the scrollable tab strip so it is always visible regardless of how many tabs are open
-
-## [2026.5.14] - 2026-04-12
-
-### Added
-- Productivity agent — a dedicated chat tab accessible from the activity bar and Settings → Agents
-- ChatGPT-style chat UI: collapsible sidebar with session history (grouped Today / Yesterday / Previous 7 days), projects section, empty-state landing screen, and pill input bar
-- User messages render as fully-rounded pill bubbles (right-aligned); assistant replies as plain text with copy / thumbs / share / regenerate action row
-- Swallow bird SVG icon for the Productivity agent
-- New agent keys are now automatically appended to the saved activity-bar order so agents added in future versions appear without manual re-ordering
-
-### Fixed
-- Electron main process entry file renamed to `index.js` via `rollupOptions.input` key, fixing the `No electron app entry file found` startup error
-
-## [2026.5.13] - 2026-04-12
-
-### Added
-- Linux local installer script and documentation for app menu integration (`bun run install:linux-local`)
-- In-app update controls in Settings (check, apply, and restart)
-- Startup update check prompt plus a blinking update badge with commit-hash tooltip in the editor header
-- DevTools toggle shortcut (`Ctrl+Shift+C`) in Electron main window
-
-### Changed
-- Clarified menu wording to "Open in new app window" for platform-neutral wording
-
-### Fixed
-- Installed app now loads built renderer unless `ELECTRON_RENDERER_URL` is set
-- Terminal sessions persist across tab switches by keeping terminal views mounted per pane
-
-## [2026.5.12] - 2026-04-12
-
-### Added
-- Search results now include filename matches (files whose names contain the query), shown in a "Files" section above content matches
-- Clicking a content match in search navigates to the exact line and highlights the matched text in the editor
-- Search results now show a pointer cursor and a hover background to make them clearly interactive
-
-### Fixed
-- Clicking a search result for an already-open file now scrolls and highlights the match instead of doing nothing
-
-## [2026.5.11] - 2026-04-12
-
-### Changed
-- Split-pane tab strip now renders through `PaneTabBar.tsx` as the active source of truth for tab/group visuals and drag-drop behavior
-- New tabs opened from the file tree no longer auto-inherit the currently active tab group unless a group is explicitly provided
-
-### Fixed
-- Grouped and non-grouped tabs now render in one continuous pane tab strip flow (reduced section cutoff behavior)
-
-## [2026.5.10] - 2026-04-12
-
-### Added
-- Browser new tab page with clock, greeting, and search bar matching app theme
-- Context menu on browser shortcuts to open in new tab
-
-### Changed
-- Browser tabs now use empty URL instead of chrome://newtab or about:blank
-- Browser shortcuts open internally in the webview instead of external browser
-
-### Fixed
-- Renaming files/folders from the file tree now keeps open tabs and the active editor synced to the new path/title instead of going stale
-
-## [2026.5.9] - 2026-04-11
-
-### Added
-- Tab grouping now works across the editor for all groupable tabs (notes, drawings, images, and browser tabs), including drag/drop grouping and group-level actions
-
-### Changed
-- New groupable tabs now inherit the currently active tab group when appropriate, so adding files keeps workflow context
-
-### Fixed
-- Browser tab favicons now appear faster and more reliably using a layered strategy: webview favicon event, domain fallback, `/favicon.ico`, plus in-memory origin caching
-
-## [2026.5.8] - 2026-04-11
-
-### Changed
-- Grouped browser tab blocks now keep a gap before standalone tabs while the internal connector lines stay flush to the tabs
-
-## [2026.5.7] - 2026-04-11
-
-### Added
-- Browser tab groups with Chrome-like pill blocks, drag-and-drop grouping, and collapse/expand behavior
-- Sonner toast notifications themed to match the app
-
-### Changed
-- Browser tabs now support copy URL/title/domain, rename, duplicate, and reload actions
-- Grouped browser tabs render as ordered blocks with connector spacing; standalone tabs keep the normal gap
-
-### Fixed
-- Collapsed group pills keep their click-to-expand behavior cleanly inside the strip
-- Browser tab switching preserves per-tab state without reload bleed
-
-## [2026.5.6] - 2026-04-11
-
-### Added
-- File tree now supports multi-selection with Shift-click, Shift + ArrowUp/ArrowDown, and right-click actions for copying paths and deleting multiple items
-
-### Changed
-- File tree refreshes triggered by create, rename, delete, and attachment actions now run silently in the background instead of flashing a loading state
-
-### Fixed
-- Modal backdrops no longer use blur, which reduces rendering cost on older hardware
-- File tree context menus now operate on the current multi-selection when multiple items are selected
-
-## [2026.5.5] - 2026-04-09
-
-### Added
-- Settings now show app version and an About section
-- A changelog button in Settings opens the project changelog in a modal
-- Image attachments now open in dedicated image tabs with image file icons in the sidebar and tab bar
-
-### Changed
-- Pasted image attachments hide their file extensions in the file tree like notes and drawings
-- Settings modal now includes release information directly instead of only theme controls
-- Excalidraw now loads its bundled font assets from the app's local `public/excalidraw` directory instead of the hosted CDN
-
-### Fixed
-- Pasted image attachments no longer open as Excalidraw files
-- Local image attachments render through Electron-safe data URLs instead of blocked `file://` paths
-- Image attachments preview correctly when opened from the sidebar after an app restart
-- Opening or creating `.excalidraw` files no longer leaves the sidebar file tree stuck in a loading loop
-- Draw tabs no longer immediately resave unchanged scenes when a drawing is opened
-
-## [2026.5.4] - 2026-04-09
-
-### Added
-- `docs/markdown-basic-syntax.md` as an Ibsidian support reference for the Markdown Guide basic syntax
-- `docs/markdown-basic-syntax-example.md` as a single example note covering every Markdown Guide basic syntax section
-- Shared markdown support types for tracking basic syntax coverage in code and docs
-
-### Changed
-- Reading view now renders Markdown Guide basic syntax more completely, including raw HTML, indented code blocks, linked images, reference-style links, and hard line breaks
-- Editor Enter behavior now continues Markdown list and blockquote markup while typing in live preview
-- README now links to the dedicated Markdown syntax documentation page
-
-## [2026.5.3] - 2026-04-09
-
-### Added
-- Vault-aware Obsidian markdown helpers shared across preview and editor logic
-- Wikilink autocomplete in the editor for notes, headings, block refs, and callout types
-- Embedded note and drawing cards in markdown preview for `![[...]]`
-
-### Changed
-- Settings now open in a modal instead of taking over the side panel
-- Top-right settings and overflow buttons removed from the title bar
-- Note editor now defaults to automatic live preview instead of manual source/split/reading/live mode toggles
-- Live preview unordered list markers render as bullet points while preserving raw markdown text
-- Markdown preview handles Obsidian-style internal links, embeds, callouts, and task checkboxes more cleanly
-
-### Fixed
-- Live preview in the light theme no longer uses the dark selected-line background from the hybrid editor package
-- Current-note heading and block links resolve correctly in preview
-- Separate bottom preview panel removed so preview only happens inline while typing
-
-## [2026.5.2] - 2026-04-08
-
-### Added
-- File read/write/rename errors now show a human-readable modal instead of silently failing; ENOENT errors also check if the vault itself is gone and trigger the vault-not-found screen
-- Alert modal type added to the modal system
-- Vault-not-found screen with Retry (spinner, 1.5s minimum) and Create new vault options
-- Default vault location is now the user's home directory
-- Vault creation shows a loading state (1.2s minimum) before opening the app
-
-### Changed
-- Vault setup screen redesigned — Obsidian-style centered icon, name, and version; no glow or animation
-- Command palette redesigned — Obsidian-style layout, no backdrop blur or animations
-- Inline note title renames the file on disk when edited; extension hidden in editor and rename dialogs
-- .md and .excalidraw extensions hidden throughout the UI (file tree, rename dialogs, editor title)
-- Context menus trimmed to only functional items and clamped to viewport — no more cutoff
-
-### Fixed
-- Files created via command palette and new-tab screen now written to disk with correct name and extension
-- Retry no longer flashes the editor in the background while checking the vault
-- Switching or creating a vault clears any previous error state immediately
-- Opening multiple terminal tabs now works
-- New tab button no longer blanks the screen (missing useCallback import in Canvas)
-- Vault state persists across restarts via JSON file in userData instead of localStorage
-
-## [2026.5.1] - 2026-04-08
-
-### Fixed
-- Electron startup crash on Linux — added --no-zygote flag to fix Chromium shared memory loop
-- README rewritten in Linux kernel plain-text style
-
-## [2026.5.0] - 2026-04-08
-
-### Changed — Electron rewrite
-- **Electron app** — Ibsidian is now a native desktop application powered by Electron. No more browser + backend server architecture.
-- **No more Bun backend** — `backend/server.ts` is replaced by the Electron main process (`electron/main.ts`)
-- **Native folder dialog** — Vault location is selected via the OS file picker instead of hardcoded paths
-- **IPC replaces HTTP + WebSocket** — All file operations and terminal communication go through Electron IPC (`contextBridge`)
-- **node-pty in main process** — Terminal now uses a real PTY via IPC; zero WebSocket, zero ports
-- **`electron-vite`** — Build system replaces `vite` standalone; handles main, preload, and renderer in one config
-- **Single command dev** — `bun run dev` launches the Electron app with HMR
-
-### Added
-- `electron/main.ts` — Main process: window, file system, vault management, PTY terminal sessions
-- `electron/preload.ts` — Secure `contextBridge` API exposing vault, files, and terminal to renderer
-- `src/types/electron.d.ts` — TypeScript declarations for `window.api`
-- `electron.vite.config.ts` — Unified build config for main + preload + renderer
-- `package.json` `"main"` field pointing to compiled main process
-- `rebuild` npm script for rebuilding native modules against Electron headers
-
-### Fixed
-- Terminal completely rewritten — no more WebSocket, no more `pty.write` errors, direct IPC
-- VaultSetup no longer has hardcoded `/home/diplov/...` paths
-
-## [2026.4.1] - 2026-04-08
-
-### Added
-- **Error display in file tree** — Shows error message with Retry button when vault file tree fails to load
-- **Loading state in sidebar** — "Loading…" indicator while fetching file tree from backend
-
-### Fixed
-- **Folders not expanding** — Fixed empty folders being treated as files (used `node.data.type` instead of `node.isInternal`)
-- **Folders opening as Excalidraw** — Folders without children no longer fall through to `openTab`
-- **File content crash** — `EditorTab` no longer crashes when content is undefined (backend nodes don't preload content)
-- **File content loading** — Files now load content from backend via `readFile` on tab open; editor renders instantly with content filling in async
-- **Terminal input broken** — Fixed `pty.write` → `pty.stdin.write` (child_process.spawn uses stdin, not pty.write)
-- **File tree only one level deep** — Backend now reads vault directories recursively, all subfolders expand correctly
-- **Vault 404 on backend restart** — Added `POST /api/vault/open` endpoint; frontend re-registers vault before every file tree fetch so HMR/server restarts don't break the session
-- **`/api/files` path parsing** — Fixed regex to handle `/api/files` without trailing slash (was resolving to wrong path)
-- **Hardcoded fake file tree** — Removed `defaultNodes` (Personal, Projects, etc.); sidebar now shows only real vault files
-- **React StrictMode + xterm.js** — Removed `StrictMode` which caused WebSocket to close before connecting and xterm.js internal timer crashes
-- **WebSocket 404** — Backend `fetch` handler now calls `server.upgrade(req)` for WebSocket connections at `/` and `/ws`
-- **File saves on edit** — `EditorTab` now calls `writeFile` on every change, persisting edits to disk
-
-### Technical Details
-- `backend/server.ts`: Added recursive `readDirRecursive` for full tree, `POST /api/vault/open`, fixed `server.upgrade`, fixed path regex
-- `src/contexts/VaultContext.tsx`: Removed defaultNodes, added vault re-registration in `refreshFileTree`, fixed stale closure in `setActiveVault`
-- `src/components/SidePanel.tsx`: Error/loading states in FileTreeView, fixed folder click handler
-- `src/components/Canvas.tsx`: EditorTab loads content from backend asynchronously, instant render
-- `src/main.tsx`: Removed React StrictMode
-
-## [2026.3.1] - 2026-04-07
-
-### Added
-- **Welcome Files** — Automatic creation of README.md, Getting Started.md, and Ideas.md when creating a new vault
-- **Sample Templates** — Daily Notes/ and Templates/ folders with sample templates (Meeting Notes, Daily Note)
-- **Loading Screen** — Branded loading animation while checking localStorage on app reload
-- **Custom Markdown Icon** — SVG icon for .md files in sidebar and tabs
-
-### Fixed
-- **Duplicate Tab Bug** — Removed redundant onSelect handler in file tree that was causing files to open twice
-
-### Technical Details
-- Modified backend/server.ts to create welcome files and folders inside the vault
-- Added LoadingScreen component with Ibsidian branding and loading animation
-- Added isReady state to VaultContext to track initial load
-- Created custom MarkdownIcon component for sidebar and tabs
-- Removed duplicate Tree onSelect handler in SidePanel.tsx
-
-## [2026.3.0] - 2026-04-07
-
-### Added
-- **Real Backend** — Bun-based HTTP server with REST API and WebSocket
-- **Vault System** — Full file system integration with real vault folders
-- **Terminal** — Real shell terminal connected to vault folder via WebSocket + node-pty
-- **File Operations** — Create, read, write, delete files/folders via backend API
-- **Vault Setup Screen** — First-launch UI to create/select vault with folder picker
-
-### Changed
-- Vault now stored on disk at `{selectedFolder}/{vaultName}` instead of in-memory
-- File tree loaded from real file system via backend API
-- Terminal now connects to backend WebSocket instead of echo mode
-
-### Technical Details
-- Added `backend/server.ts` with Bun HTTP server
-- Added WebSocket support for terminal PTY sessions
-- Modified VaultContext to use backend API for file operations
-- Added proxy configuration in vite.config.ts for `/api/*` and WebSocket
-- Removed unused `express` dependency (using Bun's built-in instead)
-
-## [2026.2.4] - 2026-04-07
-
-### Added
-- Terminal now matches the selected theme (light/dark) using CSS variables
-- Dynamic theme switching support for the terminal component
-- Integration with ActivityContext theme state
-
-### Changed
-- Terminal container now uses `bg-[var(--bg-primary)]` instead of hardcoded colors
-- Terminal header now uses `bg-[var(--bg-secondary)]` and `border-[var(--border)]`
-- Xterm.js theme now dynamically adapts to light/dark theme
-  - Light theme: white background, dark text
-  - Dark theme: dark background, light text
-  - Cursor color: consistent purple (#7c3aed) in both themes
-- Updated Canvas.tsx to use useActivity hook for theme state
-
-### Technical Details
-- Modified TerminalTab component in src/components/Canvas.tsx
-- Added theme-aware xterm initialization with dynamic updates
-- Removed hardcoded color values in favor of CSS variables
-- Added useEffect hook to update terminal theme when app theme changes

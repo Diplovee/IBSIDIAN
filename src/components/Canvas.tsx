@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import type { EditorView } from '@codemirror/view';
 import ReactMarkdown from 'react-markdown';
 import { Excalidraw, serializeAsJSON } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
@@ -50,6 +51,7 @@ import { parseExcalidrawFileContent } from '../utils/excalidraw';
 import { isGroupableTab, promptCreateGroupFromTab } from '../utils/tabGrouping';
 import { MonacoEditor } from './editor/MonacoEditor';
 import { MonacoToolbar } from './editor/MonacoToolbar';
+import { insertAtCursor } from './editor/codemirrorActions';
 
 const UPDATE_AVAILABLE_KEY = 'ibsidian:update-available';
 const UPDATE_CURRENT_KEY = 'ibsidian:update-current';
@@ -1188,7 +1190,7 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
             view.dispatch({ selection: { anchor: position } });
           }
         }
-        insertTextAtSelection(view, fragments.join('\n\n'));
+        insertAtCursor(view, fragments.join('\n\n'));
       }
       refreshFileTree(undefined, { showLoading: false }).catch(() => {});
       return true;
@@ -1272,22 +1274,31 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
             margin: 0, 
             padding: isCodeTab ? 0 : '16px 20px' 
           }}>
-            {showFormattingBar && !isCodeTab && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, marginBottom: 12, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-                <MonacoToolbar editor={editorRef.current} />
-              </div>
-            )}
-            
-            <div onContextMenu={(e) => {
-              if (isCodeTab) return;
-              e.preventDefault();
-              setCtxMenu({ x: e.clientX, y: e.clientY });
-            }} style={{ cursor: 'text', height: '100%', width: '100%' }}>
+            <div
+              onContextMenu={(event) => {
+                if (isCodeTab) return;
+                event.preventDefault();
+                event.stopPropagation();
+                setCtxMenu({ x: event.clientX, y: event.clientY });
+              }}
+              onMouseDownCapture={(event) => {
+                if (isCodeTab || event.button !== 2) return;
+                event.preventDefault();
+                event.stopPropagation();
+                setCtxMenu({ x: event.clientX, y: event.clientY });
+              }}
+              style={{ cursor: 'text', height: '100%', width: '100%' }}
+            >
               <MonacoEditor
                 value={content}
                 onChange={handleChange}
                 language={isCodeTab ? (tab.filePath?.split('.').pop() || 'text') : 'markdown'}
                 filePath={tab.filePath}
+                onContextMenu={(event) => {
+                  if (isCodeTab) return;
+                  event.preventDefault();
+                  setCtxMenu({ x: event.clientX, y: event.clientY });
+                }}
                 onEditorMount={(editor) => {
                   editorRef.current = editor;
                   if (!isCodeTab && tab.initialLine) {
@@ -1302,10 +1313,10 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
                 }}
               />
             </div>
-            {!isCodeTab && ctxMenu && (
+            {!isCodeTab && ctxMenu && editorRef.current?.getView?.() && (
               <EditorContextMenu
                 x={ctxMenu.x} y={ctxMenu.y}
-                editor={editorRef.current}
+                view={editorRef.current.getView()}
                 onClose={() => setCtxMenu(null)}
                 currentPath={tab.filePath}
               />

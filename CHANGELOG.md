@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.30] - 2026-05-06
+
+### Changed
+- Replaced the misnamed CodeMirror-based editor wrapper with the real Monaco Editor used by VS Code.
+- Editor tabs now use Monaco theming and language modes for a more VS Code-like editing experience.
+
+### Fixed
+- Editor selection highlighting is now handled by Monaco instead of the previous inconsistent CodeMirror selection styling.
+- Editor startup and rendering are more reliable after removing the broken hybrid editor/context-menu path.
+
 ## [2026.5.29] - 2026-05-06
 
 ### Added

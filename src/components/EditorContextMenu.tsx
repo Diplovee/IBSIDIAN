@@ -83,7 +83,7 @@ const SubMenu: React.FC<SubMenuProps> = ({ icon, label, children }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
-  const leaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openSub = useCallback(() => {
     clearTimeout(leaveTimer.current);
