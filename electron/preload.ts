@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('vault:open', vault),
     loadSaved: () =>
       ipcRenderer.invoke('vault:load-saved'),
+    recent: () =>
+      ipcRenderer.invoke('vault:recent'),
+    clear: () =>
+      ipcRenderer.invoke('vault:clear'),
   },
   app: {
     homeDir: () => ipcRenderer.invoke('app:home-dir'),

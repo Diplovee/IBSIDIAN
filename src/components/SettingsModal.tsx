@@ -312,10 +312,46 @@ const EditorPanel: React.FC = () => {
 };
 
 const FilesPanel: React.FC = () => {
-  const { settings, updateAttachmentSettings } = useAppSettings();
+  const { settings, updateAttachmentSettings, updateFileTreeSettings } = useAppSettings();
+  const showAllFiles = settings.fileTree.showAllFiles;
+  const showHiddenFiles = settings.fileTree.showHiddenFiles;
+
   return (
     <div>
-      <SectionLabel first>Default location for new attachments</SectionLabel>
+      <SectionLabel first>File Explorer</SectionLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+        <button
+          onClick={() => updateFileTreeSettings({ showAllFiles: !showAllFiles })}
+          style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: showAllFiles ? 'var(--accent-soft)' : 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Show all files</span>
+            <span style={{ fontSize: 12, color: showAllFiles ? 'var(--accent)' : 'var(--text-muted)' }}>
+              {showAllFiles ? 'On' : 'Off'}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+            Enable this to show all file types in the sidebar, not just notes and drawings. Recommended for programming.
+          </div>
+        </button>
+
+        <button
+          onClick={() => updateFileTreeSettings({ showHiddenFiles: !showHiddenFiles })}
+          style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: showHiddenFiles ? 'var(--accent-soft)' : 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Show hidden files</span>
+            <span style={{ fontSize: 12, color: showHiddenFiles ? 'var(--accent)' : 'var(--text-muted)' }}>
+              {showHiddenFiles ? 'On' : 'Off'}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+            Show files and folders starting with a dot (e.g. .gitignore, .env).
+          </div>
+        </button>
+      </div>
+
+      <SectionLabel>Default location for new attachments</SectionLabel>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         <OptionBtn
           active={settings.attachments.attachmentLocation === 'specific-folder'}

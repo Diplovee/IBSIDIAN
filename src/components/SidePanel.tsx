@@ -38,7 +38,8 @@ const getTabForNode = (node: VaultNode) => {
   if (node.ext === 'md') return { type: 'note', title: getDisplayName(node.name), filePath: node.id } as const;
   if (node.ext === 'excalidraw') return { type: 'draw', title: getDisplayName(node.name), filePath: node.id } as const;
   if (isImageExt(node.ext)) return { type: 'image', title: getDisplayName(node.name), filePath: node.id } as const;
-  return null;
+  // All other files are treated as code/text files
+  return { type: 'code', title: node.name, filePath: node.id } as const;
 };
 
 // ── SidePanel shell ───────────────────────────────────────────────────────
@@ -252,12 +253,16 @@ function sortVaultNodes<T extends SortableNode>(nodes: T[], order: 'asc' | 'desc
   });
 }
 
-const filterTreeNodes = (nodes: VaultNode[]): VaultNode[] =>
+const filterTreeNodes = (nodes: VaultNode[], showAll: boolean, showHidden: boolean): VaultNode[] =>
   nodes.flatMap((node) => {
+    if (!showHidden && node.name.startsWith('.') && node.name !== '.env.example') return [];
+
     if (node.type === 'folder') {
-      const children = filterTreeNodes(node.children);
+      const children = filterTreeNodes(node.children || [], showAll, showHidden);
       return [{ ...node, children }];
     }
+
+    if (showAll) return [node];
 
     const ext = node.ext?.toLowerCase();
     return ext && visibleFileExtensions.has(ext) ? [node] : [];
@@ -280,9 +285,9 @@ const FileTreeView: React.FC = () => {
   const TreeRenderer = TreeNode;
 
   const displayNodes = React.useMemo(() => {
-    const filteredNodes = filterTreeNodes(nodes);
+    const filteredNodes = filterTreeNodes(nodes, settings.fileTree.showAllFiles, settings.fileTree.showHiddenFiles);
     return sortOrder === 'none' ? filteredNodes : sortVaultNodes(filteredNodes, sortOrder);
-  }, [nodes, sortOrder]);
+  }, [nodes, sortOrder, settings.fileTree.showAllFiles, settings.fileTree.showHiddenFiles]);
 
   const handleSort = () => setSortOrder(o => o === 'none' ? 'asc' : o === 'asc' ? 'desc' : 'none');
 
@@ -511,11 +516,6 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   
   const contentPaddingLeft = basePadding + (node.level * indentStep);
 
-  const badgeLabel = isExcalidraw ? 'Canvas'
-    : isImage ? node.data.ext?.toUpperCase()
-    : (!isMd && isFile && node.data.ext) ? node.data.ext.toUpperCase()
-    : null;
-  
   const iconColor = node.isSelected ? 'var(--accent)' : hovered ? '#1e293b' : '#64748b';
 
   // Auto-expand folder on drag hover
@@ -589,21 +589,6 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: (isFile && !node.isSelected) ? '#64748b' : '#1e293b' }}>
           {node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}
         </span>
-        {badgeLabel && (
-          <span style={{ 
-            flexShrink: 0, 
-            fontSize: 9, 
-            fontWeight: 700, 
-            letterSpacing: '0.05em', 
-            color: '#64748b', 
-            background: 'rgba(0, 0, 0, 0.04)',
-            padding: '2px 6px',
-            borderRadius: 5,
-            textTransform: 'uppercase'
-          }}>
-            {badgeLabel}
-          </span>
-        )}
       </div>
     </div>
   );

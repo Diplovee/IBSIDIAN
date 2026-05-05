@@ -832,10 +832,6 @@ const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
             <div style={{ fontSize: 14, fontWeight: 700 }}>New terminal</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Open a shell session.</div>
           </button>
-          <button onClick={() => { void openDrawingTab(); }} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>New drawing</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Create an Excalidraw file.</div>
-          </button>
         </div>
       </div>
     </div>
@@ -1266,131 +1262,27 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', overflow: 'hidden' }}>
       <style>{`@keyframes _updateBlink{0%,100%{opacity:1}50%{opacity:0.25}}`}</style>
-      {/* Editor header */}
-      <div style={{ height: 36, display: 'flex', alignItems: 'center', padding: '0 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: 8 }}>
-        {/* Back / Forward */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <button style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <ArrowLeft size={14} />
-          </button>
-          <button style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <ArrowRight size={14} />
-          </button>
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', minWidth: 0 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {titleValue}
-          </span>
-        </div>
-
-        {/* Right controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }} ref={menuRef}>
-          {updateAvailable && (
-            <button
-              type="button"
-              onClick={() => { void handleUpdateBadgeClick(); }}
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 6,
-                border: '1px solid color-mix(in srgb, var(--accent) 65%, var(--border))',
-                background: 'var(--accent-soft)',
-                color: 'var(--accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                animation: '_updateBlink 1s steps(2,end) infinite',
-              }}
-              title={updateCurrent && updateLatest
-                ? `Update available\n${updateCurrent.slice(0, 7)} → ${updateLatest.slice(0, 7)}`
-                : 'Update available'}
-            >
-              <Download size={13} />
-            </button>
-          )}
-          {/* More options */}
-          <button
-            onClick={() => setMenuOpen(v => !v)}
-            style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
-          >
-            <MoreHorizontal size={14} />
-          </button>
-
-          {/* Dropdown menu */}
-          {menuOpen && (
-            <div style={{ position: 'absolute', top: '100%', right: 32, marginTop: 4, width: 264, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, boxShadow: 'var(--shadow-md)', zIndex: 50, padding: '4px 0' }}>
-              <MenuItem icon={<Pencil size={14} />} label="Rename..." onClick={handleRename} />
-              <MenuItem
-                icon={showFormattingBar ? <EyeOff size={14} /> : <Eye size={14} />}
-                label={showFormattingBar ? 'Hide toolbar' : 'Show toolbar'}
-                disabled={isCodeTab}
-                onClick={() => {
-                  void updateEditorSettings({ showFormattingBar: !showFormattingBar });
-                  setMenuOpen(false);
-                }}
-              />
-              <MenuItem icon={<FolderInput size={14} />} label="Move file to..." disabled />
-              <MenuItem icon={<Bookmark size={14} />} label="Bookmark..." disabled />
-              <MenuItem icon={<Download size={14} />} label="Export to PDF..." disabled />
-              <MenuSep />
-              <MenuItem icon={<Search size={14} />} label="Find..." disabled />
-              <MenuItem icon={<Search size={14} />} label="Replace..." disabled />
-              <MenuSep />
-              <MenuItem icon={<Copy size={14} />} label="Copy path" onClick={handleCopyPath} hasArrow />
-              <MenuSep />
-              <SubMenu icon={<ExternalLink size={14} />} label="Open">
-                <MenuItem icon={<PanelRight size={14} />} label="Split left" onClick={() => { setMenuOpen(false); splitRight(); }} />
-                <MenuItem icon={<PanelBottom size={14} />} label="Split down" onClick={() => { setMenuOpen(false); splitDown(); }} />
-                <MenuItem icon={<ExternalLink size={14} />} label="Open in new app window" disabled />
-                <MenuSep />
-                <MenuItem icon={<ArrowUpRight size={14} />} label="Open in default app" disabled />
-                <MenuItem icon={<ArrowUpRight size={14} />} label="Show in system explorer" disabled />
-                <MenuItem icon={<FolderOpen size={14} />} label="Reveal file in navigation" disabled />
-              </SubMenu>
-              <SubMenu icon={<History size={14} />} label="History">
-                <MenuItem icon={<History size={14} />} label="Open version history" disabled />
-                <MenuItem icon={<Link2 size={14} />} label="Open linked view" disabled hasArrow />
-              </SubMenu>
-              <MenuSep />
-              <MenuItem icon={<Trash2 size={14} />} label="Delete file" onClick={handleDelete} danger />
-            </div>
-          )}
-        </div>
-      </div>
-
+      
       {/* Editor */}
       <div ref={scrollAreaRef} style={{ flex: 1, overflow: 'hidden' }}>
-        <div style={{ height: '100%', overflow: 'auto', padding: '32px 48px 80px' }}>
-          <div style={{ maxWidth: 720, margin: '0 auto', cursor: 'text' }}>
-            {showFormattingBar && (
+        <div style={{ height: '100%', overflow: 'auto' }}>
+          <div style={{ 
+            height: '100%',
+            maxWidth: 'none', 
+            margin: 0, 
+            padding: isCodeTab ? 0 : '16px 20px' 
+          }}>
+            {showFormattingBar && !isCodeTab && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, marginBottom: 12, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
                 <MonacoToolbar editor={editorRef.current} />
               </div>
             )}
-            <input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={handleTitleChange}
-              onBlur={handleTitleBlur}
-              onKeyDown={handleTitleKeyDown}
-              spellCheck={false}
-              style={{
-                display: 'block', width: '100%', border: 'none', outline: 'none',
-                background: 'transparent', padding: 0, marginBottom: 24,
-                fontSize: isCodeTab ? 22 : 32, fontWeight: 700, lineHeight: 1.25,
-                color: 'var(--text-primary)', fontFamily: isCodeTab ? 'var(--font-mono)' : 'var(--font-sans)',
-                caretColor: 'var(--text-primary)',
-                cursor: 'text',
-              }}
-              placeholder="Untitled"
-            />
+            
             <div onContextMenu={(e) => {
               if (isCodeTab) return;
               e.preventDefault();
               setCtxMenu({ x: e.clientX, y: e.clientY });
-            }} style={{ cursor: 'text', height: 'calc(100% - 100px)' }}>
+            }} style={{ cursor: 'text', height: '100%', width: '100%' }}>
               <MonacoEditor
                 value={content}
                 onChange={handleChange}
@@ -1422,10 +1314,31 @@ const EditorTab: React.FC<{ tab: any }> = ({ tab }) => {
         </div>
       </div>
 
-      {/* Status bar */}
-      <div style={{ height: 24, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px', gap: 16, flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isCodeTab ? `${lineCount} lines` : `${wordCount} words`}</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{charCount} characters</span>
+      {/* Floating Status Bar */}
+      <div style={{ 
+        position: 'absolute', 
+        bottom: 20, 
+        right: 20, 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 12,
+        padding: '6px 12px',
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        borderRadius: 20,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        zIndex: 30,
+        pointerEvents: 'none',
+        opacity: 0.8,
+        transition: 'opacity 0.2s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+          <span>{isCodeTab ? (tab.filePath?.split('.').pop()?.toUpperCase() || 'TEXT') : 'MARKDOWN'}</span>
+        </div>
+        <div style={{ width: 1, height: 12, background: 'var(--border)' }} />
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{isCodeTab ? `${lineCount} lines` : `${wordCount} words`}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{charCount} chars</span>
       </div>
     </div>
   );

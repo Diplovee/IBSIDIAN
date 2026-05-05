@@ -60,6 +60,8 @@ export interface AppSettings {
   attachments: AttachmentSettings;
   fileTree: {
     style: FileTreeStyle;
+    showAllFiles: boolean;
+    showHiddenFiles: boolean;
   };
   editor: {
     showFormattingBar: boolean;

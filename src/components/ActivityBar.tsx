@@ -75,7 +75,6 @@ export const ActivityBar: React.FC = () => {
           <ActivityButton icon={<Search size={18} />} active={activeActivity === 'search'} onClick={() => toggleActivity('search')} />
           <div style={{ width: 24, height: 1, background: 'var(--border)', margin: '4px 0' }} />
           <ActivityButton icon={<Globe size={18} />} onClick={handleOpenBrowser} />
-          <ActivityButton icon={<ExcalidrawIcon size={18} />} onClick={handleOpenDraw} />
           <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
           {order.filter(k => agents[k]).map(key => {
             const a = AGENT_META[key];

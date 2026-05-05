@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.29] - 2026-05-06
+
+### Added
+- **Programming Environment**: IBSIDIAN is now a full-fledged programming environment for coding and project management.
+- **Project Switcher**: The vault name in the Top Bar is now a dropdown menu for quick switching between projects.
+- **Recent Projects**: Remembers up to 10 recently opened folders/vaults with persistent history across restarts.
+- **Open Folder**: New "Open folder..." action to treat any directory on your system as a workspace.
+- **Enhanced File Explorer**: Added settings to "Show all files" and "Show hidden files" in the sidebar.
+- **Expanded Language Support**: Code editor now supports syntax highlighting for 100+ languages including TypeScript, Python, Go, Rust, and more.
+- **Theme-Aware Editor**: Code editor now automatically switches between Light and Dark (One Dark) themes to match app settings.
+
+### Fixed
+- Potential crash in file explorer when filtering folders with unloaded children.
+- Restored accidentally removed IPC handlers for settings and authentication.
+
 ## [2026.5.28] - 2026-04-29
 
 ### Added

@@ -34,6 +34,22 @@ export const VaultSetup: React.FC = () => {
     }
   };
 
+  const handleOpenFolder = async () => {
+    const path = await window.api.vault.selectFolder();
+    if (path) {
+      const name = path.split(/[/\\]/).pop() || 'Project';
+      const vault = { id: Math.random().toString(36).substr(2, 9), name, path };
+      setIsLoading(true);
+      try {
+        await window.api.vault.open(vault);
+        setActiveVault(vault as any);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to open folder.');
+        setIsLoading(false);
+      }
+    }
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 40 }}>
 
@@ -44,16 +60,35 @@ export const VaultSetup: React.FC = () => {
 
       {/* Form */}
       <div style={{ width: '100%', maxWidth: 420 }}>
+        {/* Actions */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 32 }}>
+          <button
+            onClick={handleOpenFolder}
+            disabled={isLoading}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '20px 16px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--bg-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+          >
+            <FolderOpen size={24} color="var(--accent)" />
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Open folder</div>
+          </button>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '20px 16px', borderRadius: 12, border: '1.5px solid var(--accent-soft)', background: 'var(--accent-soft)', cursor: 'default' }}>
+            <img src="/favicon.svg" alt="" style={{ width: 24, height: 24 }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>New vault</div>
+          </div>
+        </div>
+
         {/* Folder picker */}
         <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>Location</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>Location for new vault</label>
           <button
             onClick={handlePickFolder}
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', cursor: 'pointer', textAlign: 'left' }}
           >
             <FolderOpen size={16} color="var(--accent)" />
             <span style={{ flex: 1, fontSize: 13, fontFamily: 'var(--font-mono)', color: selectedPath ? 'var(--text-primary)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedPath ?? 'Choose folder…'}
+              {selectedPath ?? 'Choose parent folder…'}
             </span>
           </button>
         </div>

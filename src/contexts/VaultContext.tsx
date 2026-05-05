@@ -28,6 +28,7 @@ interface VaultNode {
 interface VaultContextType {
   nodes: VaultNode[];
   vault: Vault | null;
+  recentVaults: Vault[];
   isLoading: boolean;
   isReady: boolean;
   error: string | null;
@@ -47,6 +48,7 @@ interface VaultContextType {
   setActiveVault: (vault: Vault) => void;
   clearActiveVault: () => void;
   refreshFileTree: (vaultOverride?: Vault, options?: { showLoading?: boolean }) => Promise<void>;
+  refreshRecents: () => Promise<void>;
   
   // File operations
   getFileTree: () => Promise<FileNode | null>;
@@ -69,25 +71,39 @@ const VaultContext = createContext<VaultContextType | undefined>(undefined);
 export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [nodes, setNodes] = useState<VaultNode[]>([]);
   const [vault, setVault] = useState<Vault | null>(null);
+  const [recentVaults, setRecentVaults] = useState<Vault[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const untitledCounter = useRef(0);
   const openedVaultKeyRef = useRef<string | null>(null);
+
+  const refreshRecents = useCallback(async () => {
+    try {
+      const config = await window.api.vault.recent();
+      setRecentVaults(config.recentVaults);
+    } catch (err) {
+      console.warn('Failed to load recent vaults', err);
+    }
+  }, []);
   
   // Load last opened vault from main-process config file
   useEffect(() => {
-    window.api.vault.loadSaved().then(saved => {
-      if (saved) setVault(saved);
+    window.api.vault.recent().then(config => {
+      const active = config.recentVaults.find(v => v.id === config.activeVaultId) || config.recentVaults[0];
+      if (active) setVault(active);
+      setRecentVaults(config.recentVaults);
     }).catch(() => {}).finally(() => setIsReady(true));
   }, []);
   
   const setActiveVault = useCallback((vaultData: Vault) => {
     setError(null);
     setVault(vaultData);
-  }, []);
+    refreshRecents();
+  }, [refreshRecents]);
 
   const clearActiveVault = useCallback(() => {
+    window.api.vault.clear().catch(() => {});
     setError(null);
     setVault(null);
     setNodes([]);
@@ -384,6 +400,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const value: VaultContextType = {
     nodes,
     vault,
+    recentVaults,
     isLoading,
     isReady,
     error,
@@ -400,6 +417,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setActiveVault,
     clearActiveVault,
     refreshFileTree,
+    refreshRecents,
     getFileTree,
     readFile,
     writeFile,

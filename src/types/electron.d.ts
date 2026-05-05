@@ -11,6 +11,8 @@ declare global {
         create: (name: string, path: string) => Promise<{ id: string; name: string; path: string }>
         open: (vault: { id: string; name: string; path: string }) => Promise<boolean>
         loadSaved: () => Promise<{ id: string; name: string; path: string } | null>
+        recent: () => Promise<{ activeVaultId: string | null; recentVaults: Array<{ id: string; name: string; path: string }> }>
+        clear: () => Promise<boolean>
       }
       app: {
         homeDir: () => Promise<string>

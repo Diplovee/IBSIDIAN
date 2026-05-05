@@ -5,8 +5,8 @@
 Ibsidian
 ========
 
-A desktop workspace app for development, built on Electron + React.
-Organise your project files, notes, drawings, and research in a real file-system folder with a
+A desktop workspace app for programming and personal knowledge management, built on Electron + React.
+Organize your project files, notes, drawings, and research in a real file-system folder with a
 built-in terminal and browser — all in one window.
 
 Quick Start
@@ -18,8 +18,7 @@ Quick Start
 * Production build: `bun run build`
 * Linux app-menu install (local clone): `bun run install:linux-local`
 
-On first launch, pick a folder, name your vault, and click **Create Vault**.
-Welcome files are created automatically.
+On first launch, you can open an existing project folder or create a new vault.
 
 NixOS Notes
 -----------
@@ -49,20 +48,20 @@ NixOS Notes
 Features
 --------
 
-* Vault System       — real file-system folder; open or create via native dialog
-* File Tree          — browse, create, rename, and delete notes and folders
-* Markdown Editor    — CodeMirror 6 with automatic live preview while typing
-* Enhanced Markdown  — basic syntax, wikilinks, embeds, callouts, task lists, tables, and GFM basics
-* Settings Modal     — theme, version, about, and changelog access in a command-palette-style modal
-* Drawing Canvas     — visual notes via Excalidraw with locally served editor assets
-* Browser Tab        — built-in web browser with favicon-aware tab icons, native context menu actions, and text selection support
-* Tab Groups         — group notes, drawings, images, and browser tabs with drag/drop + collapse
-* Library            — browser history, active groups, and saved "forever" groups
-* Terminal           — real PTY shell starting in your vault root with text selection, context menu (Copy, Paste, Clear), and Ctrl+Click to open links in a browser tab
-* Command Palette    — Ctrl+K for quick access to all commands
-* Light / Dark Theme — toggle in the Settings modal
-* Resizable Sidebar  — drag the panel divider
-* Productivity Agent — AI chat powered by ChatGPT (Codex OAuth); supports @file mentions, vault tools (read/write/list), and interactive tool cards for tables, pie charts, and graphs; sessions persisted locally
+* Project & Vault System — Open any existing folder as a project or create a new vault.
+* Project Switcher   — Quick-switch between recent projects via the top-bar dropdown.
+* File Explorer      — Browse all project files; toggle "Show all files" and "Show hidden files" for development.
+* Multi-Language Code Editor — Monaco-powered editor with syntax highlighting for 100+ languages.
+* Markdown Editor    — Full-featured Markdown editing with automatic live preview and wikilink support.
+* Enhanced Markdown  — Wikilinks, embeds, callouts, task lists, tables, and GFM basics.
+* Settings Modal     — Theme, file explorer preferences, version, about, and changelog access.
+* Drawing Canvas     — Visual notes via Excalidraw with locally served editor assets.
+* Browser Tab        — Built-in web browser with tab groups, favicon support, and native context menus.
+* Tab Groups         — Group code, notes, drawings, and browser tabs with drag/drop + collapse.
+* Library            — Browser history, active groups, and saved "forever" groups.
+* Terminal           — Real PTY shell with link detection, text selection, and context menu.
+* Command Palette    — Ctrl+K for quick access to all commands.
+* Productivity Agent — AI chat powered by ChatGPT (Codex OAuth); vault-aware tools (read/write/list).
 
 Keyboard Shortcuts
 ------------------
@@ -135,6 +134,8 @@ Exposed via contextBridge in the preload script:
     vault.selectFolder()           native OS folder picker
     vault.create(name, path)       create vault + welcome files
     vault.open(vault)              re-register vault on reload
+    vault.recent()                 get list of recently opened vaults
+    vault.clear()                  clear active vault session
     files.tree()                   recursive file tree
     files.read(path)               read file content
     files.write(path, content)     write file

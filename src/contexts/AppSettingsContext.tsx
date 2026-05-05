@@ -9,6 +9,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   fileTree: {
     style: 'original',
+    showAllFiles: false,
+    showHiddenFiles: false,
   },
   editor: {
     showFormattingBar: true,

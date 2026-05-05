@@ -44,6 +44,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   fileTree: {
     style: 'original',
+    showAllFiles: false,
+    showHiddenFiles: false,
   },
   editor: {
     showFormattingBar: true,
@@ -72,6 +74,11 @@ const DEFAULT_SETTINGS: AppSettings = {
 }
 
 // ── Persistent vault config ────────────────────────────────────────────────
+type VaultConfig = {
+  activeVaultId: string | null;
+  recentVaults: Vault[];
+}
+
 function vaultConfigPath() {
   return join(app.getPath('userData'), 'vault.json')
 }
@@ -263,20 +270,47 @@ function runCommand(command: string, args: string[], cwd: string) {
   })
 }
 
-async function saveVaultConfig(vault: Vault) {
+async function saveVaultConfig(activeVault: Vault) {
   try {
     await mkdir(app.getPath('userData'), { recursive: true })
-    await writeFile(vaultConfigPath(), JSON.stringify(vault), 'utf8')
-  } catch { /* ignore */ }
+    const config = await loadVaultConfigFull()
+    
+    // Add to recent vaults or move to top
+    const otherRecents = config.recentVaults.filter(v => v.path !== activeVault.path)
+    const newRecents = [activeVault, ...otherRecents].slice(0, 10)
+    
+    const newConfig: VaultConfig = {
+      activeVaultId: activeVault.id,
+      recentVaults: newRecents
+    }
+    
+    await writeFile(vaultConfigPath(), JSON.stringify(newConfig), 'utf8')
+  } catch (e) { 
+    console.error('Failed to save vault config', e)
+  }
+}
+
+async function loadVaultConfigFull(): Promise<VaultConfig> {
+  try {
+    const raw = await readFile(vaultConfigPath(), 'utf8')
+    const parsed = JSON.parse(raw)
+    // Handle migration from old format (just a Vault object)
+    if (parsed.path && parsed.id && parsed.name) {
+      return { activeVaultId: parsed.id, recentVaults: [parsed] }
+    }
+    return {
+      activeVaultId: parsed.activeVaultId ?? null,
+      recentVaults: Array.isArray(parsed.recentVaults) ? parsed.recentVaults : []
+    }
+  } catch {
+    return { activeVaultId: null, recentVaults: [] }
+  }
 }
 
 async function loadVaultConfig(): Promise<Vault | null> {
-  try {
-    const raw = await readFile(vaultConfigPath(), 'utf8')
-    return JSON.parse(raw) as Vault
-  } catch {
-    return null
-  }
+  const config = await loadVaultConfigFull()
+  if (!config.activeVaultId) return null
+  return config.recentVaults.find(v => v.id === config.activeVaultId) || config.recentVaults[0] || null
 }
 
 async function saveSettingsConfig(settings: AppSettings) {
@@ -297,6 +331,12 @@ async function loadSettingsConfig(): Promise<AppSettings> {
       },
       fileTree: {
         style: parsed.fileTree?.style === 'hierarchy' ? 'hierarchy' : DEFAULT_SETTINGS.fileTree.style,
+        showAllFiles: typeof parsed.fileTree?.showAllFiles === 'boolean'
+          ? parsed.fileTree.showAllFiles
+          : DEFAULT_SETTINGS.fileTree.showAllFiles,
+        showHiddenFiles: typeof parsed.fileTree?.showHiddenFiles === 'boolean'
+          ? parsed.fileTree.showHiddenFiles
+          : DEFAULT_SETTINGS.fileTree.showHiddenFiles,
       },
       editor: {
         showFormattingBar: typeof parsed.editor?.showFormattingBar === 'boolean'
@@ -506,6 +546,21 @@ ipcMain.handle('vault:load-saved', async () => {
   return loadVaultConfig()
 })
 
+ipcMain.handle('vault:recent', async () => {
+  return loadVaultConfigFull()
+})
+
+ipcMain.handle('vault:clear', async () => {
+  try {
+    const config = await loadVaultConfigFull()
+    config.activeVaultId = null
+    await writeFile(vaultConfigPath(), JSON.stringify(config), 'utf8')
+    activeVaultId = null
+    stopVaultWatcher()
+    return true
+  } catch { return false }
+})
+
 ipcMain.handle('app:home-dir', () => app.getPath('home'))
 ipcMain.handle('app:updates:check', async () => {
   const projectRoot = findProjectRoot()
@@ -617,6 +672,12 @@ ipcMain.handle('settings:save', async (_, settings: AppSettings) => {
     },
     fileTree: {
       style: settings.fileTree?.style === 'hierarchy' ? 'hierarchy' : DEFAULT_SETTINGS.fileTree.style,
+      showAllFiles: typeof settings.fileTree?.showAllFiles === 'boolean'
+        ? settings.fileTree.showAllFiles
+        : DEFAULT_SETTINGS.fileTree.showAllFiles,
+      showHiddenFiles: typeof settings.fileTree?.showHiddenFiles === 'boolean'
+        ? settings.fileTree.showHiddenFiles
+        : DEFAULT_SETTINGS.fileTree.showHiddenFiles,
     },
     editor: {
       showFormattingBar: typeof settings.editor?.showFormattingBar === 'boolean'
