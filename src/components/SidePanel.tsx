@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Tree, TreeApi, NodeApi } from 'react-arborist';
 import {
-  Folder, FileText, FolderPlus,
+  FolderPlus,
   Search as SearchIcon, FilePen, ArrowUpNarrowWide, LayoutList,
   ChevronsUpDown, ChevronsDownUp, FilePlus2, PanelRight, ExternalLink, Copy, FolderInput,
-  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, Image as ImageFileIcon,
+  Bookmark, GitMerge, History, ArrowUpRight, Pencil, Trash2, ChevronRight as Arrow, LocateFixed,
 } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
@@ -14,6 +14,7 @@ import { useModal } from './Modal';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { VaultNode } from '../types';
 import { normalizeNewItemName } from '../utils/fileNaming';
+import { renderMaterialFileIcon, renderMaterialFolderIcon } from '../utils/fileTreeIcons';
 
 // ── Shared context so Node (outside FileTreeView) can trigger actions ─────
 interface TreeCtx {
@@ -38,9 +39,9 @@ const getTabForNode = (node: VaultNode) => {
   if (node.ext === 'md') return { type: 'note', title: getDisplayName(node.name), filePath: node.id } as const;
   if (node.ext === 'excalidraw') return { type: 'draw', title: getDisplayName(node.name), filePath: node.id } as const;
   if (isImageExt(node.ext)) return { type: 'image', title: getDisplayName(node.name), filePath: node.id } as const;
-  // All other files are treated as code/text files
   return { type: 'code', title: node.name, filePath: node.id } as const;
 };
+
 
 // ── SidePanel shell ───────────────────────────────────────────────────────
 export const SidePanel: React.FC = () => {
@@ -87,6 +88,29 @@ const getTopLevelPaths = (nodes: VaultNode[]) => {
   return sorted
     .filter(node => !sorted.some(other => other.id !== node.id && node.id.startsWith(`${other.id}/`)))
     .map(node => node.id);
+};
+
+const areAllFoldersOpen = (nodes: VaultNode[]): boolean => {
+  let hasFolders = false;
+  const visit = (items: VaultNode[]): boolean => items.every(item => {
+    if (item.type !== 'folder') return true;
+    hasFolders = true;
+    return !!item.isOpen && visit(item.children || []);
+  });
+  return hasFolders ? visit(nodes) : true;
+};
+
+const getInitialOpenState = (nodes: VaultNode[]): Record<string, boolean> => {
+  const openState: Record<string, boolean> = {};
+  const visit = (items: VaultNode[]) => {
+    items.forEach(item => {
+      if (item.type !== 'folder') return;
+      if (item.isOpen) openState[item.id] = true;
+      visit(item.children || []);
+    });
+  };
+  visit(nodes);
+  return openState;
 };
 
 const handleTreeNodeClick = (node: NodeApi<VaultNode>, e: React.MouseEvent, toggleFolder: (node: NodeApi<VaultNode>) => void) => {
@@ -254,7 +278,7 @@ function sortVaultNodes<T extends SortableNode>(nodes: T[], order: 'asc' | 'desc
 }
 
 const filterTreeNodes = (nodes: VaultNode[], showAll: boolean, showHidden: boolean): VaultNode[] =>
-  nodes.flatMap((node) => {
+  nodes.flatMap((node): VaultNode[] => {
     if (!showHidden && node.name.startsWith('.') && node.name !== '.env.example') return [];
 
     if (node.type === 'folder') {
@@ -271,23 +295,25 @@ const filterTreeNodes = (nodes: VaultNode[], showAll: boolean, showHidden: boole
 // ── File tree ─────────────────────────────────────────────────────────────
 const FileTreeView: React.FC = () => {
   const { nodes, createFileRemote, createFolderRemote, moveNode, nextUntitledName, isLoading, error, refreshFileTree, deleteItem, expandFolder, setFolderOpen, setAllFoldersOpen } = useVault();
-  const { openTab } = useTabs();
+  const { openTab, tabs, activeTabId } = useTabs();
   const { confirm, prompt } = useModal();
   const { settings } = useAppSettings();
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<VaultNode> | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
-  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
-  const [allExpanded, setAllExpanded] = useState(true);
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('asc');
   const headerHeight = 44;
+  const activeFilePath = React.useMemo(() => tabs.find(tab => tab.id === activeTabId)?.filePath ?? null, [tabs, activeTabId]);
   const rowHeight = settings.appearance?.compactMode ? FILE_TREE_COMPACT_ROW_HEIGHT : FILE_TREE_ROW_HEIGHT;
   const TreeRenderer = TreeNode;
 
   const displayNodes = React.useMemo(() => {
-    const filteredNodes = filterTreeNodes(nodes, settings.fileTree.showAllFiles, settings.fileTree.showHiddenFiles);
+    const filteredNodes = filterTreeNodes(nodes as VaultNode[], settings.fileTree.showAllFiles, settings.fileTree.showHiddenFiles);
     return sortOrder === 'none' ? filteredNodes : sortVaultNodes(filteredNodes, sortOrder);
   }, [nodes, sortOrder, settings.fileTree.showAllFiles, settings.fileTree.showHiddenFiles]);
+  const allExpanded = React.useMemo(() => areAllFoldersOpen(displayNodes), [displayNodes]);
+  const initialOpenState = React.useMemo(() => getInitialOpenState(displayNodes), [displayNodes]);
 
   const handleSort = () => setSortOrder(o => o === 'none' ? 'asc' : o === 'asc' ? 'desc' : 'none');
 
@@ -308,13 +334,10 @@ const FileTreeView: React.FC = () => {
   const toggleFolder = useCallback((node: NodeApi<VaultNode>) => {
     const nextIsOpen = !node.isOpen;
     node.toggle();
-    if (nextIsOpen && !node.data.childrenLoaded) {
+    if (nextIsOpen && node.data.type === 'folder' && !node.data.childrenLoaded) {
       expandFolder(node.data.id).catch(() => {});
     }
     setFolderOpen(node.data.id, nextIsOpen);
-    
-    // If we just manually closed something, we are no longer "all expanded"
-    if (!nextIsOpen) setAllExpanded(false);
   }, [expandFolder, setFolderOpen]);
 
   const handleActivate = useCallback((node: NodeApi<VaultNode>) => {
@@ -328,10 +351,7 @@ const FileTreeView: React.FC = () => {
 
   const handleToggle = useCallback((id: string) => {
     const node = treeRef.current?.get(id);
-    if (node) {
-      setFolderOpen(id, node.isOpen);
-      if (!node.isOpen) setAllExpanded(false);
-    }
+    if (node) setFolderOpen(id, node.isOpen);
   }, [setFolderOpen]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, node: NodeApi<VaultNode>) => {
@@ -390,6 +410,17 @@ const FileTreeView: React.FC = () => {
     createFolderRemote('', name).then(() => refreshFileTree(undefined, { showLoading: false }));
   }, [createFolderRemote, prompt, refreshFileTree]);
 
+  const revealActiveFile = useCallback(async () => {
+    if (!activeFilePath) return;
+    const parts = activeFilePath.split('/');
+    const ancestorPaths = parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join('/'));
+    for (const path of ancestorPaths) {
+      setFolderOpen(path, true);
+      await expandFolder(path).catch(() => {});
+    }
+    requestAnimationFrame(() => treeRef.current?.scrollTo(activeFilePath, 'smart'));
+  }, [activeFilePath, expandFolder, setFolderOpen]);
+
   return (
     <TreeContext.Provider value={{ openContextMenu: handleContextMenu, openTab, toggleFolder }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
@@ -400,6 +431,7 @@ const FileTreeView: React.FC = () => {
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title={sortOrder === 'none' ? 'Sort A→Z' : sortOrder === 'asc' ? 'Sort Z→A' : 'Remove sort'} active={sortOrder !== 'none'} onClick={handleSort} />
           <SidebarBtn icon={<LayoutList size={15} />} title="Change view" active />
+          <SidebarBtn icon={<LocateFixed size={15} />} title="Reveal active file" onClick={() => revealActiveFile()} active={!!activeFilePath} />
           <SidebarBtn 
             icon={allExpanded ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />} 
             title={allExpanded ? "Collapse all" : "Expand all"} 
@@ -407,9 +439,7 @@ const FileTreeView: React.FC = () => {
               const targetState = !allExpanded;
               if (targetState) treeRef.current?.openAll();
               else treeRef.current?.closeAll();
-              
               setAllFoldersOpen(targetState);
-              setAllExpanded(targetState);
             }} 
           />
         </div>
@@ -432,7 +462,8 @@ const FileTreeView: React.FC = () => {
             <Tree
               ref={treeRef}
               data={displayNodes}
-              openByDefault={true}
+              openByDefault={false}
+              initialOpenState={initialOpenState}
               width={dimensions.width}
               height={dimensions.height - headerHeight}
               indent={16}
@@ -441,6 +472,7 @@ const FileTreeView: React.FC = () => {
               onActivate={handleActivate}
               onDelete={handleTreeDelete}
               onToggle={handleToggle}
+              selection={activeFilePath ?? undefined}
               renderCursor={TreeCursor}
               paddingBottom={rowHeight}
             >
@@ -503,9 +535,6 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
   const [hovered, setHovered] = useState(false);
   const { openContextMenu, toggleFolder } = React.useContext(TreeContext);
   const { settings } = useAppSettings();
-  const isMd = node.data.type === 'file' && node.data.ext === 'md';
-  const isExcalidraw = node.data.type === 'file' && node.data.ext === 'excalidraw';
-  const isImage = node.data.type === 'file' && isImageExt(node.data.ext);
   const isFile = node.data.type === 'file';
   const basePadding = 12;
   const indentStep = 16;
@@ -576,14 +605,8 @@ const TreeNode = ({ node, style, dragHandle }: any) => {
         )}
         <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 10, flexShrink: 0 }}>
           {isFile
-            ? isExcalidraw
-              ? <ExcalidrawIcon size={16} color={iconColor} style={{ flexShrink: 0 }} />
-              : isImage
-                ? <ImageFileIcon size={16} style={{ flexShrink: 0, color: iconColor }} />
-                : isMd
-                  ? <MarkdownIcon size={16} color={iconColor} />
-                  : <FileText size={16} style={{ flexShrink: 0, color: iconColor }} />
-            : <Folder size={18} style={{ flexShrink: 0, color: '#64748b', opacity: 0.8 }} />
+            ? renderMaterialFileIcon(node.data.name, 16)
+            : renderMaterialFolderIcon(node.data.name, node.isOpen, 18)
           }
         </div>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: (isFile && !node.isSelected) ? '#64748b' : '#1e293b' }}>
@@ -618,7 +641,7 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
       style={{ ...style, display: 'flex', alignItems: 'center', padding: '0 6px', cursor: 'default', userSelect: 'none', boxSizing: 'border-box' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={(e) => handleTreeNodeClick(node, e)}
+      onClick={(e) => handleTreeNodeClick(node, e, toggleFolder)}
       onContextMenu={(e) => openContextMenu(e, node)}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: itemHeight, paddingLeft: contentPaddingLeft, paddingRight: 10, border: 'none', borderRadius: 8, background: node.isSelected ? 'rgba(0,0,0,0.08)' : hovered ? 'rgba(0,0,0,0.04)' : 'var(--bg-secondary)', color: node.isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: node.isSelected ? 500 : 400, fontSize: nodeFontSize, transition: 'background 0.1s', position: 'relative' }}>
@@ -628,14 +651,8 @@ const OriginalTreeNode = ({ node, style, dragHandle }: any) => {
           </div>
         )}
         {isFile
-          ? isExcalidraw
-            ? <ExcalidrawIcon size={14} color={iconColor} style={{ flexShrink: 0 }} />
-            : isImage
-              ? <ImageFileIcon size={14} style={{ flexShrink: 0, color: iconColor }} />
-              : isMd
-                ? <MarkdownIcon size={14} color={iconColor} />
-                : <FileText size={14} style={{ flexShrink: 0, color: iconColor }} />
-          : <Folder size={14} style={{ flexShrink: 0, color: iconColor }} />
+          ? renderMaterialFileIcon(node.data.name, 14)
+          : renderMaterialFolderIcon(node.data.name, node.isOpen, 14)
         }
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.data.type === 'file' ? getDisplayName(node.data.name) : node.data.name}</span>
         {badgeLabel && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', color: 'var(--text-muted)', opacity: 0.8 }}>{badgeLabel}</span>}
@@ -757,12 +774,17 @@ const SearchView: React.FC = () => {
                   key={hit.path}
                   onClick={() => openTab({ type: tabType, title: displayName, filePath: hit.path })}
                   className="search-result-btn"
-                  style={{ width: '100%', textAlign: 'left', padding: '4px 12px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 1 }}
+                  style={{ width: '100%', textAlign: 'left', padding: '4px 12px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
                 >
-                  <span style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {highlightMatch(fileName, query, caseSensitive)}
+                  <span style={{ width: 14, height: 14, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {renderMaterialFileIcon(fileName, 14)}
                   </span>
-                  {fileDir && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileDir}</span>}
+                  <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {highlightMatch(fileName, query, caseSensitive)}
+                    </span>
+                    {fileDir && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileDir}</span>}
+                  </span>
                 </button>
               );
             })}
@@ -781,10 +803,15 @@ const SearchView: React.FC = () => {
                   <button
                     onClick={() => openTab({ type: 'note', title: displayName, filePath })}
                     className="search-result-btn"
-                    style={{ width: '100%', textAlign: 'left', padding: '5px 12px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 1 }}
+                    style={{ width: '100%', textAlign: 'left', padding: '5px 12px', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
-                    {fileDir && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileDir}</span>}
+                    <span style={{ width: 14, height: 14, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {renderMaterialFileIcon(fileName, 14)}
+                    </span>
+                    <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                      {fileDir && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileDir}</span>}
+                    </span>
                   </button>
                   {hits.map((hit) => (
                     <button

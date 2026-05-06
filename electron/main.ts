@@ -727,7 +727,7 @@ function getVault(): Vault {
 }
 
 async function readDirRecursive(dirPath: string, vaultPath: string, depth = 0): Promise<any[]> {
-  const MAX_DEPTH = 4
+  const MAX_DEPTH = 0
   const entries = await readdir(dirPath, { withFileTypes: true })
   return Promise.all(
     entries.map(async entry => {

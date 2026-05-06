@@ -2,7 +2,7 @@ export type VaultNode =
   | { id: string; type: 'folder'; name: string; children: VaultNode[]; isOpen?: boolean; childrenLoaded?: boolean }
   | { id: string; type: 'file'; name: string; ext?: string; content?: string };
 
-export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'terminal' | 'new-tab' | 'claude' | 'codex' | 'pi' | 'productivity';
+export type TabType = 'note' | 'browser' | 'draw' | 'image' | 'code' | 'terminal' | 'new-tab' | 'claude' | 'codex' | 'pi' | 'productivity';
 export type AttachmentLocation = 'same-folder-as-note' | 'specific-folder';
 export type FileTreeStyle = 'original' | 'hierarchy';
 export type FontSize = 'small' | 'medium' | 'large';

@@ -60,6 +60,8 @@ interface VaultContextType {
   renameItem: (oldPath: string, newName: string) => Promise<void>;
   
   expandFolder: (id: string) => Promise<void>;
+  setFolderOpen: (id: string, isOpen: boolean) => void;
+  setAllFoldersOpen: (isOpen: boolean) => void;
 
   // Utility
   normalizePath: (path: string) => string;
@@ -77,6 +79,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [error, setError] = useState<string | null>(null);
   const untitledCounter = useRef(0);
   const openedVaultKeyRef = useRef<string | null>(null);
+  const folderOpenStateRef = useRef<Map<string, boolean>>(new Map());
 
   const refreshRecents = useCallback(async () => {
     try {
@@ -98,9 +101,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   
   const setActiveVault = useCallback((vaultData: Vault) => {
     setError(null);
+    if (vaultData.id !== vault?.id || vaultData.path !== vault?.path) {
+      folderOpenStateRef.current = new Map();
+    }
     setVault(vaultData);
     refreshRecents();
-  }, [refreshRecents]);
+  }, [refreshRecents, vault]);
 
   const clearActiveVault = useCallback(() => {
     window.api.vault.clear().catch(() => {});
@@ -108,18 +114,20 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setVault(null);
     setNodes([]);
     openedVaultKeyRef.current = null;
+    folderOpenStateRef.current = new Map();
   }, []);
 
   const convertToVaultNodes = useCallback((fileNode: FileNode): VaultNode => {
     const ext = fileNode.isDirectory ? undefined : fileNode.name.includes('.') ? fileNode.name.split('.').pop()?.toLowerCase() : undefined;
     if (fileNode.isDirectory) {
+      const id = fileNode.path || fileNode.name;
       return {
-        id: fileNode.path || fileNode.name,
+        id,
         type: 'folder',
         name: fileNode.name,
         children: fileNode.children?.map(convertToVaultNodes) ?? [],
         childrenLoaded: fileNode.children !== undefined,
-        isOpen: false,
+        isOpen: folderOpenStateRef.current.get(id) ?? false,
       };
     }
     return {
@@ -212,9 +220,9 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setNodes(prev => {
       const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
         if (node.id === id && node.type === 'folder') {
-          return { ...node, children, childrenLoaded: true };
+          return { ...node, children, childrenLoaded: true, isOpen: folderOpenStateRef.current.get(id) ?? node.isOpen ?? false };
         }
-        if (node.type === 'folder') return { ...node, children: update(node.children || []) };
+        if (node.type === 'folder') return { ...node, children: update(node.children || []), isOpen: folderOpenStateRef.current.get(node.id) ?? node.isOpen };
         return node;
       });
       return update(prev);
@@ -397,6 +405,29 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await window.api.files.rename(oldPath, newPath);
   }, [vault]);
   
+  const setFolderOpen = useCallback((id: string, isOpen: boolean) => {
+    folderOpenStateRef.current.set(id, isOpen);
+    setNodes(prev => {
+      const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
+        if (node.id === id && node.type === 'folder') return { ...node, isOpen };
+        if (node.type === 'folder') return { ...node, children: update(node.children || []) };
+        return node;
+      });
+      return update(prev);
+    });
+  }, []);
+
+  const setAllFoldersOpen = useCallback((isOpen: boolean) => {
+    setNodes(prev => {
+      const update = (list: VaultNode[]): VaultNode[] => list.map(node => {
+        if (node.type !== 'folder') return node;
+        folderOpenStateRef.current.set(node.id, isOpen);
+        return { ...node, isOpen, children: update(node.children || []) };
+      });
+      return update(prev);
+    });
+  }, []);
+
   const value: VaultContextType = {
     nodes,
     vault,
@@ -413,6 +444,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     updateFileContent,
     getNodeById,
     expandFolder,
+    setFolderOpen,
+    setAllFoldersOpen,
     nextUntitledName,
     setActiveVault,
     clearActiveVault,

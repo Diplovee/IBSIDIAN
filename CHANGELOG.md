@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.5.31] - 2026-05-06
+
+### Added
+- Material Icon Theme file icons are now used in the file tree, editor tabs, file switcher, and search results.
+- Added special icon mappings for common project files such as Bun lock/config files, LICENSE/LICENCE files, and `.env` variants.
+
+### Changed
+- File tree startup now lazy-loads folders from the vault root for faster app open, vault switch, and refresh behavior.
+- File tree now defaults to collapsed folders on open/refresh and uses a more VS Code-like A→Z presentation.
+
+### Fixed
+- File tree header collapse/expand-all now stays in sync with folder state.
+- Folder open state is preserved across file tree refreshes.
+
 ## [2026.5.30] - 2026-05-06
 
 ### Changed

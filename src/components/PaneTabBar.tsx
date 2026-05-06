@@ -8,15 +8,7 @@ import { ExcalidrawIcon } from './ExcalidrawIcon';
 import { IbsidianIcon } from './IbsidianIcon';
 import { isGroupableTab } from '../utils/tabGrouping';
 import type { BrowserTabGroup, Tab, SavedGroup } from '../types';
-
-const MarkdownTabIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-    <path
-      fill="currentColor"
-      d="M22.27 19.385H1.73A1.73 1.73 0 0 1 0 17.655V6.345a1.73 1.73 0 0 1 1.73-1.73h20.54A1.73 1.73 0 0 1 24 6.345v11.308a1.73 1.73 0 0 1-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885l2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885l-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"
-    />
-  </svg>
-);
+import { renderMaterialFileIcon } from '../utils/fileTreeIcons';
 
 const hexToRgb = (value: string) => {
   const hex = value.replace('#', '').trim();
@@ -131,14 +123,16 @@ const iconForTab = (tab: Tab) => {
   switch (tab.type) {
     case 'browser': return <BrowserFaviconIcon faviconUrl={tab.faviconUrl} pageUrl={tab.url} loading={tab.loading} />;
     case 'draw': return <ExcalidrawIcon size={13} />;
+    case 'image':
+    case 'note':
+    case 'code': return renderMaterialFileIcon(tab.filePath ?? tab.title, 13);
     case 'terminal': return <SquareTerminal size={13} />;
     case 'claude': return <ClaudeIcon size={13} />;
     case 'codex': return <CodexIcon size={13} />;
     case 'pi': return <PiIcon size={13} />;
     case 'productivity': return <ProductivityIcon size={13} />;
     case 'new-tab': return <IbsidianIcon size={13} />;
-    case 'note': return <MarkdownTabIcon size={13} />;
-    default: return <MarkdownTabIcon size={13} />;
+    default: return renderMaterialFileIcon(tab.filePath ?? tab.title, 13);
   }
 };
 

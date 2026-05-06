@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { FileText, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
-import { ExcalidrawIcon } from './ExcalidrawIcon';
+import { renderMaterialFileIcon } from '../utils/fileTreeIcons';
 
 interface FlatFile {
   path: string;
@@ -146,8 +146,8 @@ export const FileSwitcher: React.FC = () => {
               onClick={() => open(file)}
               style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 16, paddingTop: 10, paddingBottom: 10, cursor: 'default', background: i === selectedIndex ? 'var(--bg-hover)' : 'transparent', borderBottom: '1px solid var(--border)' }}
             >
-              <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-                {file.ext === 'excalidraw' ? <ExcalidrawIcon size={14} /> : <FileText size={14} />}
+              <span style={{ color: 'var(--text-muted)', flexShrink: 0, width: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                {renderMaterialFileIcon(`${file.name}.${file.ext}`, 14)}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>

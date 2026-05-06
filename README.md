@@ -50,7 +50,7 @@ Features
 
 * Project & Vault System — Open any existing folder as a project or create a new vault.
 * Project Switcher   — Quick-switch between recent projects via the top-bar dropdown.
-* File Explorer      — Browse all project files; toggle "Show all files" and "Show hidden files" for development.
+* File Explorer      — Faster lazy-loaded project tree with working collapse/expand-all controls, Material-style file icons, and VS Code-like tab/file visuals.
 * Multi-Language Code Editor — Monaco-powered editor with syntax highlighting for 100+ languages.
 * Markdown Editor    — Full-featured Markdown editing with automatic live preview and wikilink support.
 * Enhanced Markdown  — Wikilinks, embeds, callouts, task lists, tables, and GFM basics.
@@ -86,9 +86,9 @@ Tech Stack
     Styling         inline styles + CSS variables
     Editor          Monaco Editor (VS Code)
     Markdown        react-markdown + wikilink/embed helpers
-    File Tree       react-arborist
+    File Tree       react-arborist + lazy folder loading
     Terminal        xterm.js + node-pty (IPC bridge)
-    Icons           lucide-react
+    Icons           lucide-react + Material Icon Theme assets
 
 Documentation
 -------------
@@ -136,7 +136,7 @@ Exposed via contextBridge in the preload script:
     vault.open(vault)              re-register vault on reload
     vault.recent()                 get list of recently opened vaults
     vault.clear()                  clear active vault session
-    files.tree()                   recursive file tree
+    files.tree()                   root-level file tree (lazy folder expansion)
     files.read(path)               read file content
     files.write(path, content)     write file
     files.create(path, type)       create file or folder
