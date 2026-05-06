@@ -34,6 +34,35 @@ import folderNodeIcon from 'material-icon-theme/icons/folder-node.svg';
 import folderNodeOpenIcon from 'material-icon-theme/icons/folder-node-open.svg';
 import folderGitIcon from 'material-icon-theme/icons/folder-git.svg';
 import folderGitOpenIcon from 'material-icon-theme/icons/folder-git-open.svg';
+import applescriptIcon from 'material-icon-theme/icons/applescript.svg';
+import babelIcon from 'material-icon-theme/icons/babel.svg';
+import coffeeIcon from 'material-icon-theme/icons/coffee.svg';
+import cIcon from 'material-icon-theme/icons/c.svg';
+import cppIcon from 'material-icon-theme/icons/cpp.svg';
+import editorconfigIcon from 'material-icon-theme/icons/editorconfig.svg';
+import ejsIcon from 'material-icon-theme/icons/ejs.svg';
+import eslintIcon from 'material-icon-theme/icons/eslint.svg';
+import flowIcon from 'material-icon-theme/icons/flow.svg';
+import gradleIcon from 'material-icon-theme/icons/gradle.svg';
+import graphcoolIcon from 'material-icon-theme/icons/graphcool.svg';
+import handlebarsIcon from 'material-icon-theme/icons/handlebars.svg';
+import hIcon from 'material-icon-theme/icons/h.svg';
+import jarIcon from 'material-icon-theme/icons/jar.svg';
+import javaIcon from 'material-icon-theme/icons/java.svg';
+import kotlinIcon from 'material-icon-theme/icons/kotlin.svg';
+import lockIcon from 'material-icon-theme/icons/lock.svg';
+import nixIcon from 'material-icon-theme/icons/nix.svg';
+import prettierIcon from 'material-icon-theme/icons/prettier.svg';
+import processingIcon from 'material-icon-theme/icons/processing.svg';
+import databaseIcon from 'material-icon-theme/icons/database.svg';
+import swiftIcon from 'material-icon-theme/icons/swift.svg';
+import xmlIcon from 'material-icon-theme/icons/xml.svg';
+import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
+import zipIcon from 'material-icon-theme/icons/zip.svg';
+import documentIcon from 'material-icon-theme/icons/document.svg';
+import javascriptMapIcon from 'material-icon-theme/icons/javascript-map.svg';
+import settingsIcon from 'material-icon-theme/icons/settings.svg';
+import folderIcon from 'material-icon-theme/icons/folder.svg';
 
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']);
 
@@ -57,10 +86,14 @@ const fileNameIcons: Record<string, string> = {
 
 const extensionIcons: Record<string, string> = {
   md: markdownIcon,
+  markdown: markdownIcon,
   ts: typescriptIcon,
   tsx: reactIcon,
+  mts: typescriptIcon,
   js: javascriptIcon,
   jsx: reactIcon,
+  mjs: javascriptIcon,
+  cjs: javascriptIcon,
   json: jsonIcon,
   yml: yamlIcon,
   yaml: yamlIcon,
@@ -81,6 +114,72 @@ const extensionIcons: Record<string, string> = {
   bmp: imageIcon,
   ico: imageIcon,
   avif: imageIcon,
+  // Additional extensions
+  c: cIcon,
+  cc: cIcon,
+  cpp: cppIcon,
+  h: hIcon,
+  java: javaIcon,
+  jar: jarIcon,
+  kt: kotlinIcon,
+  swift: swiftIcon,
+  coffee: coffeeIcon,
+  jsx: reactIcon,
+  tsx: reactIcon,
+  csv: databaseIcon,
+  sql: databaseIcon,
+  xml: xmlIcon,
+  yaml: yamlIcon,
+  yml: yamlIcon,
+  toml: tomlIcon,
+  lock: lockIcon,
+  eslintrc: eslintIcon,
+  eslintignore: eslintIcon,
+  eslintcache: eslintIcon,
+  prettierrc: prettierIcon,
+  editorconfig: editorconfigIcon,
+  nix: nixIcon,
+  gradle: gradleIcon,
+  flow: flowIcon,
+  ejs: ejsIcon,
+  hbs: handlebarsIcon,
+  babelrc: babelIcon,
+  applescript: applescriptIcon,
+  wasm: webassemblyIcon,
+  gyp: gradleIcon,
+  gypi: gradleIcon,
+  gz: zipIcon,
+  tar: zipIcon,
+  txt: documentIcon,
+  list: documentIcon,
+  map: javascriptMapIcon,
+  properties: settingsIcon,
+  podspec: swiftIcon,
+  m: cIcon,
+  info: documentIcon,
+  sample: documentIcon,
+  example: documentIcon,
+  local: databaseIcon,
+  opts: settingsIcon,
+  pack: jarIcon,
+  pegjs: javascriptIcon,
+  rev: documentIcon,
+  scandir: folderIcon,
+  stat: documentIcon,
+  walk: documentIcon,
+  mailmap: documentIcon,
+  iml: javaIcon,
+  idx: javascriptIcon,
+  npmignore: eslintIcon,
+  nycrc: eslintIcon,
+  pro: processingIcon,
+  bnf: documentIcon,
+  bare: documentIcon,
+  bplist: xmlIcon,
+  br: documentIcon,
+  bsd: documentIcon,
+  42: documentIcon,
+  apache2: lockIcon,
 };
 
 const folderIcons: Record<string, { closed: string; open: string }> = {
