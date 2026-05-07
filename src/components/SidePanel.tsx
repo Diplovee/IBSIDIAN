@@ -386,22 +386,37 @@ const FileTreeView: React.FC = () => {
     });
   }, [confirm, deleteItem, refreshFileTree]);
 
-  const createNamedFile = useCallback(async (ext: 'md' | 'excalidraw') => {
+  const createNamedFile = useCallback(async (defaultExt: string) => {
     const requestedName = await prompt({
-      title: ext === 'md' ? 'New note' : 'New drawing',
-      placeholder: ext === 'md' ? 'Note name' : 'Drawing name',
-      defaultValue: nextUntitledName(),
+      title: defaultExt === 'md' ? 'New note' : defaultExt === 'excalidraw' ? 'New drawing' : 'New file',
+      placeholder: 'filename.ext',
+      defaultValue: `${nextUntitledName()}.${defaultExt}`,
       confirmLabel: 'Create',
     });
     if (!requestedName) return;
 
-    const name = normalizeNewItemName(requestedName, ext);
+    let finalName = requestedName.trim();
+    let ext = defaultExt;
+    
+    // Check if user provided an extension
+    const lastDotIndex = finalName.lastIndexOf('.');
+    if (lastDotIndex > 0 && lastDotIndex < finalName.length - 1) {
+      ext = finalName.slice(lastDotIndex + 1).toLowerCase();
+      finalName = finalName.slice(0, lastDotIndex);
+    }
+
+    const name = normalizeNewItemName(finalName, ext);
     const folder = ext === 'excalidraw' ? 'DRAW' : '';
     const filePath = folder ? `${folder}/${name}.${ext}` : `${name}.${ext}`;
     
-    createFileRemote(folder, name, ext).then(() => {
+    createFileRemote(folder, name, ext as any).then(() => {
       refreshFileTree(undefined, { showLoading: false });
-      openTab({ type: ext === 'md' ? 'note' : 'draw', title: name, filePath });
+      let tabType: any = 'code';
+      if (ext === 'md') tabType = 'note';
+      else if (ext === 'excalidraw') tabType = 'draw';
+      else if (isImageExt(ext)) tabType = 'image';
+
+      openTab({ type: tabType, title: name, filePath });
     });
   }, [createFileRemote, nextUntitledName, openTab, prompt, refreshFileTree]);
 
@@ -429,6 +444,7 @@ const FileTreeView: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative', zIndex: 2, background: 'var(--bg-secondary)' }}>
+          <SidebarBtn icon={<FilePlus2 size={15} />} title="New file" onClick={() => createNamedFile('txt')} />
           <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => createNamedFile('md')} />
           <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => createNamedFile('excalidraw')} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
