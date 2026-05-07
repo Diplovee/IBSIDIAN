@@ -20,6 +20,7 @@ import 'xterm/css/xterm.css';
 import { ClaudeIcon, CodexIcon, PiIcon } from './AgentIcons';
 import { ProductivityChat } from './ProductivityChat';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
+import { DrawList } from './DrawList';
 import { PaneTabBar } from './PaneTabBar';
 import { EditorContextMenu } from './EditorContextMenu';
 import {
@@ -27,7 +28,7 @@ import {
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, Check, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight, X, Pin, Eye, EyeOff, Plus,
+  Trash2, ChevronRight, X, Pin, Eye, EyeOff, Plus, Home,
 } from 'lucide-react';
 import {
   CALL_OUT_STYLES,
@@ -435,6 +436,7 @@ export const Canvas: React.FC = () => {
           <>
             {(activeTab.type === 'note' || activeTab.type === 'code') && <EditorTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'draw' && <DrawTab key={activeTab.id} tab={activeTab} />}
+            {activeTab.type === 'draw-list' && <DrawList key={activeTab.id} />}
             {activeTab.type === 'image' && <ImageTab key={activeTab.id} tab={activeTab} />}
             {activeTab.type === 'new-tab' && <NewTabScreen key={activeTab.id} tab={activeTab} />}
           </>
@@ -798,19 +800,8 @@ const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
     openTab({ type: 'terminal', title: 'Terminal' });
   };
 
-  const openDrawingTab = async () => {
-    const requestedName = await prompt({
-      title: 'New drawing',
-      placeholder: 'Drawing name',
-      defaultValue: nextUntitledName(),
-      confirmLabel: 'Create',
-    });
-    if (!requestedName) return;
-    const name = requestedName.trim().replace(/\.excalidraw$/, '');
-    if (!name) return;
-    await createFileRemote('', name, 'excalidraw');
-    await refreshFileTree(undefined, { showLoading: false });
-    openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
+  const openDrawingsList = () => {
+    openTab({ type: 'draw-list', title: 'Drawings' });
     closeTab(tab.id);
   };
 
@@ -825,6 +816,10 @@ const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
           <button onClick={() => { void createMarkdownNote(); }} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>New note</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Create a Markdown note in the vault.</div>
+          </button>
+          <button onClick={openDrawingsList} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Manage drawings</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Open the drawings gallery to view and create sketches.</div>
           </button>
           <button onClick={openBrowserTab} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>New browser tab</div>
@@ -2475,6 +2470,34 @@ const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}>
+      <div style={{ 
+        position: 'absolute', 
+        top: 10, 
+        left: 10, 
+        zIndex: 10,
+        display: 'flex',
+        gap: 8
+      }}>
+        <button
+          onClick={() => openTab({ type: 'draw-list', title: 'Drawings' })}
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+          title="Back to Gallery"
+        >
+          <Home size={16} />
+        </button>
+      </div>
       {(notice || saveError) && (
         <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 12, color: saveError ? '#ef4444' : 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
           {saveError || notice}
