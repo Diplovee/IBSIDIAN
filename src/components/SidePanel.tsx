@@ -444,8 +444,7 @@ const FileTreeView: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }} ref={containerRef}>
         {/* Header */}
         <div style={{ height: headerHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '0 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, position: 'relative', zIndex: 2, background: 'var(--bg-secondary)' }}>
-          <SidebarBtn icon={<FilePlus2 size={15} />} title="New file" onClick={() => createNamedFile('txt')} />
-          <SidebarBtn icon={<FilePen size={15} />} title="New note" onClick={() => createNamedFile('md')} />
+          <SidebarBtn icon={<FilePlus2 size={15} />} title="New file" onClick={() => createNamedFile('md')} />
           <SidebarBtn icon={<ExcalidrawIcon size={15} />} title="New drawing" onClick={() => createNamedFile('excalidraw')} />
           <SidebarBtn icon={<FolderPlus size={15} />} title="New folder" onClick={createNamedFolder} />
           <SidebarBtn icon={<ArrowUpNarrowWide size={15} />} title={sortOrder === 'none' ? 'Sort A→Z' : sortOrder === 'asc' ? 'Sort Z→A' : 'Remove sort'} active={sortOrder !== 'none'} onClick={handleSort} />
