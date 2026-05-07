@@ -1,4 +1,5 @@
 import React from 'react';
+import { ExcalidrawIcon } from '../components/ExcalidrawIcon';
 
 import defaultFileIcon from 'material-icon-theme/icons/file.svg';
 import markdownIcon from 'material-icon-theme/icons/markdown.svg';
@@ -183,6 +184,7 @@ const folderIcons: Record<string, { closed: string; open: string }> = {
   public: { closed: folderPublicIcon, open: folderPublicOpenIcon },
   'node_modules': { closed: folderNodeIcon, open: folderNodeOpenIcon },
   '.git': { closed: folderGitIcon, open: folderGitOpenIcon },
+  draw: { closed: folderPublicIcon, open: folderPublicOpenIcon },
 };
 
 const imgStyle: React.CSSProperties = {
@@ -208,6 +210,11 @@ const normalize = (value: string) => value.toLowerCase();
 export const renderMaterialFileIcon = (fileName: string, size: number) => {
   const normalizedName = normalize(fileName);
   const ext = fileName.includes('.') ? normalize(fileName.split('.').pop() || '') : '';
+  
+  if (ext === 'excalidraw') {
+    return <ExcalidrawIcon size={size} color="#e67700" style={{ ...imgStyle, display: 'inline-block', verticalAlign: 'middle' }} />;
+  }
+
   const envIconStyle = getEnvIconStyle(fileName);
   const src = normalizedName.startsWith('.env')
     ? tuneIcon

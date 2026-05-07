@@ -1,5 +1,5 @@
 import { readFile, stat, mkdir, readdir, writeFile, rm } from 'fs/promises';
-import { join, relative, sep } from 'path';
+import { join, relative, sep, dirname } from 'path';
 import { randomBytes } from 'crypto';
 import * as pty from 'node-pty';
 import type { ServerWebSocket } from 'bun';
@@ -559,6 +559,7 @@ energy:
       if (req.method === 'PUT') {
         // Write file
         const body = await req.json() as { content: string };
+        await mkdir(dirname(filePath), { recursive: true });
         await writeFile(filePath, body.content, 'utf8');
         return new Response(JSON.stringify({ success: true }), {
           headers: { 'Content-Type': 'application/json' }
@@ -577,6 +578,7 @@ energy:
         if (type === 'directory') {
           await mkdir(targetPath, { recursive: true });
         } else {
+          await mkdir(dirname(targetPath), { recursive: true });
           await writeFile(targetPath, content || '', 'utf8');
         }
         

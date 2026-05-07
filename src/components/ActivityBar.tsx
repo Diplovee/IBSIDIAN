@@ -47,9 +47,10 @@ export const ActivityBar: React.FC = () => {
     const requestedName = await prompt({ title: 'New drawing', placeholder: 'Drawing name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
     if (!requestedName) return;
     const name = normalizeNewItemName(requestedName, 'excalidraw');
-    createFileRemote('', name, 'excalidraw').then(() => {
+    const folder = 'DRAW';
+    createFileRemote(folder, name, 'excalidraw').then(() => {
       refreshFileTree(undefined, { showLoading: false });
-      openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
+      openTab({ type: 'draw', title: name, filePath: `${folder}/${name}.excalidraw` });
     });
   };
   const handleOpenTerminal = () => openTab({ type: 'terminal', title: 'Terminal' });
@@ -76,6 +77,7 @@ export const ActivityBar: React.FC = () => {
           <div style={{ width: 24, height: 1, background: 'var(--border)', margin: '4px 0' }} />
           <ActivityButton icon={<Globe size={18} />} onClick={handleOpenBrowser} />
           <ActivityButton icon={<SquareTerminal size={18} />} onClick={handleOpenTerminal} />
+          <ActivityButton icon={<ExcalidrawIcon size={18} />} title="New drawing" onClick={handleOpenDraw} />
           {order.filter(k => agents[k]).map(key => {
             const a = AGENT_META[key];
             if (key === 'codex') {

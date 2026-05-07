@@ -396,9 +396,12 @@ const FileTreeView: React.FC = () => {
     if (!requestedName) return;
 
     const name = normalizeNewItemName(requestedName, ext);
-    createFileRemote('', name, ext).then(() => {
+    const folder = ext === 'excalidraw' ? 'DRAW' : '';
+    const filePath = folder ? `${folder}/${name}.${ext}` : `${name}.${ext}`;
+    
+    createFileRemote(folder, name, ext).then(() => {
       refreshFileTree(undefined, { showLoading: false });
-      openTab({ type: ext === 'md' ? 'note' : 'draw', title: name, filePath: `${name}.${ext}` });
+      openTab({ type: ext === 'md' ? 'note' : 'draw', title: name, filePath });
     });
   }, [createFileRemote, nextUntitledName, openTab, prompt, refreshFileTree]);
 

@@ -33,9 +33,10 @@ export const CommandPalette: React.FC = () => {
       const requestedName = await prompt({ title: 'New drawing', placeholder: 'Drawing name', defaultValue: nextUntitledName(), confirmLabel: 'Create' });
       if (!requestedName) return;
       const name = normalizeNewItemName(requestedName, 'excalidraw');
-      createFileRemote('', name, 'excalidraw').then(() => {
+      const folder = 'DRAW';
+      createFileRemote(folder, name, 'excalidraw').then(() => {
         refreshFileTree(undefined, { showLoading: false });
-        openTab({ type: 'draw', title: name, filePath: `${name}.excalidraw` });
+        openTab({ type: 'draw', title: name, filePath: `${folder}/${name}.excalidraw` });
       });
     } },
     { label: 'Open Terminal',  shortcut: 'T', action: () => openTab({ type: 'terminal', title: 'Terminal' }) },
