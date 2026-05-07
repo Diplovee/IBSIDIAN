@@ -28,7 +28,7 @@ import {
   MoreHorizontal, Code, PanelRight, PanelBottom, PanelLeft,
   ExternalLink, Pencil, FolderInput, Bookmark,
   Download, Search, Copy, Check, History, Link2, ArrowUpRight, FolderOpen,
-  Trash2, ChevronRight, X, Pin, Eye, EyeOff, Plus, Home,
+  Trash2, ChevronRight, X, Pin, Eye, EyeOff, Plus,
 } from 'lucide-react';
 import {
   CALL_OUT_STYLES,
@@ -801,7 +801,7 @@ const NewTabScreen: React.FC<{ tab: any }> = ({ tab }) => {
   };
 
   const openDrawingsList = () => {
-    openTab({ type: 'draw-list', title: 'Drawings' });
+    openTab({ type: 'draw-list', title: 'Drawings', filePath: 'ibsidian://drawings' });
     closeTab(tab.id);
   };
 
@@ -2470,34 +2470,6 @@ const DrawTab: React.FC<{ tab: Tab }> = ({ tab }) => {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}>
-      <div style={{ 
-        position: 'absolute', 
-        top: 10, 
-        left: 10, 
-        zIndex: 10,
-        display: 'flex',
-        gap: 8
-      }}>
-        <button
-          onClick={() => openTab({ type: 'draw-list', title: 'Drawings' })}
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--bg-primary)',
-            color: 'var(--text-secondary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-          title="Back to Gallery"
-        >
-          <Home size={16} />
-        </button>
-      </div>
       {(notice || saveError) && (
         <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 12, color: saveError ? '#ef4444' : 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
           {saveError || notice}

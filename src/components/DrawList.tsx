@@ -3,55 +3,73 @@ import { useVault } from '../contexts/VaultContext';
 import { useTabs } from '../contexts/TabsContext';
 import { useModal } from './Modal';
 import { ExcalidrawIcon } from './ExcalidrawIcon';
-import { Plus, FolderOpen, Pencil, Trash2, Home } from 'lucide-react';
+import { Plus, FolderOpen, Pencil, Trash2 } from 'lucide-react';
 import { normalizeNewItemName } from '../utils/fileNaming';
 
 export const DrawList: React.FC = () => {
   const { nodes, createFileRemote, refreshFileTree, nextUntitledName, deleteItem } = useVault();
-  const { openTab, closeTab } = useTabs();
+  const { openTab } = useTabs();
   const { prompt, confirm } = useModal();
 
-  // ... (rest of helper functions)
+  const findDrawFolder = (nodeList: any[]): any => {
+    for (const n of nodeList) {
+      if (n.type === 'folder' && n.name.toUpperCase() === 'DRAW') return n;
+      if (n.type === 'folder' && n.children) {
+        const found = findDrawFolder(n.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
 
-  const handleGoHome = () => {
-    openTab({ type: 'new-tab', title: 'New tab' });
+  const drawFolder = findDrawFolder(nodes);
+  const drawings = drawFolder?.children?.filter((n: any) => n.type === 'file' && n.ext === 'excalidraw') || [];
+
+  const handleCreateNew = async () => {
+    const requestedName = await prompt({
+      title: 'New drawing',
+      placeholder: 'Drawing name',
+      defaultValue: nextUntitledName(),
+      confirmLabel: 'Create',
+    });
+    if (!requestedName) return;
+    const name = normalizeNewItemName(requestedName, 'excalidraw');
+    const folder = drawFolder ? drawFolder.id : 'DRAW';
+    await createFileRemote(folder, name, 'excalidraw');
+    await refreshFileTree(undefined, { showLoading: false });
+    openTab({ type: 'draw', title: name, filePath: `${folder}/${name}.excalidraw` });
+  };
+
+  const handleOpen = (drawing: any) => {
+    openTab({ type: 'draw', title: drawing.name.replace(/\.excalidraw$/, ''), filePath: drawing.id });
+  };
+
+  const handleDelete = async (drawing: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ok = await confirm({
+      title: 'Delete drawing',
+      message: `Are you sure you want to delete "${drawing.name.replace(/\.excalidraw$/, '')}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (ok) {
+      await deleteItem(drawing.id);
+      await refreshFileTree(undefined, { showLoading: false });
+    }
   };
 
   return (
     <div style={{ flex: 1, padding: '40px 60px', overflowY: 'auto', background: 'var(--bg-primary)' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <button
-              onClick={handleGoHome}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              title="Go to Home"
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-            >
-              <Home size={20} />
-            </button>
-            <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <ExcalidrawIcon size={32} color="#e67700" />
-                Drawings
-              </h1>
-              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 8 }}>
-                Manage your Excalidraw diagrams and sketches in the DRAW folder.
-              </p>
-            </div>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <ExcalidrawIcon size={32} color="#e67700" />
+              Drawings
+            </h1>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 8 }}>
+              Manage your Excalidraw diagrams and sketches in the DRAW folder.
+            </p>
           </div>
           <button
             onClick={handleCreateNew}
